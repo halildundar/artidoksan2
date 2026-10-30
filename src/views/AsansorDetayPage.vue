@@ -6,7 +6,9 @@ import { getAsansor, updateAsansor, type Asansor, type AsansorGuncelleme, type G
 import { getAksamBelgeleri, type AksamBelgesi } from '@/services/aksamBelgesiService';
 import { getSmmFirmalari, type SmmFirmasi } from '@/services/smmFirmaService';
 import SmmFirmaSecModal from '@/components/SmmFirmaSecModal.vue';
-import { getDosyaUrl, getDosyaIndirUrl, type BelgeSlot } from '@/services/dosyaService';
+import { getDosyaUrl, getDosyaIndirUrl, uploadDosya, type BelgeSlot } from '@/services/dosyaService';
+import FotoCekModal from '@/components/FotoCekModal.vue';
+import SilmeOnayi from '@/components/SilmeOnayi.vue';
 import type { AdresKaydi } from '@/services/adresService';
 import { useFileViewer, fileViewerTypeFromMime } from '@/composables/useFileViewer';
 import KapiKilitleriModal from '@/components/sema/KapiKilitleriModal.vue';
@@ -752,6 +754,7 @@ const bolumler = computed<Bolum[]>(() => [
   { key: 'kuyu-ust-alani', label: 'Kuyu Üst Alanı', icon: '🔝' },
   { key: 'agirlik-hesabi', label: 'Ağırlık Hesabı', icon: '⚖' },
   { key: 'halat-kasnaklar', label: 'Halat ve Kasnaklar', icon: '🔗' },
+  { key: 'kurum-evraklari', label: 'Kurum Evrakları', icon: '📄' },
   ...(asansor.value?.makinaKonumu === 'MR'
     ? [{ key: 'makine-dairesi', label: 'Makine Dairesi', icon: '🏠' }]
     : []),
@@ -915,6 +918,12 @@ function bolumAc(bolum: Bolum) {
   blurActive();
   const a = asansor.value;
   if (!a) return;
+
+  if (bolum.key === 'kurum-evraklari') {
+    kurumEvrakOnizlemeleriYukle();
+    kurumEvrakAcik.value = true;
+    return;
+  }
 
   if (bolum.key === 'agirlik-hesabi') {
     karkasAgirligiL.value = a.karkasAgirligi ?? null;
@@ -1286,6 +1295,60 @@ function ozetBelgeDosyasi(belgeId: string | null) {
 
 async function ozetBelgeAc(belgeId: string | null) {
   await dosyaSlotAc(ozetBelgeDosyasi(belgeId));
+}
+
+// ---- Kurum Evrakları: dosya/foto listesi — yükleme ve fotoğraf çekme hep
+// listenin sonuna ekler; satırlar görüntülenir, SilmeOnayi ile silinir ----
+const kurumEvrakAcik = ref(false);
+const kurumEvrakYukleniyor = ref(false);
+const kurumFotoAcik = ref(false);
+const kurumEvrakSilinecek = ref<number | null>(null);
+// Resim satırlarının küçük önizlemeleri (dosyaAnahtari → url)
+const kurumEvrakOnizlemeler = ref<Record<string, string>>({});
+
+function kurumEvrakOnizlemeleriYukle() {
+  for (const slot of asansor.value?.kurumEvraklari ?? []) {
+    if (!slot.mimeType?.startsWith('image/') || kurumEvrakOnizlemeler.value[slot.dosyaAnahtari]) continue;
+    getDosyaUrl(slot.dosyaAnahtari)
+      .then((url) => (kurumEvrakOnizlemeler.value[slot.dosyaAnahtari] = url))
+      .catch(() => { /* önizleme alınamazsa satırda dosya ikonu kalır */ });
+  }
+}
+
+async function kurumEvrakEkle(files: File[]) {
+  const a = asansor.value;
+  if (!a || !files.length) return;
+  kurumEvrakYukleniyor.value = true;
+  try {
+    const slotlar: BelgeSlot[] = [];
+    for (const file of files) slotlar.push(await uploadDosya(file));
+    await guncelle({ kurumEvraklari: [...(a.kurumEvraklari ?? []), ...slotlar] });
+    kurumEvrakOnizlemeleriYukle();
+  } catch (e) {
+    hata.value = e instanceof Error ? e.message : 'Yükleme başarısız';
+  } finally {
+    kurumEvrakYukleniyor.value = false;
+  }
+}
+
+// PDF/resim dışındakiler elenir (gizli inputun accept filtresiyle uyumlu)
+function kurumEvrakSec(event: Event) {
+  const input = event.target as HTMLInputElement;
+  const files = Array.from(input.files ?? []).filter(
+    (f) => f.type === 'application/pdf' || f.type.startsWith('image/')
+  );
+  input.value = '';
+  kurumEvrakEkle(files);
+}
+
+async function kurumEvrakSilOnayla() {
+  const a = asansor.value;
+  const i = kurumEvrakSilinecek.value;
+  kurumEvrakSilinecek.value = null;
+  if (!a || i == null) return;
+  const liste = [...(a.kurumEvraklari ?? [])];
+  liste.splice(i, 1);
+  await guncelle({ kurumEvraklari: liste });
 }
 
 // Herhangi bir dosya slotunu tam ekran görüntüleyicide açar
@@ -2169,5 +2232,75 @@ const bolumOzetleri = computed<Record<string, [string, string][]>>(() => {
       v-model:kabin-ust-durma="kabinUstDurmaL" v-model:son-kat="sonKatL"
       v-model:durma-alani="kuyuUstDurmaAlaniL" :hiz="asansor?.hiz ?? null"
       :dip-bosluk="asansor?.kuyuDipKarsiBosluk ?? null" :dip-stroke="asansor?.kuyuDipKarsiStroke ?? null" />
+
+    <!-- Kurum Evrakları — dosya/foto listesi: görüntüleme, dosya yükleme,
+    fotoğraf çekme; her değişiklik anında kaydedilir -->
+    <SemaModal v-model:open="kurumEvrakAcik" title="Kurum Evrakları">
+      <div class="space-y-2">
+        <div class="flex items-center justify-between gap-2">
+          <p class="text-xs font-semibold text-ink">
+            Evraklar ({{ asansor?.kurumEvraklari?.length ?? 0 }})
+          </p>
+          <div class="flex shrink-0 gap-1.5">
+            <label
+              class="flex cursor-pointer items-center gap-1 border border-dashed border-white/20 px-2.5 py-1.5 text-[11px] font-semibold text-ink-muted active:border-white/40 active:text-ink">
+              <input type="file" multiple accept="application/pdf,image/*" class="hidden"
+                @change="kurumEvrakSec" />
+              <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                <path d="m17 8-5-5-5 5" />
+                <path d="M12 3v12" />
+              </svg>
+              Dosya Yükle
+            </label>
+            <button type="button" @click="kurumFotoAcik = true"
+              class="flex items-center gap-1 bg-[#2b5c3d] px-2.5 py-1.5 text-[11px] font-semibold text-ink ring-1 ring-white/10 active:bg-[#346e4a]">
+              <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z" />
+                <circle cx="12" cy="13" r="3" />
+              </svg>
+              Fotoğraf Çek
+            </button>
+          </div>
+        </div>
+
+        <p v-if="kurumEvrakYukleniyor" class="py-1 text-center text-[11px] text-ink-muted">Yükleniyor…</p>
+        <p v-if="!asansor?.kurumEvraklari?.length && !kurumEvrakYukleniyor"
+          class="py-2 text-center text-xs text-ink-muted">
+          Henüz kurum evrakı eklenmedi.
+        </p>
+
+        <div v-for="(d, i) in asansor?.kurumEvraklari ?? []" :key="d.dosyaAnahtari"
+          class="flex items-center gap-2 bg-surface-900/60 px-2 py-1.5 ring-1 ring-white/5">
+          <button type="button" @click="dosyaSlotAc(d)" aria-label="Evrakı görüntüle"
+            class="grid h-11 w-11 shrink-0 place-items-center overflow-hidden bg-surface-900 ring-1 ring-white/10">
+            <img v-if="kurumEvrakOnizlemeler[d.dosyaAnahtari]" :src="kurumEvrakOnizlemeler[d.dosyaAnahtari]"
+              :alt="d.dosyaAdi" class="h-full w-full object-cover" />
+            <svg v-else class="h-5 w-5 text-ink-muted" viewBox="0 0 24 24" fill="none"
+              stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7z" />
+              <path d="M14 2v4a2 2 0 0 0 2 2h4" />
+            </svg>
+          </button>
+          <button type="button" @click="dosyaSlotAc(d)" class="min-w-0 flex-1 text-left">
+            <span class="block truncate text-xs font-medium text-ink">{{ d.dosyaAdi }}</span>
+          </button>
+          <button type="button" @click="kurumEvrakSilinecek = i" aria-label="Evrakı sil"
+            class="grid h-6.5 w-7 shrink-0 place-items-center bg-surface-900 text-red-300/80 ring-1 ring-red-500/20">
+            ✕
+          </button>
+        </div>
+      </div>
+    </SemaModal>
+
+    <FotoCekModal v-model:acik="kurumFotoAcik" @tamam="kurumEvrakEkle" />
+
+    <SilmeOnayi :acik="kurumEvrakSilinecek != null"
+      :aciklama="kurumEvrakSilinecek != null
+        ? `${asansor?.kurumEvraklari?.[kurumEvrakSilinecek]?.dosyaAdi || 'Kurum evrakı'}`
+        : ''"
+      @vazgec="kurumEvrakSilinecek = null" @onayla="kurumEvrakSilOnayla" />
   </ion-page>
 </template>

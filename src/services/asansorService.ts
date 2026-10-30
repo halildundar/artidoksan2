@@ -192,6 +192,8 @@ export interface Asansor {
   kapiPanelleriMarka: string;
   kapiPanelleriMarka2: string;
   ekBelgeler: AsansorEkBelge[];
+  // Kurum evrakları: serbest dosya/fotoğraf listesi (yükleme hep sona ekler)
+  kurumEvraklari?: BelgeSlot[];
   // Durak/kabin kapı kilidi montaj fotoğrafları (1. ve 2. giriş ayrı)
   durakKilitFotolari: BelgeSlot[];
   durakKilitFotolari2: BelgeSlot[];

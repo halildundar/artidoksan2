@@ -223,6 +223,8 @@ const asansorSchema = new mongoose.Schema(
     kapiPanelleriMarka: { type: String, trim: true, default: '' },
     kapiPanelleriMarka2: { type: String, trim: true, default: '' },
     ekBelgeler: { type: [ekBelgeSchema], default: [] },
+    // Kurum evrakları: serbest dosya/fotoğraf listesi (yükleme hep sona ekler)
+    kurumEvraklari: { type: [dosyaSlotSchema], default: [] },
     // Durak/kabin kapı kilidi montaj fotoğrafları (1. ve 2. giriş ayrı)
     durakKilitFotolari: { type: [dosyaSlotSchema], default: [] },
     durakKilitFotolari2: { type: [dosyaSlotSchema], default: [] },

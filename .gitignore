@@ -42,3 +42,6 @@ npm-debug.log*
 # Atlas kimlik bilgileri — asla commit edilmez
 atlas-credentials.env
 atlas-crediental.env
+
+# Render API anahtari - asla commit edilmez
+render-api-key.txt

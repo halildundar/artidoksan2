@@ -266,6 +266,7 @@ export function asansorBelgeSatirlari(a: Asansor): BelgeSatiri[] {
     { etiket: 'Giriş 2 Cam Belgesi', slot: a.giris2CamBelgesi ?? null },
     { etiket: 'Kabin Cam Belgesi', slot: a.kabinCamBelgesi ?? null },
     ...(a.ekBelgeler ?? []).map((e) => ({ etiket: e.ad, slot: e.dosya ?? null })),
+    ...(a.kurumEvraklari ?? []).map((d, i) => ({ etiket: `Kurum Evrakı ${i + 1}`, slot: d })),
   ].filter((b) => b.slot);
 }
 
