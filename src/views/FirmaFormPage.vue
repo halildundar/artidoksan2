@@ -24,13 +24,9 @@ const RESIM_SLOTLARI: { anahtar: BelgeSlotAnahtar; etiket: string }[] = [
   { anahtar: 'logo', etiket: 'Logo' },
   { anahtar: 'imzaKase', etiket: 'İmza & Kaşe' },
 ];
-// 4 resmi belge yuvası (PDF veya resim)
-const BELGE_SLOTLARI: { anahtar: BelgeSlotAnahtar; etiket: string }[] = [
-  { anahtar: 'imzaSirkusu', etiket: 'İmza Sirküsü' },
-  { anahtar: 'vergiLevhasi', etiket: 'Vergi Levhası' },
-  { anahtar: 'sicilGazetesi', etiket: 'Sicil Gazetesi' },
-  { anahtar: 'faaliyetBelgesi', etiket: 'Faaliyet Belgesi' },
-];
+// Kurum evrakları (imza sirküsü, vergi levhası, sicil gazetesi, faaliyet
+// belgesi) bu formda DEĞİL — Firmalar > Genel Bilgiler'deki çoklu dosya
+// listesinden yönetilir (kullanıcı isteği, 30 Eki 2026).
 
 const onizleme = ref<Partial<Record<BelgeSlotAnahtar, string>>>({});
 const slotYukleniyor = ref<Partial<Record<BelgeSlotAnahtar, boolean>>>({});
@@ -222,27 +218,6 @@ async function kaydet() {
             </div>
           </div>
 
-          <!-- Resmi belgeler: PDF veya resim, alt alta -->
-          <div class="space-y-1.5">
-            <div v-for="s in BELGE_SLOTLARI" :key="s.anahtar" class="space-y-0.5">
-              <label class="flex cursor-pointer items-center gap-2 bg-surface-900 px-2.5 py-2 ring-1 ring-white/10">
-                <input type="file" accept="application/pdf,image/*" class="hidden"
-                  @change="dosyaSecildi(s.anahtar, $event, false)" />
-                <span class="w-28 shrink-0 text-xs font-medium text-ink-muted">{{ s.etiket }}</span>
-                <span class="min-w-0 flex-1 truncate text-xs"
-                  :class="form.belgeler[s.anahtar] ? 'text-ink' : 'text-ink-muted/50'">
-                  {{ slotYukleniyor[s.anahtar] ? 'Yükleniyor…' : (form.belgeler[s.anahtar]?.dosyaAdi || 'Dosya seç (PDF / Resim)') }}
-                </span>
-                <svg class="h-4 w-4 shrink-0 text-ink-muted" viewBox="0 0 24 24" fill="none"
-                  stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M12 15V3" />
-                  <path d="m7 8 5-5 5 5" />
-                  <path d="M5 21h14" />
-                </svg>
-              </label>
-              <p v-if="slotHata[s.anahtar]" class="text-[11px] text-red-300">{{ slotHata[s.anahtar] }}</p>
-            </div>
-          </div>
         </form>
       </div>
     </ion-content>
