@@ -158,7 +158,13 @@ watch(isOpen, async (open) => {
             target="_blank"
             rel="noopener"
           >
-            ⭳
+            <!-- Unicode ok (⭳) Android fontlarında yok — SVG ikon kullanılır -->
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+              stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M12 3v12" />
+              <path d="m8 11 4 4 4-4" />
+              <path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2" />
+            </svg>
           </a>
           <button type="button" class="file-viewer__btn" aria-label="Kapat" @click="closeFile">✕</button>
         </div>
