@@ -16,8 +16,8 @@ export default defineConfig({
     VitePWA({
       registerType: 'autoUpdate',
       manifest: {
-        name: 'Artidoksan',
-        short_name: 'Artidoksan',
+        name: 'TüvNord Asansör',
+        short_name: 'TüvNord Asansör',
         theme_color: '#0d1612',
         background_color: '#0d1612',
         icons: [
