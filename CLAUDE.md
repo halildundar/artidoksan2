@@ -15,7 +15,7 @@ Tek kod tabanından **Web + Android + iOS** hedefleyen bir mobil/web uygulaması
 - **Görsel katman:** **Tailwind CSS** + projenin kendi komponentleri. `ion-button`, `ion-card` gibi görsel Ionic bileşenlerini KULLANMA; görünüm Tailwind ile yazılır.
 - **Native paketleme:** Capacitor (Android yerelde, iOS bulut build — Codemagic)
 - **Build aracı:** Vite
-- **Backend:** Ayrı bir Node.js/Express API (bu depoda değil). Tüm HTTP çağrıları `src/services/` altındaki servis katmanından yapılır; komponent içinden doğrudan `fetch` çağırma.
+- **Backend:** Node.js/Express API — bu deponun `api/` klasöründe (Render'da ayrı servis olarak çalışır). Tüm HTTP çağrıları `src/services/` altındaki servis katmanından yapılır; komponent içinden doğrudan `fetch` çağırma.
 
 ## Komutlar
 
