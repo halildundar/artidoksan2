@@ -32,7 +32,6 @@ import {
   type KapiOlcum,
 } from '@/components/sema/kapiKilitleriTipleri';
 import { blurActive } from '@/utils/blurActive';
-import { rayTipiEtiketi } from '@/utils/rayTipleri';
 import SemaModal from '@/components/SemaModal.vue';
 import AgirlikHesabiModal from '@/components/sema/AgirlikHesabiModal.vue';
 import KabinOlculeriModal from '@/components/sema/KabinOlculeriModal.vue';
@@ -49,7 +48,6 @@ import {
   MAKINA_KONUMU_ETIKETLERI,
   AGIRLIK_KONUMU_ETIKETLERI,
   GIRIS_TIPI_ETIKETLERI,
-  HALAT_SEKLI_ETIKETLERI,
   HALAT_TIPI_DEGERLERI,
 } from '@/utils/asansorSecenekler';
 
@@ -1545,11 +1543,6 @@ watch(makineRiskAnaliziAcik, (acik, onceki) => {
   guncelle({ makineDairesiRiskMaddeleri: makineRiskSecimL.value });
 });
 
-// ---- Özet yardımcıları ----
-function mm(v: number | null | undefined): string {
-  return v != null ? `${v} mm` : '—';
-}
-
 // Ön bilgi kartındaki etiket/değer çiftleri
 const onBilgi = computed(() => {
   const a = asansor.value;
@@ -1572,143 +1565,6 @@ const onBilgi = computed(() => {
   ] as [string, string][];
 });
 
-// Her bölümün özet satırları — başlık altında "Etiket: değer" metinleri.
-// Hiç veri yoksa boş dizi döner ve kartta "Henüz bilgi girilmedi." yazar.
-const bolumOzetleri = computed<Record<string, [string, string][]>>(() => {
-  const a = asansor.value;
-  if (!a) return {};
-  const o: Record<string, [string, string][]> = {};
-
-  o['agirlik-hesabi'] =
-    a.karsiAgirlik != null
-      ? [
-          ['Karşı Ağırlık', `${a.karsiAgirlik} kg`],
-          ['Kapasite (Q)', `${a.beyanYuku ?? 0} kg`],
-          ['Kabin Ağırlığı (P)', `${a.kabinAgirligi ?? '—'} kg`],
-          ['P + Q', `${(a.kabinAgirligi ?? 0) + (a.beyanYuku ?? 0)} kg`],
-        ]
-      : [];
-
-  o['kabin-olculeri'] =
-    a.kabinGenislik != null || a.kabinDerinlik != null || a.kabinIciAydinlatma != null
-      ? [
-          ['Genişlik', mm(a.kabinGenislik)],
-          ['Derinlik', mm(a.kabinDerinlik)],
-          ['Kabin Aydınlatma', a.kabinIciAydinlatma != null ? `${a.kabinIciAydinlatma} lüx` : '—'],
-          ['Giriş Tipi', GIRIS_TIPI_ETIKETLERI[a.kabinGirisTipi ?? ''] ?? '—'],
-        ]
-      : [];
-
-  const birBir = a.askiTipi === '1:1';
-  o['halat-kasnaklar'] =
-    a.tahrikKasnakCapi != null || a.halatSekli != null || a.halatAdet != null
-      ? [
-          ['Tahrik Kasnağı', mm(a.tahrikKasnakCapi)],
-          ...(birBir
-            ? ([['Saptırma Kasnağı', mm(a.halatSapturmaKasnagiCapi)]] as [string, string][])
-            : ([
-                [
-                  'Palangalar',
-                  `${a.halatPalanga1Capi ?? '—'} / ${a.halatPalanga2Capi ?? '—'} / ${a.halatPalanga3Capi ?? '—'} mm`,
-                ],
-              ] as [string, string][])),
-          ...(birBir && a.askiHalatArasiMesafe != null
-            ? ([['Halat Mesafesi', mm(a.askiHalatArasiMesafe)]] as [string, string][])
-            : []),
-          ['Halat Şekli', HALAT_SEKLI_ETIKETLERI[a.halatSekli ?? ''] ?? '—'],
-          ['Halat Tipi', a.halatTipi || '—'],
-          ['Halat Adedi', a.halatAdet != null ? String(a.halatAdet) : '—'],
-          ...(!birBir
-            ? ([
-                [
-                  'Palanga Konumu',
-                  a.kabinPalangaKonumu === 'kabin-ustu' ? 'Kabin Üstü' : a.kabinPalangaKonumu === 'kabin-alti' ? 'Kabin Altı' : '—',
-                ],
-              ] as [string, string][])
-            : []),
-          ['Sarım Açısı', a.sarimAcisi != null ? `${a.sarimAcisi}°` : '—'],
-        ]
-      : [];
-
-  o['ray-olculeri'] =
-    a.karsiAgirlikRayArasi != null || a.kabinRayArasi != null || a.rayRR != null || a.kuyuGenislik != null
-      ? [
-          ['Kabin Ray', rayTipiEtiketi(a.kabinRayTipi) || '—'],
-          ['Karşı Ağ. Ray', rayTipiEtiketi(a.karsiAgirlikRayTipi) || '—'],
-          ['Karşı Ağ. Ray Arası', mm(a.karsiAgirlikRayArasi)],
-          ['Kabin Ray Arası', mm(a.kabinRayArasi)],
-          ['RR', mm(a.rayRR)],
-          ['RK', mm(a.rayRK)],
-          ['Kuyu', `${a.kuyuGenislik ?? '—'} × ${a.kuyuDerinlik ?? '—'} mm`],
-        ]
-      : [];
-
-  // Gösterim binadaki gibi yüksekten alçağa (en üst kat önce)
-  const duraklarAzalan = [...(a.katYukseklikleri ?? [])].sort((x, y) => y.kat - x.kat);
-  o['duraklar'] = duraklarAzalan.length
-    ? [
-        ['Duraklar', duraklarAzalan.map((k) => k.kat).join(', ')],
-        ['Durak Arası', `${duraklarAzalan.map((k) => k.yukseklik ?? '—').join(' / ')} mm`],
-      ]
-    : [];
-
-  o['kuyu-dip-alani'] =
-    a.kuyuDipYukseklik != null || a.kuyuDipBosluk != null || a.kuyuDipDurmaAlani != null
-      ? [
-          ['Kuyu Dip Yüksekliği', mm(a.kuyuDipYukseklik)],
-          ['Kabin En Alt Noktası', mm(a.kuyuDipKabinEnAltNokta)],
-          ['Etek Sacı Taban Mesafesi', mm(a.kuyuDipEtekSaciTabanMesafe)],
-          ['Gergi Kasnağı Mesafe', mm(a.kuyuDipIvOlcusu)],
-          ['Boşluk', mm(a.kuyuDipBosluk)],
-          ['Stroke', mm(a.kuyuDipTamponStroke)],
-          ['Karşı Ağ. Boşluk', mm(a.kuyuDipKarsiBosluk)],
-          ['Karşı Ağ. Stroke', mm(a.kuyuDipKarsiStroke)],
-          ['Durma Alanı', a.kuyuDipDurmaAlani ?? '—'],
-        ]
-      : [];
-
-  o['kuyu-ust-alani'] =
-    a.kuyuUstKorkulukMesafe != null || a.kuyuUstSuspansiyonMesafe != null || a.kuyuUstKabinUstDurma != null
-      ? [
-          ['Korkuluk Mesafe', mm(a.kuyuUstKorkulukMesafe)],
-          ['Korkuluk', mm(a.kuyuUstKorkulukYuksekligi)],
-          ['Süsp. Mesafe', mm(a.kuyuUstSuspansiyonMesafe)],
-          ['Kabin Üst Durma', mm(a.kuyuUstKabinUstDurma)],
-          ['Son Kat', mm(a.kuyuUstSonKat)],
-          ['Durma Alanı', a.kuyuUstDurmaAlani ?? '—'],
-        ]
-      : [];
-
-  const kapiTipi = (yon: string | null) =>
-    yon === 'merkezi' ? 'Merkezi' : yon === 'sag' ? 'Teleskopik Sağ' : yon === 'sol' ? 'Teleskopik Sol' : '—';
-  o['kapi-olculeri'] =
-    a.giris1KapiGenislik != null || a.giris1KapiYukseklik != null
-      ? [
-          ['Giriş 1 Kapı', `${a.giris1KapiGenislik ?? '—'} × ${a.giris1KapiYukseklik ?? '—'} mm`],
-          ['Panel Sayısı', a.giris1PanelSayisi != null ? String(a.giris1PanelSayisi) : '—'],
-          ['Kapı Tipi', kapiTipi(a.giris1KapiYonu)],
-          ...(a.kabinGirisTipi === 'cift'
-            ? ([['Giriş 2 Kapı', `${a.giris2KapiGenislik ?? '—'} × ${a.giris2KapiYukseklik ?? '—'} mm`]] as [
-                string,
-                string,
-              ][])
-            : []),
-        ]
-      : [];
-
-  o['makine-dairesi'] =
-    a.makineDairesiCalismaYuksekligi != null ||
-    a.makineDairesiGecisYuksekligi != null ||
-    a.makineDairesiKapiYuksekligi != null
-      ? [
-          ['Çalışma Alanı', mm(a.makineDairesiCalismaYuksekligi)],
-          ['Geçiş Alanı', mm(a.makineDairesiGecisYuksekligi)],
-          ['Giriş Kapısı', mm(a.makineDairesiKapiYuksekligi)],
-        ]
-      : [];
-
-  return o;
-});
 </script>
 
 <template>
@@ -2094,20 +1950,9 @@ const bolumOzetleri = computed<Record<string, [string, string][]>>(() => {
             </p>
           </section>
 
-          <!-- Bölüm özetleri: başlık altında metin olarak; karta dokununca da
-          ilgili şema modalı açılır -->
-          <button v-for="bolum in bolumler" :key="bolum.key" type="button" @click="bolumAc(bolum)"
-            class="block w-full bg-surface-800 p-3 text-left ring-1 ring-white/5 active:bg-[#17211b]">
-            <h3 class="text-xs font-bold text-ink">{{ bolum.label }}</h3>
-            <p v-if="!bolumOzetleri[bolum.key]?.length" class="mt-0.5 text-xs text-ink-muted">
-              Henüz bilgi girilmedi.
-            </p>
-            <p v-else class="mt-0.5 flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-ink-muted">
-              <span v-for="[etiket, deger] in bolumOzetleri[bolum.key]" :key="etiket">
-                {{ etiket }}: <strong class="font-semibold text-ink">{{ deger }}</strong>
-              </span>
-            </p>
-          </button>
+          <!-- Bölüm özet kartları görsel olarak kaldırıldı (kullanıcı isteği,
+          30 Eki 2026) — veriler duruyor, bölümler üstteki buton grubundan
+          açılıp düzenlenmeye devam eder. -->
         </div>
       </div>
     </ion-content>
