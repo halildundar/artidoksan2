@@ -14,15 +14,18 @@ export default defineConfig({
     tailwindcss(),
     legacy(),
     VitePWA({
-      registerType: 'autoUpdate',
+      // 'prompt': yeni sürüm hazır olduğunda GuncellemeBildirimi bileşeni
+      // kullanıcıya haber verir, onaylayınca servis işçisi değişip yenilenir
+      registerType: 'prompt',
       manifest: {
         name: 'TüvNord Asansör',
         short_name: 'TüvNord Asansör',
-        theme_color: '#0d1612',
-        background_color: '#0d1612',
+        theme_color: '#00003C',
+        background_color: '#00003C',
         icons: [
           { src: 'icon-192.png', sizes: '192x192', type: 'image/png' },
-          { src: 'icon-512.png', sizes: '512x512', type: 'image/png' }
+          { src: 'icon-512.png', sizes: '512x512', type: 'image/png' },
+          { src: 'icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' }
         ]
       }
     })
