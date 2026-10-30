@@ -4,6 +4,8 @@ const config: CapacitorConfig = {
   appId: 'com.firman.artidoksa',
   appName: 'TüvNord Asansör',
   webDir: 'dist',
+  // WebView zemin rengi — site yüklenene kadarki anlık beyaz parlamayı önler
+  backgroundColor: '#0d1612',
   // Native uygulamalar gömülü kopya yerine CANLI SİTEYİ yükler (kullanıcı
   // kararı, 30 Eki 2026): her git push sonrası Android/iOS da kendiliğinden
   // güncellenir, mağaza/apk dağıtımı gerekmez. Çevrimdışı açılış service

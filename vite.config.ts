@@ -42,7 +42,7 @@ export default defineConfig({
         // Kurulu PWA'da üst/alt sistem şeritleri bu renkle boyanır —
         // uygulamadaki header/sekme çubuğu koyu yeşiliyle aynı
         theme_color: '#1c2a21',
-        background_color: '#0d1612',
+        background_color: '#223c2d',
         icons: [
           { src: 'icon-192.png', sizes: '192x192', type: 'image/png' },
           { src: 'icon-512.png', sizes: '512x512', type: 'image/png' },
