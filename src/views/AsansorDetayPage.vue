@@ -1709,41 +1709,37 @@ const onBilgi = computed(() => {
               </button>
             </div>
 
-            <!-- Seçilen güvenlik aksamları tablosu — bölümler dolduruldukça
-            satırlar burada görünür -->
-            <div v-if="guvenlikOzetSatirlari.length" class="mt-2 overflow-x-auto border-t border-white/5 pt-2">
-              <table class="w-full text-left text-[11px]">
-                <thead>
-                  <tr class="text-[10px] uppercase tracking-wide text-ink-muted">
-                    <th class="py-1 pr-2 font-medium">Aksam</th>
-                    <th class="py-1 pr-2 font-medium">Marka</th>
-                    <th class="py-1 pr-2 font-medium">Tip</th>
-                    <th class="py-1 pr-2 font-medium">Seri No</th>
-                    <th class="py-1 font-medium"><span class="sr-only">Belge</span></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr v-for="satir in guvenlikOzetSatirlari" :key="satir.bolum + satir.marka + satir.tip"
-                    class="border-t border-white/5">
-                    <td class="py-1 pr-2 text-ink-muted">{{ satir.bolum }}</td>
-                    <td class="py-1 pr-2 font-medium text-ink">{{ satir.marka }}</td>
-                    <td class="py-1 pr-2 text-ink">{{ satir.tip }}</td>
-                    <td class="py-1 pr-2 text-ink">{{ satir.seriNo }}</td>
-                    <td class="py-0.5 text-right">
-                      <!-- Belgeyi görüntüle (dosyası olan satırlarda) -->
-                      <button v-if="ozetBelgeDosyasi(satir.belgeId)" type="button"
-                        @click="ozetBelgeAc(satir.belgeId)" aria-label="Belgeyi görüntüle"
-                        class="inline-grid h-6 w-7 place-items-center bg-[#2b5c3d] text-ink ring-1 ring-white/10 active:bg-[#346e4a]">
-                        <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                          stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                          <path d="M2.06 12.35a1 1 0 0 1 0-.7C3.42 8.24 7.26 5 12 5s8.58 3.24 9.94 6.65a1 1 0 0 1 0 .7C20.58 15.76 16.74 19 12 19s-8.58-3.24-9.94-6.65" />
-                          <circle cx="12" cy="12" r="3" />
-                        </svg>
-                      </button>
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
+            <!-- Seçilen güvenlik aksamları — bölümler dolduruldukça her biri
+            alt alta panel olarak görünür -->
+            <div v-if="guvenlikOzetSatirlari.length" class="mt-2 space-y-1.5 border-t border-white/5 pt-2">
+              <div v-for="satir in guvenlikOzetSatirlari" :key="satir.bolum + satir.marka + satir.tip"
+                class="flex items-center gap-2 bg-surface-900/60 p-2 ring-1 ring-white/5">
+                <span class="min-w-0 flex-1">
+                  <span class="flex flex-wrap items-center gap-1.5">
+                    <span
+                      class="shrink-0 bg-surface-900 px-1.5 py-0.5 text-[10px] font-semibold text-[#6fcf97] ring-1 ring-white/10">
+                      {{ satir.bolum }}
+                    </span>
+                    <span class="min-w-0 truncate text-xs font-bold text-ink">
+                      {{ [satir.marka, satir.tip].filter((x) => x && x !== '—').join(' — ') || '—' }}
+                    </span>
+                  </span>
+                  <span v-if="satir.seriNo && satir.seriNo !== '—'"
+                    class="mt-0.5 block text-[11px] text-ink-muted">
+                    Seri No: <span class="text-ink">{{ satir.seriNo }}</span>
+                  </span>
+                </span>
+                <!-- Belgeyi görüntüle (dosyası olan satırlarda) -->
+                <button v-if="ozetBelgeDosyasi(satir.belgeId)" type="button"
+                  @click="ozetBelgeAc(satir.belgeId)" aria-label="Belgeyi görüntüle"
+                  class="grid h-6.5 w-8 shrink-0 place-items-center bg-[#2b5c3d] text-ink ring-1 ring-white/10 active:bg-[#346e4a]">
+                  <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                    stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M2.06 12.35a1 1 0 0 1 0-.7C3.42 8.24 7.26 5 12 5s8.58 3.24 9.94 6.65a1 1 0 0 1 0 .7C20.58 15.76 16.74 19 12 19s-8.58-3.24-9.94-6.65" />
+                    <circle cx="12" cy="12" r="3" />
+                  </svg>
+                </button>
+              </div>
             </div>
           </section>
 
