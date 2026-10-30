@@ -1,0 +1,55 @@
+/*
+ * Global CSS girişi.
+ * Ionic'in iskelet CSS'leri Tailwind'in "base" katmanına alınarak yüklenir;
+ * katmansız kalsalar Tailwind utility'lerini (ör. py-3) ezerler
+ * (katmansız CSS > katmanlı CSS kuralı).
+ */
+@import "@ionic/vue/css/core.css" layer(base);
+@import "@ionic/vue/css/normalize.css" layer(base);
+@import "@ionic/vue/css/structure.css" layer(base);
+@import "@ionic/vue/css/typography.css" layer(base);
+@import "@ionic/vue/css/padding.css" layer(base);
+@import "@ionic/vue/css/float-elements.css" layer(base);
+@import "@ionic/vue/css/text-alignment.css" layer(base);
+@import "@ionic/vue/css/text-transformation.css" layer(base);
+@import "@ionic/vue/css/flex-utils.css" layer(base);
+@import "@ionic/vue/css/display.css" layer(base);
+
+/* Uygulama her zaman koyu temalı (yeşil-siyah zemin) */
+@import "@ionic/vue/css/palettes/dark.always.css" layer(base);
+
+/* Uygulama teması (Ionic değişken ezmeleri) — Ionic CSS'lerinden sonra gelmeli */
+@import "./variables.css" layer(base);
+
+@import "tailwindcss";
+
+/* Ionic typography.css başlıklara (h1-h6) kendi margin'lerini verir ve h1
+   seçicisi Tailwind preflight'ın * sıfırlamasından daha özgül olduğundan
+   kazanır — burada base katmanının EN SONUNDA aynı özgüllükle sıfırlanır. */
+@layer base {
+  h1, h2, h3, h4, h5, h6 {
+    margin: 0;
+  }
+
+  /* Sayı input'larındaki artır/azalt oklarını (spinner) tüm uygulamada gizle */
+  input[type='number']::-webkit-outer-spin-button,
+  input[type='number']::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+
+  input[type='number'] {
+    -moz-appearance: textfield;
+    appearance: textfield;
+  }
+}
+
+/* Marka paleti — variables.css'teki Ionic temasıyla aynı tonlar */
+@theme {
+  --color-surface-950: #0a110d; /* en koyu kenar */
+  --color-surface-900: #0d1612; /* temel zemin */
+  --color-surface-800: #121e18; /* kart/liste zemini */
+  --color-surface-700: #16241d; /* degradenin açık ucu */
+  --color-ink: #e6ede8;         /* ana metin */
+  --color-ink-muted: #9db3a7;   /* ikincil metin */
+}

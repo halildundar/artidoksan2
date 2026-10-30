@@ -1,0 +1,83 @@
+ARTIDOKSAN2 — KURULUM NOTLARI VE SIRADAKİ ADIMLAR
+===================================================
+(Son güncelleme: 17 Ekim 2026)
+
+YAPILAN KURULUM ÖZETİ
+---------------------
+- Ionic (iskelet) + Vue 3 + Tailwind CSS v4 (görünüm) + Capacitor projesi kuruldu.
+- CLAUDE.md ve .claude/skills/ proje kökünde — Claude Code hazır.
+- PWA eklendi (vite-plugin-pwa): her "ionic build" sonrası dist/ içinde
+  manifest.webmanifest + sw.js üretiliyor. Kullanıcılar tarayıcıdan
+  "Ana ekrana ekle" deyince uygulama gibi açılır.
+- Uygulama kimliği (appId): com.firman.artidoksa
+  (android/ ve ios/ projeleri bu kimlikle yeniden üretildi)
+- Android platformu: android/ klasörü hazır.
+- iOS platformu: ios/ klasörü hazır (build Codemagic'te alınacak).
+- Git deposu başlatıldı, henüz commit atılmadı.
+
+NOTLAR
+------
+1) appId (com.firman.artidoksa) Play Store / App Store'a İLK YAYINDAN SONRA
+   DEĞİŞTİRİLEMEZ. Yayından önce son kez kontrol et ("artidoksan" mı olacaktı?).
+   Değiştirmek gerekirse: capacitor.config.ts'i düzenle, android/ ve ios/
+   klasörlerini silip "ionic cap add android" ve "ionic cap add ios" ile
+   yeniden üret.
+
+2) PWA ikonları (public/icon-192.png, public/icon-512.png) şu an düz mavi
+   YER TUTUCU görseller. Gerçek logo hazır olunca aynı adla üzerine yaz.
+   Native uygulama ikonu ve açılış ekranı için ayrıca:
+   npx @capacitor/assets generate
+
+3) npm'in bildirdiği 22 güvenlik uyarısı şablonun eski GELİŞTİRME
+   bağımlılıklarından geliyor (ESLint 8 vb.); çalışma zamanını (üretim
+   kodunu) etkilemez. İstenirse "npm audit" ile ayrıca ele alınabilir.
+
+4) Express API tarafında CORS ayarını unutma — mobil uygulamalar farklı
+   origin'den gelir. API taban adresi .env dosyasına yazılacak:
+   VITE_API_URL=https://api.ornek.com
+
+SIRADAKİ ADIMLAR
+----------------
+1) Geliştirmeye başla:
+   ionic serve                → http://localhost:8100 (hot reload)
+   ionic serve --lab          → iOS + Android görünümü yan yana
+   Tarayıcıda F12 → Ctrl+Shift+M ile telefon görünümünde test et.
+
+2) Her kod değişikliğinden sonra native test için:
+   ionic build; ionic cap sync
+
+3) Android'de çalıştırmak için Android Studio kur:
+   https://developer.android.com/studio
+   ionic cap open android     → Android Studio'da aç, Run ▶ ile çalıştır
+   Telefonda test: Geliştirici Seçenekleri → USB Hata Ayıklama açık olmalı.
+   Canlı yenileme ile telefonda geliştirme:
+   ionic cap run android -l --external
+
+4) iOS build (Windows'tan, Mac'siz):
+   - Projeyi GitHub'a push'la
+   - codemagic.io hesabı aç, repo'yu bağla (Capacitor desteği hazır,
+     ücretsiz katman var)
+   - Build al → .ipa dosyası çıkar
+   - App Store'a yüklemek için Apple Developer hesabı gerekir (99 $/yıl)
+
+5) Web'e yayın:
+   ionic build → dist/ klasörünü sunucuna koy (nginx, Express static vb.)
+   PWA sayesinde HTTPS üzerinden sunulduğunda "Ana ekrana ekle" çalışır.
+
+6) Play Store için imzalı build:
+   Android Studio → Build → Generate Signed Bundle / APK → .aab →
+   Play Console'a yükle (tek seferlik 25 $ geliştirici hesabı).
+
+7) İlk commit'i at (istersen):
+   git add -A
+   git commit -m "Initial project setup"
+
+FAYDALI KOMUTLAR
+----------------
+npm install                  bağımlılıkları kur
+ionic serve                  geliştirme sunucusu (hot reload)
+ionic build                  üretim derlemesi → dist/
+npx vue-tsc --noEmit         tip kontrolü
+npm run lint                 ESLint
+ionic cap sync               dist/ içeriğini android/ ve ios/'a kopyala
+ionic cap open android       Android Studio'da aç

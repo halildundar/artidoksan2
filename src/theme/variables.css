@@ -1,0 +1,34 @@
+/* For information on how to create your own theme, please refer to:
+http://ionicframework.com/docs/theming/ */
+
+/*
+ * Uygulama teması: koyu yeşil-siyah zemin.
+ * Tailwind tarafındaki eşdeğer tonlar src/theme/tailwind.css @theme bloğunda.
+ */
+:root {
+  --ion-background-color: #0d1612;
+  --ion-background-color-rgb: 13, 22, 18;
+
+  --ion-text-color: #e6ede8;
+  --ion-text-color-rgb: 230, 237, 232;
+
+  --ion-toolbar-background: #0b130f;
+  --ion-toolbar-color: #e6ede8;
+
+  --ion-tab-bar-background: #0b130f;
+  --ion-tab-bar-color: #7d937f;
+  --ion-tab-bar-color-selected: #d7e5da;
+
+  --ion-item-background: #121e18;
+  --ion-card-background: #121e18;
+}
+
+/* Hafif degradeli zemin: üstte bir tık daha açık yeşil, kenarlara doğru kararır */
+ion-content {
+  --background: radial-gradient(
+    140% 110% at 50% 0%,
+    #16241d 0%,
+    #0e1813 55%,
+    #0a110d 100%
+  );
+}
