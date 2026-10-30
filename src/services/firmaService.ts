@@ -11,6 +11,11 @@ export type BelgeSlotAnahtar =
 
 export type FirmaBelgeleri = Partial<Record<BelgeSlotAnahtar, BelgeSlot>>;
 
+// Kurum evrakları: her tür için birden fazla dosya/resim tutulabilir.
+// belgeler'deki tekil yuva geriye uyum için listenin ilk dosyasıyla senkrondur.
+export type KurumEvrakAnahtar = 'imzaSirkusu' | 'vergiLevhasi' | 'sicilGazetesi' | 'faaliyetBelgesi';
+export type KurumEvrakDosyalari = Partial<Record<KurumEvrakAnahtar, BelgeSlot[]>>;
+
 // Personel sekmesi: sabit görev sahipleri (ad soyad)
 export interface FirmaPersonel {
   genelMudur: string;
@@ -53,6 +58,7 @@ export interface Firma {
   adres: string;
   yetkili: string;
   belgeler?: FirmaBelgeleri;
+  kurumEvrakDosyalari?: KurumEvrakDosyalari;
   // Sanayi Sicil Belgesi: no + tarih + dosya
   sanayiSicilBelgeNo: string;
   sanayiSicilBelgeTarihi: string | null;
@@ -108,6 +114,7 @@ export interface YeniFirma {
   adres?: string;
   yetkili?: string;
   belgeler?: FirmaBelgeleri;
+  kurumEvrakDosyalari?: KurumEvrakDosyalari;
   sanayiSicilBelgeNo?: string;
   sanayiSicilBelgeTarihi?: string | null;
   sanayiSicilDosya?: BelgeSlot | null;

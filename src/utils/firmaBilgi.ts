@@ -1,4 +1,4 @@
-import type { Firma } from '@/services/firmaService';
+import type { Firma, KurumEvrakAnahtar } from '@/services/firmaService';
 import type { BelgeSlot } from '@/services/dosyaService';
 
 // Firma bilgi popup'ının (FirmaBilgiModal) tablo içerikleri — PDF raporu da
@@ -27,11 +27,24 @@ export function firmaKimlikSatirlari(f: Firma): Satir[] {
 }
 
 export function firmaBelgeSatirlari(f: Firma): BelgeSatiri[] {
+  // Kurum evrakları çoklu olabilir: liste varsa her dosya ayrı satır olur
+  // ("İmza Sirküsü 2" gibi), yoksa belgeler'deki tekil yuva gösterilir.
+  const evraklar = (etiket: string, anahtar: KurumEvrakAnahtar): BelgeSatiri[] => {
+    const liste = f.kurumEvrakDosyalari?.[anahtar]?.length
+      ? f.kurumEvrakDosyalari[anahtar]!
+      : f.belgeler?.[anahtar]
+        ? [f.belgeler[anahtar]!]
+        : [null];
+    return liste.map((slot, i) => ({
+      etiket: liste.length > 1 ? `${etiket} ${i + 1}` : etiket,
+      slot,
+    }));
+  };
   return [
-    { etiket: 'İmza Sirküsü', slot: f.belgeler?.imzaSirkusu ?? null },
-    { etiket: 'Vergi Levhası', slot: f.belgeler?.vergiLevhasi ?? null },
-    { etiket: 'Sicil Gazetesi', slot: f.belgeler?.sicilGazetesi ?? null },
-    { etiket: 'Faaliyet Belgesi', slot: f.belgeler?.faaliyetBelgesi ?? null },
+    ...evraklar('İmza Sirküsü', 'imzaSirkusu'),
+    ...evraklar('Vergi Levhası', 'vergiLevhasi'),
+    ...evraklar('Sicil Gazetesi', 'sicilGazetesi'),
+    ...evraklar('Faaliyet Belgesi', 'faaliyetBelgesi'),
     { etiket: 'Sanayi Sicil Belgesi', slot: f.sanayiSicilDosya ?? null },
     { etiket: 'ISO Belgesi', slot: f.isoDosya ?? null },
     { etiket: 'TSE-HYB Belgesi', slot: f.hybDosya ?? null },
