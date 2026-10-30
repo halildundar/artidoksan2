@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
 import { getAsansor, type Asansor } from '@/services/asansorService';
+import { getAksamBelgesi } from '@/services/aksamBelgesiService';
 import { getDosyaUrl, getDosyaIndirUrl, type BelgeSlot } from '@/services/dosyaService';
 import { useFileViewer, fileViewerTypeFromMime } from '@/composables/useFileViewer';
 import {
@@ -96,6 +97,18 @@ function onizlemeleriYukle() {
 // montaj fotoğraflarıyla) ----
 const aksamGruplari = computed(() => (asansor.value ? asansorAksamGruplari(asansor.value) : []));
 
+// Sertifika no'ya dokununca katalogdaki belge dosyası açılır
+async function sertifikaAc(belgeId: string) {
+  if (!belgeId) return;
+  try {
+    const belge = await getAksamBelgesi(belgeId);
+    if (belge.dosya) await dosyaAc(belge.dosya);
+    else hata.value = 'Bu sertifikanın dosyası katalogda yüklü değil';
+  } catch {
+    hata.value = 'Sertifika belgesi açılamadı';
+  }
+}
+
 // Duraklar binadaki gibi yüksekten alçağa sıralanır (en üst kat en üstte)
 const katYukseklikleri = computed(() =>
   [...(asansor.value?.katYukseklikleri ?? [])].sort((a, b) => b.kat - a.kat)
@@ -183,7 +196,12 @@ const katYukseklikleri = computed(() =>
                   Seri No: <span class="text-ink">{{ g.seriNolar.join(', ') }}</span>
                 </p>
                 <p v-if="g.sertifikaNo" class="mt-0.5 text-[11px] text-ink-muted">
-                  Sertifika: <span class="text-ink">{{ g.sertifikaNo }}</span>
+                  Sertifika:
+                  <button v-if="g.belgeId" type="button" @click="sertifikaAc(g.belgeId)"
+                    class="font-semibold text-[#6fcf97] underline decoration-dotted underline-offset-2 active:text-ink">
+                    {{ g.sertifikaNo }}
+                  </button>
+                  <span v-else class="text-ink">{{ g.sertifikaNo }}</span>
                 </p>
                 <div v-if="g.fotolar.length" class="mt-1.5 flex gap-1.5 overflow-x-auto">
                   <button v-for="foto in g.fotolar" :key="foto.dosyaAnahtari" type="button"

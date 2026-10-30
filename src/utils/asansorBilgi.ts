@@ -69,6 +69,8 @@ export interface AksamGrubu {
   tip: string;
   seriNolar: string[];
   sertifikaNo: string;
+  // Katalogdaki aksam belgesi kaydı — sertifika dosyasını açmak için
+  belgeId: string;
   gecerlilikBaslangic: string | null;
   gecerlilikBitis: string | null;
   fotolar: BelgeSlot[];
@@ -107,6 +109,7 @@ export function asansorAksamGruplari(a: Asansor): AksamGrubu[] {
         tip: g.tip ?? '',
         seriNolar: [],
         sertifikaNo: g.sertifikaNo ?? '',
+        belgeId: g.aksamBelgesiId ?? '',
         gecerlilikBaslangic: g.gecerlilikBaslangic ?? null,
         gecerlilikBitis: g.gecerlilikBitis ?? null,
         fotolar,
