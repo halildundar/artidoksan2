@@ -76,7 +76,7 @@ export interface AksamGrubu {
   fotolar: BelgeSlot[];
 }
 
-const AKSAM_FOTO_ALANLARI: Record<string, keyof Asansor> = {
+export const AKSAM_FOTO_ALANLARI: Record<string, keyof Asansor> = {
   durak_kapi_kilidi: 'durakKilitFotolari',
   durak_kapi_kilidi_2: 'durakKilitFotolari2',
   kabin_kapi_kilidi: 'kabinKilitFotolari',

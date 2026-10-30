@@ -32,6 +32,7 @@ import {
   type KapiOlcum,
 } from '@/components/sema/kapiKilitleriTipleri';
 import { blurActive } from '@/utils/blurActive';
+import { AKSAM_FOTO_ALANLARI } from '@/utils/asansorBilgi';
 import SemaModal from '@/components/SemaModal.vue';
 import AgirlikHesabiModal from '@/components/sema/AgirlikHesabiModal.vue';
 import KabinOlculeriModal from '@/components/sema/KabinOlculeriModal.vue';
@@ -1270,7 +1271,10 @@ const GUVENLIK_SLOT_ETIKETLERI: Record<string, string> = {
 const guvenlikOzetSatirlari = computed(() => {
   const a = asansor.value;
   if (!a) return [];
-  const satirlar: { bolum: string; marka: string; tip: string; seriNo: string; belgeId: string | null }[] = [];
+  const satirlar: {
+    bolum: string; marka: string; tip: string; seriNo: string;
+    belgeId: string | null; fotolar: BelgeSlot[];
+  }[] = [];
   for (const [slot, etiket] of Object.entries(GUVENLIK_SLOT_ETIKETLERI)) {
     const rows = (a.guvenlikAksamlari ?? []).filter((r) => r.slot === slot);
     // Aynı slotta marka+tip aynıysa seri no'lar tek satırda birleştirilir
@@ -1284,6 +1288,9 @@ const guvenlikOzetSatirlari = computed(() => {
       if (r.seriNo) grup.seriler.push(r.seriNo);
       gruplar.set(anahtar, grup);
     }
+    // Slotun montaj fotoğrafları yalnızca ilk panelde gösterilir (kopya önlenir)
+    const alan = AKSAM_FOTO_ALANLARI[slot];
+    let slotFotolar = alan ? ((a[alan] as BelgeSlot[] | undefined) ?? []) : [];
     for (const g of gruplar.values()) {
       satirlar.push({
         bolum: etiket,
@@ -1291,7 +1298,9 @@ const guvenlikOzetSatirlari = computed(() => {
         tip: g.tip || '—',
         seriNo: g.seriler.join(', ') || '—',
         belgeId: g.belgeId,
+        fotolar: slotFotolar,
       });
+      slotFotolar = [];
     }
   }
   // Motor ayrı alanlarda tutulur — tabloya en sona eklenir
@@ -1302,10 +1311,25 @@ const guvenlikOzetSatirlari = computed(() => {
       tip: a.motorTip || '—',
       seriNo: a.motorSeriNo || '—',
       belgeId: a.motorAksamBelgesiId || null,
+      fotolar: a.motorFotolari ?? [],
     });
   }
   return satirlar;
 });
+
+// Panel fotoğraflarının küçük önizlemeleri (dosyaAnahtari → imzalı url)
+const ozetFotoUrller = ref<Record<string, string>>({});
+
+watch(guvenlikOzetSatirlari, (satirlar) => {
+  for (const satir of satirlar) {
+    for (const foto of satir.fotolar) {
+      if (!foto.mimeType?.startsWith('image/') || ozetFotoUrller.value[foto.dosyaAnahtari]) continue;
+      getDosyaUrl(foto.dosyaAnahtari)
+        .then((url) => (ozetFotoUrller.value[foto.dosyaAnahtari] = url))
+        .catch(() => { /* önizleme alınamazsa kutuda dosya adı görünür */ });
+    }
+  }
+}, { immediate: true });
 
 // Özet tablosundaki göz butonu: satırın belgesini tam ekran görüntüler
 const { openFile } = useFileViewer();
@@ -1713,32 +1737,47 @@ const onBilgi = computed(() => {
             alt alta panel olarak görünür -->
             <div v-if="guvenlikOzetSatirlari.length" class="mt-2 space-y-1.5 border-t border-white/5 pt-2">
               <div v-for="satir in guvenlikOzetSatirlari" :key="satir.bolum + satir.marka + satir.tip"
-                class="flex items-center gap-2 bg-surface-900/60 p-2 ring-1 ring-white/5">
-                <span class="min-w-0 flex-1">
-                  <span class="flex flex-wrap items-center gap-1.5">
-                    <span
-                      class="shrink-0 bg-surface-900 px-1.5 py-0.5 text-[10px] font-semibold text-[#6fcf97] ring-1 ring-white/10">
-                      {{ satir.bolum }}
+                class="space-y-1 bg-surface-900/60 p-2 ring-1 ring-white/5">
+                <div class="flex items-center gap-2">
+                  <span class="min-w-0 flex-1">
+                    <span class="flex flex-wrap items-center gap-1.5">
+                      <span
+                        class="shrink-0 bg-surface-900 px-1.5 py-0.5 text-[10px] font-semibold text-[#6fcf97] ring-1 ring-white/10">
+                        {{ satir.bolum }}
+                      </span>
+                      <span class="min-w-0 truncate text-xs font-bold text-ink">
+                        {{ [satir.marka, satir.tip].filter((x) => x && x !== '—').join(' — ') || '—' }}
+                      </span>
                     </span>
-                    <span class="min-w-0 truncate text-xs font-bold text-ink">
-                      {{ [satir.marka, satir.tip].filter((x) => x && x !== '—').join(' — ') || '—' }}
+                    <span v-if="satir.seriNo && satir.seriNo !== '—'"
+                      class="mt-0.5 block text-[11px] text-ink-muted">
+                      Seri No: <span class="text-ink">{{ satir.seriNo }}</span>
                     </span>
                   </span>
-                  <span v-if="satir.seriNo && satir.seriNo !== '—'"
-                    class="mt-0.5 block text-[11px] text-ink-muted">
-                    Seri No: <span class="text-ink">{{ satir.seriNo }}</span>
-                  </span>
-                </span>
-                <!-- Belgeyi görüntüle (dosyası olan satırlarda) -->
-                <button v-if="ozetBelgeDosyasi(satir.belgeId)" type="button"
-                  @click="ozetBelgeAc(satir.belgeId)" aria-label="Belgeyi görüntüle"
-                  class="grid h-6.5 w-8 shrink-0 place-items-center bg-[#2b5c3d] text-ink ring-1 ring-white/10 active:bg-[#346e4a]">
-                  <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                    stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M2.06 12.35a1 1 0 0 1 0-.7C3.42 8.24 7.26 5 12 5s8.58 3.24 9.94 6.65a1 1 0 0 1 0 .7C20.58 15.76 16.74 19 12 19s-8.58-3.24-9.94-6.65" />
-                    <circle cx="12" cy="12" r="3" />
-                  </svg>
-                </button>
+                  <!-- Belgeyi görüntüle (dosyası olan satırlarda) -->
+                  <button v-if="ozetBelgeDosyasi(satir.belgeId)" type="button"
+                    @click="ozetBelgeAc(satir.belgeId)" aria-label="Belgeyi görüntüle"
+                    class="grid h-6.5 w-8 shrink-0 place-items-center bg-[#2b5c3d] text-ink ring-1 ring-white/10 active:bg-[#346e4a]">
+                    <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                      stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M2.06 12.35a1 1 0 0 1 0-.7C3.42 8.24 7.26 5 12 5s8.58 3.24 9.94 6.65a1 1 0 0 1 0 .7C20.58 15.76 16.74 19 12 19s-8.58-3.24-9.94-6.65" />
+                      <circle cx="12" cy="12" r="3" />
+                    </svg>
+                  </button>
+                </div>
+
+                <!-- Çekilen/eklenen montaj fotoğrafları — dokununca tam ekran -->
+                <div v-if="satir.fotolar.length" class="flex gap-1.5 overflow-x-auto">
+                  <button v-for="foto in satir.fotolar" :key="foto.dosyaAnahtari" type="button"
+                    @click="dosyaSlotAc(foto)"
+                    class="h-14 w-14 shrink-0 overflow-hidden bg-surface-900 ring-1 ring-white/10">
+                    <img v-if="ozetFotoUrller[foto.dosyaAnahtari]" :src="ozetFotoUrller[foto.dosyaAnahtari]"
+                      :alt="foto.dosyaAdi" class="h-full w-full object-cover" />
+                    <span v-else class="grid h-full place-items-center px-0.5 text-center text-[8px] text-ink-muted/60">
+                      {{ foto.dosyaAdi }}
+                    </span>
+                  </button>
+                </div>
               </div>
             </div>
           </section>
