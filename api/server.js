@@ -1,5 +1,11 @@
 import 'dotenv/config';
+import dns from 'node:dns';
 import express from 'express';
+
+// Bazı ağlarda Atlas'ın SRV DNS sorgusu engelli (querySrv ECONNREFUSED) —
+// .env'de DNS_SERVERS tanımlıysa (örn. 8.8.8.8,1.1.1.1) açık çözümleyici
+// kullanılır. Render'da tanımsızdır, davranış değişmez.
+if (process.env.DNS_SERVERS) dns.setServers(process.env.DNS_SERVERS.split(','));
 import cors from 'cors';
 import mongoose from 'mongoose';
 import adresRouter from './adres.js';
