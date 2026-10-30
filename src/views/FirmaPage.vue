@@ -260,6 +260,47 @@ async function belgeDosyaSec(alan: BelgeDosyaAlani, event: Event) {
   }
 }
 
+// ---- Kurum evrakları (Genel Bilgiler): satırdan yükleme / fotoğraf çekme
+// ile değiştirme — tek yuvalı belgeler, yeni dosya eskisinin yerine geçer ----
+const evrakYukleniyor = ref<Partial<Record<BelgeSlotAnahtar, boolean>>>({});
+const evrakFotoAnahtar = ref<BelgeSlotAnahtar | null>(null);
+const evrakFotoAcik = computed({
+  get: () => evrakFotoAnahtar.value != null,
+  set(v: boolean) {
+    if (!v) evrakFotoAnahtar.value = null;
+  },
+});
+
+async function evrakKaydet(anahtar: BelgeSlotAnahtar, file: File) {
+  const f = secili.value;
+  if (!f) return;
+  evrakYukleniyor.value[anahtar] = true;
+  try {
+    const slot = await uploadDosya(file);
+    await firmaGuncelle({ belgeler: { ...f.belgeler, [anahtar]: slot } });
+  } catch (e) {
+    hata.value = e instanceof Error ? e.message : 'Yükleme başarısız';
+  } finally {
+    evrakYukleniyor.value[anahtar] = false;
+  }
+}
+
+function evrakSec(anahtar: BelgeSlotAnahtar, event: Event) {
+  const input = event.target as HTMLInputElement;
+  const file = input.files?.[0];
+  input.value = '';
+  if (!file) return;
+  if (file.type !== 'application/pdf' && !file.type.startsWith('image/')) return;
+  evrakKaydet(anahtar, file);
+}
+
+// Kamera oturumundan dönen ilk kare evrakın yerine kaydedilir
+function evrakFotoCekildi(fotolar: File[]) {
+  const anahtar = evrakFotoAnahtar.value;
+  evrakFotoAnahtar.value = null;
+  if (anahtar && fotolar[0]) evrakKaydet(anahtar, fotolar[0]);
+}
+
 // ---- CE belgeleri: kart listesi + ortak formla (CeBelgeFormu) ekleme ve
 // yerinde düzenleme + SilmeOnayi ile silme ----
 const ceEkleAcik = ref(false);
@@ -708,24 +749,47 @@ onIonViewWillEnter(yukle);
                 </div>
               </div>
 
-              <!-- Kurum evrakları: indirme butonları -->
+              <!-- Kurum evrakları: görüntüle + dosya yükle + fotoğraf çek —
+                yeni dosya/kare mevcut evrakın yerine geçer -->
               <div class="space-y-1.5">
                 <p class="text-xs font-semibold text-ink">Kurum Evrakları</p>
                 <div v-for="s in EVRAK_SLOTLARI" :key="s.anahtar"
-                  class="flex items-center gap-2 bg-surface-900/60 px-2.5 py-2 ring-1 ring-white/5">
-                  <span class="w-28 shrink-0 text-xs font-medium text-ink-muted">{{ s.etiket }}</span>
+                  class="flex items-center gap-1.5 bg-surface-900/60 px-2.5 py-2 ring-1 ring-white/5">
+                  <span class="w-24 shrink-0 text-xs font-medium text-ink-muted">{{ s.etiket }}</span>
                   <span class="min-w-0 flex-1 truncate text-xs"
                     :class="secili.belgeler?.[s.anahtar] ? 'text-ink' : 'text-ink-muted/50'">
-                    {{ secili.belgeler?.[s.anahtar]?.dosyaAdi || 'Yüklenmemiş' }}
+                    {{ evrakYukleniyor[s.anahtar]
+                      ? 'Yükleniyor…'
+                      : secili.belgeler?.[s.anahtar]?.dosyaAdi || 'Yüklenmemiş' }}
                   </span>
                   <button v-if="secili.belgeler?.[s.anahtar]" type="button" @click="belgeGoruntule(s.anahtar)"
-                    class="flex shrink-0 items-center gap-1 bg-[#2b5c3d] px-2.5 py-1.5 text-[11px] font-semibold text-ink ring-1 ring-white/10 active:bg-[#346e4a]">
+                    :aria-label="`${s.etiket} görüntüle`"
+                    class="grid h-6.5 w-8 shrink-0 place-items-center bg-[#2b5c3d] text-ink ring-1 ring-white/10 active:bg-[#346e4a]">
                     <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                       stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                       <path d="M2.06 12.35a1 1 0 0 1 0-.7C3.42 8.24 7.26 5 12 5s8.58 3.24 9.94 6.65a1 1 0 0 1 0 .7C20.58 15.76 16.74 19 12 19s-8.58-3.24-9.94-6.65" />
                       <circle cx="12" cy="12" r="3" />
                     </svg>
-                    Görüntüle
+                  </button>
+                  <label :aria-label="`${s.etiket} için dosya yükle`"
+                    class="grid h-6.5 w-8 shrink-0 cursor-pointer place-items-center border border-dashed border-white/20 text-ink-muted active:border-white/40 active:text-ink">
+                    <input type="file" accept="application/pdf,image/*" class="hidden"
+                      @change="evrakSec(s.anahtar, $event)" />
+                    <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                      stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                      <path d="m17 8-5-5-5 5" />
+                      <path d="M12 3v12" />
+                    </svg>
+                  </label>
+                  <button type="button" @click="evrakFotoAnahtar = s.anahtar"
+                    :aria-label="`${s.etiket} için fotoğraf çek`"
+                    class="grid h-6.5 w-8 shrink-0 place-items-center bg-surface-900 text-ink-muted ring-1 ring-white/10 active:text-ink">
+                    <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                      stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z" />
+                      <circle cx="12" cy="13" r="3" />
+                    </svg>
                   </button>
                 </div>
               </div>
@@ -1419,6 +1483,7 @@ onIonViewWillEnter(yukle);
     <!-- Personel: mühendis belgesi ve SGK dökümü foto çekme oturumları -->
     <FotoCekModal v-model:acik="muhFotoAcik" @tamam="muhFotolarEkle" />
     <FotoCekModal v-model:acik="sgkFotoAcik" @tamam="sgkEkle" />
+    <FotoCekModal v-model:acik="evrakFotoAcik" @tamam="evrakFotoCekildi" />
 
     <SilmeOnayi :acik="muhSilinecek != null" :aciklama="muhSilAciklama"
       @vazgec="muhSilinecek = null" @onayla="muhSilOnayla" />
