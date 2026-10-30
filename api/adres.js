@@ -155,44 +155,42 @@ let illerPromise = null;
 const ilcelerCache = new Map();
 const mahallelerCache = new Map();
 
+// Sıra: bellek → DB → PTT. Veri seed ile DB'de hazır olduğundan istekler
+// anında döner; PTT yalnız DB'de olmayan (yeni) kombinasyonlar için denenir.
+// (Önceden PTT önce denenip 10 sn'lik zaman aşımından sonra DB'ye düşülüyordu
+// — PTT'ye erişemeyen ortamlarda her seçim o kadar bekletiyordu.)
 export async function listIller() {
   if (illerCache) return illerCache;
-  illerPromise ??= callPtt('iller')
-    .then((rows) => {
-      const options = (Array.isArray(rows) ? rows : [])
-        .filter((r) => r.kod > 0)
-        .map((r) => ({ label: r.ad, value: r.kod }))
-        .sort((a, b) => trCompare(a.label, b.label));
-      dbYaz('iller', options);
-      illerCache = options;
-      return options;
-    })
-    .catch(async (err) => {
-      // PTT'ye ulaşılamadı — DB'deki kopyaya düş
-      const yedek = await dbOku('iller').catch(() => null);
-      if (!yedek) throw err;
+  illerPromise ??= (async () => {
+    const yedek = await dbOku('iller').catch(() => null);
+    if (yedek) {
       illerCache = yedek;
       return yedek;
-    })
-    .finally(() => {
-      illerPromise = null;
-    });
+    }
+    const rows = await callPtt('iller');
+    const options = (Array.isArray(rows) ? rows : [])
+      .filter((r) => r.kod > 0)
+      .map((r) => ({ label: r.ad, value: r.kod }))
+      .sort((a, b) => trCompare(a.label, b.label));
+    dbYaz('iller', options);
+    illerCache = options;
+    return options;
+  })().finally(() => {
+    illerPromise = null;
+  });
   return illerPromise;
 }
 
 export async function listIlceler(ilKodu) {
   if (ilcelerCache.has(ilKodu)) return ilcelerCache.get(ilKodu);
-  let options;
-  try {
+  let options = await dbOku(`ilceler:${ilKodu}`).catch(() => null);
+  if (!options) {
     const rows = await callPtt('ilceler', { il_kodu: String(ilKodu) });
     options = (Array.isArray(rows) ? rows : [])
       .filter((r) => r.kod > 0)
       .map((r) => ({ label: r.ad, value: r.kod }))
       .sort((a, b) => trCompare(a.label, b.label));
     dbYaz(`ilceler:${ilKodu}`, options);
-  } catch (err) {
-    options = await dbOku(`ilceler:${ilKodu}`).catch(() => null);
-    if (!options) throw err;
   }
   ilcelerCache.set(ilKodu, options);
   return options;
@@ -203,8 +201,8 @@ export async function listIlceler(ilKodu) {
 export async function listMahalleler(ilKodu, ilceKodu) {
   const cacheKey = `${ilKodu}:${ilceKodu}`;
   if (mahallelerCache.has(cacheKey)) return mahallelerCache.get(cacheKey);
-  let result;
-  try {
+  let result = await dbOku(`mahalleler:${cacheKey}`).catch(() => null);
+  if (!result) {
     const rows = await callPtt('postakodu', { il_kodu: String(ilKodu), ilce_kodu: String(ilceKodu) });
     const postaKoduByAd = new Map();
     for (const row of Array.isArray(rows) ? rows : []) {
@@ -215,9 +213,6 @@ export async function listMahalleler(ilKodu, ilceKodu) {
       .map(([ad, postaKodu]) => ({ ad, postaKodu }))
       .sort((a, b) => trCompare(a.ad, b.ad));
     dbYaz(`mahalleler:${cacheKey}`, result);
-  } catch (err) {
-    result = await dbOku(`mahalleler:${cacheKey}`).catch(() => null);
-    if (!result) throw err;
   }
   mahallelerCache.set(cacheKey, result);
   return result;
