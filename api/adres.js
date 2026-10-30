@@ -2,6 +2,7 @@ import https from 'node:https';
 import tls from 'node:tls';
 import fs from 'node:fs';
 import { Router } from 'express';
+import mongoose from 'mongoose';
 
 // PTT'nin kendi posta-kodu sayfasının (www.ptt.gov.tr/posta-kodu) çağırdığı
 // aynı public JSON API — auth/cookie gerektirmez. İl/ilçe sınırları ve
@@ -117,12 +118,44 @@ function trCompare(a, b) {
   return a.localeCompare(b, 'tr');
 }
 
+// PTT, bazı barındırma IP'lerinden (ör. Render/Frankfurt) gelen istekleri
+// kabul etmiyor. Bu yüzden başarılı PTT yanıtları MongoDB'ye de yazılır;
+// PTT'ye ulaşılamayan ortamlarda aynı veri oradan servis edilir. Veriyi
+// doldurmak için PTT'ye erişebilen bir makinede: node seed-adres-cache.js
+const AdresCache = mongoose.model(
+  'AdresCache',
+  new mongoose.Schema(
+    { _id: String, veri: { type: [mongoose.Schema.Types.Mixed], default: [] } },
+    { collection: 'adresCache', versionKey: false }
+  )
+);
+
+// Yazımlar istek akışını bloklamaz; seed betiği çıkmadan önce hepsini bekler
+const bekleyenYazimlar = new Set();
+
+function dbYaz(anahtar, veri) {
+  const p = AdresCache.findByIdAndUpdate(anahtar, { veri }, { upsert: true })
+    .exec()
+    .catch(() => { /* yedek yazılamazsa sıradaki istek yeniden dener */ });
+  bekleyenYazimlar.add(p);
+  p.finally(() => bekleyenYazimlar.delete(p));
+}
+
+export function adresYazimlariniBekle() {
+  return Promise.allSettled([...bekleyenYazimlar]);
+}
+
+async function dbOku(anahtar) {
+  const kayit = await AdresCache.findById(anahtar).lean();
+  return kayit?.veri?.length ? kayit.veri : null;
+}
+
 let illerCache = null;
 let illerPromise = null;
 const ilcelerCache = new Map();
 const mahallelerCache = new Map();
 
-async function listIller() {
+export async function listIller() {
   if (illerCache) return illerCache;
   illerPromise ??= callPtt('iller')
     .then((rows) => {
@@ -130,8 +163,16 @@ async function listIller() {
         .filter((r) => r.kod > 0)
         .map((r) => ({ label: r.ad, value: r.kod }))
         .sort((a, b) => trCompare(a.label, b.label));
+      dbYaz('iller', options);
       illerCache = options;
       return options;
+    })
+    .catch(async (err) => {
+      // PTT'ye ulaşılamadı — DB'deki kopyaya düş
+      const yedek = await dbOku('iller').catch(() => null);
+      if (!yedek) throw err;
+      illerCache = yedek;
+      return yedek;
     })
     .finally(() => {
       illerPromise = null;
@@ -139,31 +180,45 @@ async function listIller() {
   return illerPromise;
 }
 
-async function listIlceler(ilKodu) {
+export async function listIlceler(ilKodu) {
   if (ilcelerCache.has(ilKodu)) return ilcelerCache.get(ilKodu);
-  const rows = await callPtt('ilceler', { il_kodu: String(ilKodu) });
-  const options = (Array.isArray(rows) ? rows : [])
-    .filter((r) => r.kod > 0)
-    .map((r) => ({ label: r.ad, value: r.kod }))
-    .sort((a, b) => trCompare(a.label, b.label));
+  let options;
+  try {
+    const rows = await callPtt('ilceler', { il_kodu: String(ilKodu) });
+    options = (Array.isArray(rows) ? rows : [])
+      .filter((r) => r.kod > 0)
+      .map((r) => ({ label: r.ad, value: r.kod }))
+      .sort((a, b) => trCompare(a.label, b.label));
+    dbYaz(`ilceler:${ilKodu}`, options);
+  } catch (err) {
+    options = await dbOku(`ilceler:${ilKodu}`).catch(() => null);
+    if (!options) throw err;
+  }
   ilcelerCache.set(ilKodu, options);
   return options;
 }
 
 // PTT'nin "postakodu" action'ı sokak seviyesinde satır döner — mahalleAdi'na
 // göre tekilleştirilip her mahallenin ilk görülen posta kodu alınır.
-async function listMahalleler(ilKodu, ilceKodu) {
+export async function listMahalleler(ilKodu, ilceKodu) {
   const cacheKey = `${ilKodu}:${ilceKodu}`;
   if (mahallelerCache.has(cacheKey)) return mahallelerCache.get(cacheKey);
-  const rows = await callPtt('postakodu', { il_kodu: String(ilKodu), ilce_kodu: String(ilceKodu) });
-  const postaKoduByAd = new Map();
-  for (const row of Array.isArray(rows) ? rows : []) {
-    const ad = row.mahalleAdi?.trim();
-    if (ad && !postaKoduByAd.has(ad)) postaKoduByAd.set(ad, row.posta_Kodu);
+  let result;
+  try {
+    const rows = await callPtt('postakodu', { il_kodu: String(ilKodu), ilce_kodu: String(ilceKodu) });
+    const postaKoduByAd = new Map();
+    for (const row of Array.isArray(rows) ? rows : []) {
+      const ad = row.mahalleAdi?.trim();
+      if (ad && !postaKoduByAd.has(ad)) postaKoduByAd.set(ad, row.posta_Kodu);
+    }
+    result = [...postaKoduByAd.entries()]
+      .map(([ad, postaKodu]) => ({ ad, postaKodu }))
+      .sort((a, b) => trCompare(a.ad, b.ad));
+    dbYaz(`mahalleler:${cacheKey}`, result);
+  } catch (err) {
+    result = await dbOku(`mahalleler:${cacheKey}`).catch(() => null);
+    if (!result) throw err;
   }
-  const result = [...postaKoduByAd.entries()]
-    .map(([ad, postaKodu]) => ({ ad, postaKodu }))
-    .sort((a, b) => trCompare(a.ad, b.ad));
   mahallelerCache.set(cacheKey, result);
   return result;
 }
