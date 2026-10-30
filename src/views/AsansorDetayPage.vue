@@ -1611,7 +1611,7 @@ const onBilgi = computed(() => {
   <ion-page>
     <!-- Header: geri + başlık + buton grubu, scroll boyunca sabit -->
     <ion-header class="ion-no-border">
-      <div class="border-b border-white/5 bg-surface-900">
+      <div class="border-b border-white/5 bg-surface-bar">
         <header class="mx-auto flex max-w-lg items-center gap-3 px-4 py-3">
           <button type="button" @click="geri"
             class="grid h-8 w-8 shrink-0 place-items-center bg-surface-800 text-ink ring-1 ring-white/10">

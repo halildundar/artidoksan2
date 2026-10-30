@@ -67,7 +67,7 @@ onIonViewWillEnter(yukle);
   <ion-page>
     <!-- Header: başlık + Yeni Ekle + arama, scroll boyunca sabit -->
     <ion-header class="ion-no-border">
-      <div class="border-b border-white/5 bg-surface-900">
+      <div class="border-b border-white/5 bg-surface-bar">
         <header class="mx-auto flex max-w-lg items-center justify-between gap-2 px-4 py-3">
           <h1 class="truncate text-xl font-bold leading-8 tracking-wide text-ink">Asansörler</h1>
           <button type="button" @click="git('/asansor/yeni')"

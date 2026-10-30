@@ -39,8 +39,10 @@ export default defineConfig({
       manifest: {
         name: 'TüvNord Asansör',
         short_name: 'TüvNord Asansör',
-        theme_color: '#00003C',
-        background_color: '#00003C',
+        // Kurulu PWA'da üst/alt sistem şeritleri bu renkle boyanır —
+        // uygulamadaki header/sekme çubuğu koyu yeşiliyle aynı
+        theme_color: '#1c2a21',
+        background_color: '#0d1612',
         icons: [
           { src: 'icon-192.png', sizes: '192x192', type: 'image/png' },
           { src: 'icon-512.png', sizes: '512x512', type: 'image/png' },

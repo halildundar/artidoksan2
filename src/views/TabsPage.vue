@@ -19,7 +19,7 @@ const go = (path: string) => {
       <ion-router-outlet></ion-router-outlet>
 
       <!-- Özel sekme çubuğu: ion-tabs yalnızca iskelet, görünüm tamamen Tailwind -->
-      <div slot="bottom" class="border-t border-white/5 bg-[#0b130f] pb-[env(safe-area-inset-bottom)]">
+      <div slot="bottom" class="border-t border-white/5 bg-surface-bar pb-[env(safe-area-inset-bottom)]">
         <nav class="mx-auto grid h-16 max-w-lg grid-cols-7">
           <button type="button" @click="go('/firma')"
             class="flex flex-col items-center justify-center gap-1"

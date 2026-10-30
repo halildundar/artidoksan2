@@ -87,7 +87,7 @@ const sgkDokumleri = computed(() => firma.value?.sgkDokumleri ?? []);
   <Teleport to="body">
     <div v-if="acik" class="fixed inset-0 z-50 flex flex-col bg-[#101a14]">
       <div
-        class="flex shrink-0 items-center justify-between border-b border-white/5 bg-surface-900 px-4 py-3 pt-[max(0.75rem,env(safe-area-inset-top))]">
+        class="flex shrink-0 items-center justify-between border-b border-white/5 bg-surface-bar px-4 py-3 pt-[max(0.75rem,env(safe-area-inset-top))]">
         <h2 class="truncate text-sm font-bold text-ink">{{ firma?.ad || 'Firma Bilgileri' }}</h2>
         <button type="button" @click="acik = false"
           class="grid h-8 w-8 shrink-0 place-items-center bg-surface-800 text-ink-muted ring-1 ring-white/10">
@@ -341,7 +341,7 @@ const sgkDokumleri = computed(() => firma.value?.sgkDokumleri ?? []);
       </div>
 
       <div
-        class="shrink-0 border-t border-white/5 bg-surface-900 p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+        class="shrink-0 border-t border-white/5 bg-surface-bar p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
         <div class="mx-auto max-w-lg">
           <button type="button" @click="acik = false"
             class="w-full bg-surface-800 px-4 py-3 text-xs font-semibold text-ink-muted ring-1 ring-white/10">

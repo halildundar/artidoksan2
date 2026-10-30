@@ -17,6 +17,13 @@ const config: CapacitorConfig = {
     // çevrimdışı açılış için şart (Info.plist'teki WKAppBoundDomains ile).
     limitsNavigationsToAppBoundDomains: true,
   },
+  plugins: {
+    // Durum çubuğu header'la aynı koyu yeşil; koyu zemin → açık ikonlar
+    StatusBar: {
+      backgroundColor: '#1c2a21',
+      style: 'DARK',
+    },
+  },
 };
 
 export default config;

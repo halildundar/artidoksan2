@@ -50,6 +50,7 @@
   --color-surface-900: #0d1612; /* temel zemin */
   --color-surface-800: #121e18; /* kart/liste zemini */
   --color-surface-700: #16241d; /* degradenin açık ucu */
+  --color-surface-bar: #1c2a21; /* üst/alt şeritler (header + sekme çubuğu) — koyu yeşil */
   --color-ink: #e6ede8;         /* ana metin */
   --color-ink-muted: #9db3a7;   /* ikincil metin */
 }

@@ -81,7 +81,7 @@ onIonViewWillEnter(yukle);
 <template>
   <ion-page>
     <ion-header class="ion-no-border">
-      <div class="border-b border-white/5 bg-surface-900">
+      <div class="border-b border-white/5 bg-surface-bar">
         <header class="mx-auto flex max-w-lg items-center justify-between gap-2 px-4 py-3">
           <div class="flex min-w-0 flex-1 items-center gap-2">
             <button type="button" @click="geri"

@@ -473,7 +473,7 @@ async function ekProjeAc(slot: BelgeSlot) {
   <ion-page>
     <!-- Header: scroll boyunca üstte sabit -->
     <ion-header class="ion-no-border">
-      <div class="border-b border-white/5 bg-surface-900">
+      <div class="border-b border-white/5 bg-surface-bar">
         <header class="mx-auto flex max-w-lg items-center gap-2 px-4 py-3">
           <button type="button" @click="geri"
             class="grid h-8 w-8 shrink-0 place-items-center bg-surface-800 text-ink ring-1 ring-white/10">
@@ -891,7 +891,7 @@ async function ekProjeAc(slot: BelgeSlot) {
     <Teleport to="body">
       <div v-if="aksamSecKod != null" class="fixed inset-0 z-50 flex flex-col bg-[#101a14]">
         <div
-          class="flex shrink-0 items-center justify-between border-b border-white/5 bg-surface-900 px-4 py-3 pt-[max(0.75rem,env(safe-area-inset-top))]">
+          class="flex shrink-0 items-center justify-between border-b border-white/5 bg-surface-bar px-4 py-3 pt-[max(0.75rem,env(safe-area-inset-top))]">
           <h2 class="truncate text-sm font-bold text-ink">
             {{ seciliGrup?.ad ?? 'Güvenlik Aksamı' }} Ekle
             <span v-if="seciliGrup" class="font-semibold text-ink-muted/80">
@@ -905,7 +905,7 @@ async function ekProjeAc(slot: BelgeSlot) {
         </div>
 
         <!-- Arama: marka / tip / sertifika no -->
-        <div class="shrink-0 border-b border-white/5 bg-surface-900 px-4 pb-3">
+        <div class="shrink-0 border-b border-white/5 bg-surface-bar px-4 pb-3">
           <div class="mx-auto max-w-lg">
             <input v-model="aksamArama" type="search" placeholder="Marka veya tip ara…"
               class="w-full bg-surface-800 px-3 py-2 text-xs text-ink ring-1 ring-white/10 outline-none placeholder:text-ink-muted/50 focus:ring-white/30" />
@@ -973,7 +973,7 @@ async function ekProjeAc(slot: BelgeSlot) {
         </div>
 
         <div
-          class="shrink-0 border-t border-white/5 bg-surface-900 p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+          class="shrink-0 border-t border-white/5 bg-surface-bar p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
           <div class="mx-auto max-w-lg">
             <button type="button" @click="aksamSecKod = null"
               class="w-full bg-surface-800 px-4 py-3 text-xs font-semibold text-ink-muted ring-1 ring-white/10">

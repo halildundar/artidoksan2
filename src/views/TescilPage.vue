@@ -149,7 +149,7 @@ async function silOnayla() {
   <ion-page>
     <!-- Header: scroll boyunca üstte sabit -->
     <ion-header class="ion-no-border">
-      <div class="border-b border-white/5 bg-surface-900">
+      <div class="border-b border-white/5 bg-surface-bar">
         <header class="mx-auto flex max-w-lg items-center justify-between px-4 py-3">
           <h1 class="text-xl font-bold leading-8 tracking-wide text-ink">Tescil</h1>
           <button type="button" @click="ekleAc"
@@ -214,7 +214,7 @@ async function silOnayla() {
     <Teleport to="body">
       <div v-if="ekleAcik" class="fixed inset-0 z-50 flex flex-col bg-[#101a14]">
         <div
-          class="flex shrink-0 items-center justify-between border-b border-white/5 bg-surface-900 px-4 py-3 pt-[max(0.75rem,env(safe-area-inset-top))]">
+          class="flex shrink-0 items-center justify-between border-b border-white/5 bg-surface-bar px-4 py-3 pt-[max(0.75rem,env(safe-area-inset-top))]">
           <h2 class="truncate text-sm font-bold text-ink">Yeni Tescil</h2>
           <button type="button" @click="ekleAcik = false"
             class="grid h-8 w-8 shrink-0 place-items-center bg-surface-800 text-ink-muted ring-1 ring-white/10">
@@ -257,7 +257,7 @@ async function silOnayla() {
         </div>
 
         <div
-          class="shrink-0 border-t border-white/5 bg-surface-900 p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+          class="shrink-0 border-t border-white/5 bg-surface-bar p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
           <div class="mx-auto flex max-w-lg gap-1.5">
             <button type="button" @click="ekleAcik = false"
               class="flex-1 bg-surface-800 px-4 py-3 text-xs font-semibold text-ink-muted ring-1 ring-white/10">
