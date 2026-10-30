@@ -1273,7 +1273,7 @@ const guvenlikOzetSatirlari = computed(() => {
   if (!a) return [];
   const satirlar: {
     bolum: string; marka: string; tip: string; seriNo: string;
-    belgeId: string | null; fotolar: BelgeSlot[];
+    belgeId: string | null; fotolar: BelgeSlot[]; fotoAlani: keyof Asansor | null;
   }[] = [];
   for (const [slot, etiket] of Object.entries(GUVENLIK_SLOT_ETIKETLERI)) {
     const rows = (a.guvenlikAksamlari ?? []).filter((r) => r.slot === slot);
@@ -1299,6 +1299,7 @@ const guvenlikOzetSatirlari = computed(() => {
         seriNo: g.seriler.join(', ') || '—',
         belgeId: g.belgeId,
         fotolar: slotFotolar,
+        fotoAlani: slotFotolar.length ? (alan ?? null) : null,
       });
       slotFotolar = [];
     }
@@ -1312,10 +1313,25 @@ const guvenlikOzetSatirlari = computed(() => {
       seriNo: a.motorSeriNo || '—',
       belgeId: a.motorAksamBelgesiId || null,
       fotolar: a.motorFotolari ?? [],
+      fotoAlani: 'motorFotolari',
     });
   }
   return satirlar;
 });
+
+// Panel fotoğrafları SilmeOnayi ile ilgili bölümün listesinden kaldırılır
+const ozetFotoSilinecek = ref<{ alan: keyof Asansor; foto: BelgeSlot } | null>(null);
+
+async function ozetFotoSilOnayla() {
+  const hedef = ozetFotoSilinecek.value;
+  ozetFotoSilinecek.value = null;
+  const a = asansor.value;
+  if (!a || !hedef) return;
+  const liste = ((a[hedef.alan] as BelgeSlot[] | undefined) ?? []).filter(
+    (f) => f.dosyaAnahtari !== hedef.foto.dosyaAnahtari
+  );
+  await guncelle({ [hedef.alan]: liste } as AsansorGuncelleme);
+}
 
 // Panel fotoğraflarının küçük önizlemeleri (dosyaAnahtari → imzalı url)
 const ozetFotoUrller = ref<Record<string, string>>({});
@@ -1766,17 +1782,25 @@ const onBilgi = computed(() => {
                   </button>
                 </div>
 
-                <!-- Çekilen/eklenen montaj fotoğrafları — dokununca tam ekran -->
-                <div v-if="satir.fotolar.length" class="flex gap-1.5 overflow-x-auto">
-                  <button v-for="foto in satir.fotolar" :key="foto.dosyaAnahtari" type="button"
-                    @click="dosyaSlotAc(foto)"
-                    class="h-14 w-14 shrink-0 overflow-hidden bg-surface-900 ring-1 ring-white/10">
-                    <img v-if="ozetFotoUrller[foto.dosyaAnahtari]" :src="ozetFotoUrller[foto.dosyaAnahtari]"
-                      :alt="foto.dosyaAdi" class="h-full w-full object-cover" />
-                    <span v-else class="grid h-full place-items-center px-0.5 text-center text-[8px] text-ink-muted/60">
-                      {{ foto.dosyaAdi }}
-                    </span>
-                  </button>
+                <!-- Çekilen/eklenen montaj fotoğrafları — dokununca tam ekran,
+                  köşedeki × ile SilmeOnayi üzerinden kaldırılır -->
+                <div v-if="satir.fotolar.length" class="flex gap-1.5 overflow-x-auto pt-1">
+                  <span v-for="foto in satir.fotolar" :key="foto.dosyaAnahtari" class="relative shrink-0">
+                    <button type="button" @click="dosyaSlotAc(foto)"
+                      class="h-14 w-14 overflow-hidden bg-surface-900 ring-1 ring-white/10">
+                      <img v-if="ozetFotoUrller[foto.dosyaAnahtari]" :src="ozetFotoUrller[foto.dosyaAnahtari]"
+                        :alt="foto.dosyaAdi" class="h-full w-full object-cover" />
+                      <span v-else class="grid h-full place-items-center px-0.5 text-center text-[8px] text-ink-muted/60">
+                        {{ foto.dosyaAdi }}
+                      </span>
+                    </button>
+                    <button v-if="satir.fotoAlani" type="button"
+                      @click="ozetFotoSilinecek = { alan: satir.fotoAlani, foto }"
+                      aria-label="Fotoğrafı kaldır"
+                      class="absolute -right-1 -top-1 grid h-4 w-4 place-items-center bg-red-900 text-[10px] leading-none text-red-100 ring-1 ring-red-500/40">
+                      ×
+                    </button>
+                  </span>
                 </div>
               </div>
             </div>
@@ -2209,6 +2233,10 @@ const onBilgi = computed(() => {
     </SemaModal>
 
     <FotoCekModal v-model:acik="kurumFotoAcik" @tamam="kurumEvrakEkle" />
+
+    <SilmeOnayi :acik="ozetFotoSilinecek != null"
+      :aciklama="ozetFotoSilinecek?.foto.dosyaAdi || 'Fotoğraf'"
+      @vazgec="ozetFotoSilinecek = null" @onayla="ozetFotoSilOnayla" />
 
     <SilmeOnayi :acik="kurumEvrakSilinecek != null"
       :aciklama="kurumEvrakSilinecek != null
