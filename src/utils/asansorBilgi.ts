@@ -351,6 +351,13 @@ export function asansorFotoGruplari(a: Asansor): { baslik: string; fotolar: Belg
     { baslik: 'Kontrol Kartı', fotolar: a.kontrolKartiFotolari },
     { baslik: 'Motor', fotolar: a.motorFotolari },
     { baslik: 'UCM/ACOP', fotolar: a.ucmAcopFotolari },
+    { baslik: 'Duraklar', fotolar: a.duraklarFotolari },
+    { baslik: 'Kuyu Dip Alanı', fotolar: a.kuyuDipFotolari },
+    { baslik: 'Ray Ölçüleri', fotolar: a.rayFotolari },
+    { baslik: 'Kuyu Üst Alanı', fotolar: a.kuyuUstFotolari },
+    { baslik: 'Ağırlık Hesabı', fotolar: a.agirlikFotolari },
+    { baslik: 'Halat ve Kasnaklar', fotolar: a.halatKasnakFotolari },
+    { baslik: 'Makine Dairesi', fotolar: a.makineDairesiFotolari },
   ]
     .map((g) => ({ baslik: g.baslik, fotolar: g.fotolar ?? [] }))
     .filter((g) => g.fotolar.length);

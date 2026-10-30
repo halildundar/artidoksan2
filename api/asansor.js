@@ -225,6 +225,14 @@ const asansorSchema = new mongoose.Schema(
     ekBelgeler: { type: [ekBelgeSchema], default: [] },
     // Kurum evrakları: serbest dosya/fotoğraf listesi (yükleme hep sona ekler)
     kurumEvraklari: { type: [dosyaSlotSchema], default: [] },
+    // Bölüm modallarının fotoğraf alanları (dosya seçme + kamera)
+    duraklarFotolari: { type: [dosyaSlotSchema], default: [] },
+    kuyuDipFotolari: { type: [dosyaSlotSchema], default: [] },
+    rayFotolari: { type: [dosyaSlotSchema], default: [] },
+    kuyuUstFotolari: { type: [dosyaSlotSchema], default: [] },
+    agirlikFotolari: { type: [dosyaSlotSchema], default: [] },
+    halatKasnakFotolari: { type: [dosyaSlotSchema], default: [] },
+    makineDairesiFotolari: { type: [dosyaSlotSchema], default: [] },
     // Durak/kabin kapı kilidi montaj fotoğrafları (1. ve 2. giriş ayrı)
     durakKilitFotolari: { type: [dosyaSlotSchema], default: [] },
     durakKilitFotolari2: { type: [dosyaSlotSchema], default: [] },

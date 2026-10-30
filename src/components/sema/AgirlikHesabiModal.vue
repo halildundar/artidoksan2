@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import SemaModal from '@/components/SemaModal.vue';
+import FotoAlani from '@/components/FotoAlani.vue';
+import type { BelgeSlot } from '@/services/dosyaService';
 
 type Num = number | '' | null;
 
@@ -15,6 +17,7 @@ const props = defineProps<{ beyanYuku?: number | null }>();
 
 const emit = defineEmits<{ iptal: [] }>();
 const open = defineModel<boolean>('open', { default: false });
+const fotolar = defineModel<BelgeSlot[]>('fotolar', { default: () => [] });
 const karkasAgirligi = defineModel<Num>('karkasAgirligi', { default: null });
 const bloklar = defineModel<AgirlikBloguSatiri[]>('bloklar', { default: () => [] });
 
@@ -107,5 +110,6 @@ const pArtiQ = computed(() => kabinAgirligi.value + (props.beyanYuku ?? 0));
         </div>
       </div>
     </div>
+    <FotoAlani v-model:fotolar="fotolar" />
   </SemaModal>
 </template>

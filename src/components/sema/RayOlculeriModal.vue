@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import SemaModal from '@/components/SemaModal.vue';
+import FotoAlani from '@/components/FotoAlani.vue';
+import type { BelgeSlot } from '@/services/dosyaService';
 import { KABIN_RAY_TIPLERI, KARSI_AGIRLIK_RAY_TIPLERI } from '@/utils/rayTipleri';
 
 // Ray Ölçüleri şeması (artidoksan1'den taşındı): kuyu ÜSTTEN görünüm.
@@ -14,6 +16,7 @@ const props = defineProps<{ agirlikKonumu?: string | null }>();
 
 const emit = defineEmits<{ iptal: [] }>();
 const open = defineModel<boolean>('open', { default: false });
+const fotolar = defineModel<BelgeSlot[]>('fotolar', { default: () => [] });
 const karsiAgirlikRayArasi = defineModel<Num>('karsiAgirlikRayArasi', { default: null });
 const kabinRayArasi = defineModel<Num>('kabinRayArasi', { default: null });
 const rayRR = defineModel<Num>('rayRR', { default: null });
@@ -349,6 +352,7 @@ const mmText = (v: Num) => (n(v) != null ? `${n(v)} mm` : 'ölçü');
         <strong class="font-semibold text-[#6fcf97]">{{ halatArasi != null ? `${halatArasi} mm` : '—' }}</strong>
       </p>
     </div>
+    <FotoAlani v-model:fotolar="fotolar" />
   </SemaModal>
 </template>
 

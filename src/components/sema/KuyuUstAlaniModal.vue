@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import SemaModal from '@/components/SemaModal.vue';
+import FotoAlani from '@/components/FotoAlani.vue';
+import type { BelgeSlot } from '@/services/dosyaService';
 
 // Kuyu Üst Alanı şeması (artidoksan1'den taşındı): kuyu üstü yan görünüm —
 // tavan, son katta kabin, süspansiyon kutusu ve korkuluk ölçüleri.
@@ -11,6 +13,7 @@ const props = defineProps<{ hiz?: number | null; dipBosluk?: number | null; dipS
 
 const emit = defineEmits<{ iptal: [] }>();
 const open = defineModel<boolean>('open', { default: false });
+const fotolar = defineModel<BelgeSlot[]>('fotolar', { default: () => [] });
 const korkulukMesafe = defineModel<Num>('korkulukMesafe', { default: null });
 const korkulukYuksekligi = defineModel<Num>('korkulukYuksekligi', { default: null });
 const suspansiyonMesafe = defineModel<Num>('suspansiyonMesafe', { default: null });
@@ -254,6 +257,7 @@ const ustRiskVar = computed(() => korkulukRiski.value || suspRiski.value || durm
         <p>Kuyu üstü risk analizi gerekli!</p>
       </div>
     </div>
+    <FotoAlani v-model:fotolar="fotolar" />
   </SemaModal>
 </template>
 

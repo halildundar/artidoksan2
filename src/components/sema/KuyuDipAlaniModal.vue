@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import SemaModal from '@/components/SemaModal.vue';
+import FotoAlani from '@/components/FotoAlani.vue';
+import type { BelgeSlot } from '@/services/dosyaService';
 
 // Kuyu Dip Alanı şeması (artidoksan1'den taşındı): kuyu dibi yan görünüm —
 // kabin + tampon + boşluk/stroke ölçüleri, sağda kuyu dip yüksekliği, altta
@@ -12,6 +14,7 @@ const props = defineProps<{ hiz?: number | null }>();
 
 const emit = defineEmits<{ iptal: [] }>();
 const open = defineModel<boolean>('open', { default: false });
+const fotolar = defineModel<BelgeSlot[]>('fotolar', { default: () => [] });
 const kuyuDipYuksekligi = defineModel<Num>('kuyuDipYuksekligi', { default: null });
 // Kabin en alt konumdayken kabin alt noktasının kuyu tabanına mesafesi
 const kabinEnAltNokta = defineModel<Num>('kabinEnAltNokta', { default: null });
@@ -381,6 +384,7 @@ const dipRiskVar = computed(() => kabinAltRiski.value || etekRiski.value || ivRi
         <strong class="font-semibold text-[#6fcf97]">{{ karsiSonHareketMesafesiCm != null ? `${karsiSonHareketMesafesiCm} cm` : '—' }}</strong>
       </p>
     </div>
+    <FotoAlani v-model:fotolar="fotolar" />
   </SemaModal>
 </template>
 

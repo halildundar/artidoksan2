@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import SemaModal from '@/components/SemaModal.vue';
+import FotoAlani from '@/components/FotoAlani.vue';
+import type { BelgeSlot } from '@/services/dosyaService';
 import type { DurakSatiri } from './kapiKilitleriTipleri';
 
 // Duraklar popup'ı: durak sayısı adedince 0,1,2,3… numaralı satırlar — en üst
@@ -17,6 +19,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{ iptal: [] }>();
 const open = defineModel<boolean>('open', { default: false });
+const fotolar = defineModel<BelgeSlot[]>('fotolar', { default: () => [] });
 const satirlar = defineModel<DurakSatiri[]>('satirlar', { default: () => [] });
 
 function sayi(v: number | '' | null): number | null {
@@ -138,5 +141,6 @@ function yukariKaydir() {
         </p>
       </div>
     </div>
+    <FotoAlani v-model:fotolar="fotolar" />
   </SemaModal>
 </template>

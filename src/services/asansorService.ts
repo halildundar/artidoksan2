@@ -194,6 +194,14 @@ export interface Asansor {
   ekBelgeler: AsansorEkBelge[];
   // Kurum evrakları: serbest dosya/fotoğraf listesi (yükleme hep sona ekler)
   kurumEvraklari?: BelgeSlot[];
+  // Bölüm modallarının fotoğraf alanları (dosya seçme + kamera)
+  duraklarFotolari?: BelgeSlot[];
+  kuyuDipFotolari?: BelgeSlot[];
+  rayFotolari?: BelgeSlot[];
+  kuyuUstFotolari?: BelgeSlot[];
+  agirlikFotolari?: BelgeSlot[];
+  halatKasnakFotolari?: BelgeSlot[];
+  makineDairesiFotolari?: BelgeSlot[];
   // Durak/kabin kapı kilidi montaj fotoğrafları (1. ve 2. giriş ayrı)
   durakKilitFotolari: BelgeSlot[];
   durakKilitFotolari2: BelgeSlot[];

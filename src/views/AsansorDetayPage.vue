@@ -776,6 +776,7 @@ watch(makineAcik, (acik, onceki) => {
     makineDairesiCalismaYuksekligi: sayi(makineCalismaL.value),
     makineDairesiGecisYuksekligi: sayi(makineGecisL.value),
     makineDairesiKapiYuksekligi: sayi(makineKapiL.value),
+    makineDairesiFotolari: makineDairesiFotolariL.value,
   });
 });
 
@@ -914,6 +915,16 @@ const kabinUstDurmaL = ref<Num>(null);
 const sonKatL = ref<Num>(null);
 const kuyuUstDurmaAlaniL = ref<string | null>(null);
 
+// Bölüm modallarının fotoğraf listeleri (modal açılırken kayıttan yüklenir,
+// kapanınca ilgili bölümle birlikte kaydedilir)
+const duraklarFotolariL = ref<BelgeSlot[]>([]);
+const kuyuDipFotolariL = ref<BelgeSlot[]>([]);
+const rayFotolariL = ref<BelgeSlot[]>([]);
+const kuyuUstFotolariL = ref<BelgeSlot[]>([]);
+const agirlikFotolariL = ref<BelgeSlot[]>([]);
+const halatKasnakFotolariL = ref<BelgeSlot[]>([]);
+const makineDairesiFotolariL = ref<BelgeSlot[]>([]);
+
 function bolumAc(bolum: Bolum) {
   blurActive();
   const a = asansor.value;
@@ -931,6 +942,7 @@ function bolumAc(bolum: Bolum) {
     bloklarL.value = a.agirlikBloklari?.length
       ? a.agirlikBloklari.map((b) => ({ adet: b.adet, birimAgirlik: b.birimAgirlik }))
       : [{ adet: 30, birimAgirlik: 40 }];
+    agirlikFotolariL.value = [...(a.agirlikFotolari ?? [])];
     agirlikAcik.value = true;
     return;
   }
@@ -964,6 +976,7 @@ function bolumAc(bolum: Bolum) {
     yatayMesafeL.value = a.kasnaklarArasiYatayMesafe ?? null;
     sarimAcisiL.value = a.sarimAcisi ?? null;
     palangaKonumuL.value = a.kabinPalangaKonumu && a.kabinPalangaKonumu !== 'yok' ? a.kabinPalangaKonumu : null;
+    halatKasnakFotolariL.value = [...(a.halatKasnakFotolari ?? [])];
     halatAcik.value = true;
     return;
   }
@@ -979,6 +992,7 @@ function bolumAc(bolum: Bolum) {
     // Varsayılan ray tipleri: kabin T89/B, karşı ağırlık T50/B.
     kabinRayTipiL.value = a.kabinRayTipi || 'T89/B';
     karsiAgirlikRayTipiL.value = a.karsiAgirlikRayTipi || 'T50/B';
+    rayFotolariL.value = [...(a.rayFotolari ?? [])];
     rayAcik.value = true;
     return;
   }
@@ -997,6 +1011,7 @@ function bolumAc(bolum: Bolum) {
     kuyuDipDurmaAlaniL.value = a.kuyuDipDurmaAlani ?? '50x70x100';
     kuyuDipKarsiBoslukL.value = a.kuyuDipKarsiBosluk ?? 100;
     kuyuDipKarsiStrokeL.value = a.kuyuDipKarsiStroke ?? 100;
+    kuyuDipFotolariL.value = [...(a.kuyuDipFotolari ?? [])];
     kuyuDipAcik.value = true;
     return;
   }
@@ -1005,6 +1020,7 @@ function bolumAc(bolum: Bolum) {
     durakSatirlariL.value = a.katYukseklikleri?.length
       ? a.katYukseklikleri.map((k) => ({ kat: k.kat, yukseklik: k.yukseklik }))
       : Array.from({ length: Math.max(a.durakSayisi ?? 0, 0) }, (_, i) => ({ kat: i, yukseklik: 3000 }));
+    duraklarFotolariL.value = [...(a.duraklarFotolari ?? [])];
     duraklarAcik.value = true;
     return;
   }
@@ -1018,6 +1034,7 @@ function bolumAc(bolum: Bolum) {
     sonKatL.value = a.kuyuUstSonKat ?? 4250;
     // Varsayılan durma alanı: 50 x 70 x 100 cm
     kuyuUstDurmaAlaniL.value = a.kuyuUstDurmaAlani ?? '50x70x100';
+    kuyuUstFotolariL.value = [...(a.kuyuUstFotolari ?? [])];
     kuyuUstAcik.value = true;
     return;
   }
@@ -1025,6 +1042,7 @@ function bolumAc(bolum: Bolum) {
     makineCalismaL.value = a.makineDairesiCalismaYuksekligi ?? null;
     makineGecisL.value = a.makineDairesiGecisYuksekligi ?? null;
     makineKapiL.value = a.makineDairesiKapiYuksekligi ?? null;
+    makineDairesiFotolariL.value = [...(a.makineDairesiFotolari ?? [])];
     makineAcik.value = true;
     return;
   }
@@ -1065,6 +1083,7 @@ watch(agirlikAcik, (acik, onceki) => {
   }
   guncelle({
     karkasAgirligi: sayi(karkasAgirligiL.value),
+    agirlikFotolari: agirlikFotolariL.value,
     agirlikBloklari: bloklarL.value.map((b) => ({
       adet: sayi(b.adet) ?? 0,
       birimAgirlik: sayi(b.birimAgirlik) ?? 0,
@@ -1100,6 +1119,7 @@ watch(halatAcik, (acik, onceki) => {
   }
   guncelle({
     tahrikKasnakCapi: sayi(tahrikKasnagiL.value),
+    halatKasnakFotolari: halatKasnakFotolariL.value,
     halatSapturmaKasnagiCapi: sayi(sapturmaKasnagiL.value),
     halatPalanga1Capi: sayi(palanga1L.value),
     halatPalanga2Capi: sayi(palanga2L.value),
@@ -1123,6 +1143,7 @@ watch(rayAcik, (acik, onceki) => {
   }
   guncelle({
     karsiAgirlikRayArasi: sayi(karsiAgirlikRayArasiL.value),
+    rayFotolari: rayFotolariL.value,
     kabinRayArasi: sayi(kabinRayArasiL.value),
     rayRR: sayi(rayRRL.value),
     rayRK: sayi(rayRKL.value),
@@ -1141,6 +1162,7 @@ watch(kuyuDipAcik, (acik, onceki) => {
   }
   guncelle({
     kuyuDipYukseklik: sayi(kuyuDipYuksekligiL.value),
+    kuyuDipFotolari: kuyuDipFotolariL.value,
     kuyuDipKabinEnAltNokta: sayi(kuyuDipKabinEnAltL.value),
     kuyuDipEtekSaciTabanMesafe: sayi(kuyuDipEtekSaciL.value),
     kuyuDipIvOlcusu: sayi(kuyuDipIvL.value),
@@ -1167,6 +1189,7 @@ watch(duraklarAcik, (acik, onceki) => {
   const seyir = kayit.slice(0, -1).reduce((toplam, s) => toplam + s.yukseklik, 0);
   const veri: AsansorGuncelleme = {
     katYukseklikleri: kayit,
+    duraklarFotolari: duraklarFotolariL.value,
     seyirMesafesi: kayit.length ? seyir : null,
   };
   // Kuyu dip girilmemişse Kuyu Dip Alanı popup'ının varsayılanı (1500) kullanılır
@@ -1219,6 +1242,7 @@ watch(kuyuUstAcik, (acik, onceki) => {
   }
   guncelle({
     kuyuUstKorkulukMesafe: sayi(korkulukMesafeL.value),
+    kuyuUstFotolari: kuyuUstFotolariL.value,
     kuyuUstKorkulukYuksekligi: sayi(korkulukYuksekligiL.value),
     kuyuUstSuspansiyonMesafe: sayi(suspansiyonMesafeL.value),
     kuyuUstKabinUstDurma: sayi(kabinUstDurmaL.value),
@@ -2123,6 +2147,7 @@ const bolumOzetleri = computed<Record<string, [string, string][]>>(() => {
     <!-- Makine Dairesi — çalışma/geçiş/kapı yükseklikleri (yalnız MR);
     kapanınca kaydedilir -->
     <MakineDairesiModal v-model:open="makineAcik" @iptal="iptalEdildi = true"
+      v-model:fotolar="makineDairesiFotolariL"
       v-model:calisma-yuksekligi="makineCalismaL" v-model:gecis-yuksekligi="makineGecisL"
       v-model:kapi-yuksekligi="makineKapiL" />
 
@@ -2175,6 +2200,7 @@ const bolumOzetleri = computed<Record<string, [string, string][]>>(() => {
 
     <!-- Şema modalları — kapanınca ilgili bölüm otomatik kaydedilir -->
     <AgirlikHesabiModal v-model:open="agirlikAcik" @iptal="iptalEdildi = true"
+      v-model:fotolar="agirlikFotolariL"
       v-model:karkas-agirligi="karkasAgirligiL"
       v-model:bloklar="bloklarL" :beyan-yuku="asansor?.beyanYuku ?? null" />
 
@@ -2185,6 +2211,7 @@ const bolumOzetleri = computed<Record<string, [string, string][]>>(() => {
       v-model:cam-belgesi="kabinCamBelgesiL" v-model:fotolar="kabinFotolariL" />
 
     <HalatKasnaklarModal v-model:open="halatAcik" @iptal="iptalEdildi = true"
+      v-model:fotolar="halatKasnakFotolariL"
       v-model:tahrik-kasnagi-capi="tahrikKasnagiL"
       v-model:sapturma-kasnagi-capi="sapturmaKasnagiL" v-model:palanga1-capi="palanga1L"
       v-model:palanga2-capi="palanga2L" v-model:palanga3-capi="palanga3L"
@@ -2195,6 +2222,7 @@ const bolumOzetleri = computed<Record<string, [string, string][]>>(() => {
       :aski-tipi="asansor?.askiTipi ?? null" :halat-tipi-secenekleri="halatTipiSecenekleri" />
 
     <RayOlculeriModal v-model:open="rayAcik" @iptal="iptalEdildi = true"
+      v-model:fotolar="rayFotolariL"
       v-model:karsi-agirlik-ray-arasi="karsiAgirlikRayArasiL"
       v-model:kabin-ray-arasi="kabinRayArasiL" v-model:ray-r-r="rayRRL" v-model:ray-r-k="rayRKL"
       v-model:kuyu-genislik="kuyuGenislikL" v-model:kuyu-derinlik="kuyuDerinlikL"
@@ -2202,6 +2230,7 @@ const bolumOzetleri = computed<Record<string, [string, string][]>>(() => {
       :agirlik-konumu="asansor?.karsiAgirlikKonumu || null" />
 
     <KuyuDipAlaniModal v-model:open="kuyuDipAcik" @iptal="iptalEdildi = true"
+      v-model:fotolar="kuyuDipFotolariL"
       v-model:kuyu-dip-yuksekligi="kuyuDipYuksekligiL"
       v-model:kabin-en-alt-nokta="kuyuDipKabinEnAltL"
       v-model:etek-saci-mesafe="kuyuDipEtekSaciL"
@@ -2224,11 +2253,13 @@ const bolumOzetleri = computed<Record<string, [string, string][]>>(() => {
     <!-- Duraklar — durak numaraları + durak arası mesafeler;
     kapanınca katYukseklikleri'ne kaydedilir -->
     <DuraklarModal v-model:open="duraklarAcik" @iptal="iptalEdildi = true"
+      v-model:fotolar="duraklarFotolariL"
       v-model:satirlar="durakSatirlariL" :durak-sayisi="asansor?.durakSayisi ?? null"
       :kuyu-dip-yukseklik="asansor?.kuyuDipYukseklik ?? 1500"
       :son-kat-yukseklik="asansor?.sonKatYukseklik ?? asansor?.kuyuUstSonKat ?? null" />
 
     <KuyuUstAlaniModal v-model:open="kuyuUstAcik" @iptal="iptalEdildi = true"
+      v-model:fotolar="kuyuUstFotolariL"
       v-model:korkuluk-mesafe="korkulukMesafeL"
       v-model:korkuluk-yuksekligi="korkulukYuksekligiL" v-model:suspansiyon-mesafe="suspansiyonMesafeL"
       v-model:kabin-ust-durma="kabinUstDurmaL" v-model:son-kat="sonKatL"

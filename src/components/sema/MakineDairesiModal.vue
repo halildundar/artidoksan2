@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import SemaModal from '@/components/SemaModal.vue';
+import FotoAlani from '@/components/FotoAlani.vue';
+import type { BelgeSlot } from '@/services/dosyaService';
 
 // Makine Dairesi popup'ı (yalnız makine daireli — MR — asansörlerde): çalışma
 // alanı, geçiş alanı ve giriş kapısı yükseklikleri girilir. Sınırlar: çalışma
@@ -11,6 +13,7 @@ const n = (v: Num): number | null => (typeof v === 'number' && !Number.isNaN(v) 
 
 const emit = defineEmits<{ iptal: [] }>();
 const open = defineModel<boolean>('open', { default: false });
+const fotolar = defineModel<BelgeSlot[]>('fotolar', { default: () => [] });
 const calismaYuksekligi = defineModel<Num>('calismaYuksekligi', { default: null });
 const gecisYuksekligi = defineModel<Num>('gecisYuksekligi', { default: null });
 const kapiYuksekligi = defineModel<Num>('kapiYuksekligi', { default: null });
@@ -59,5 +62,6 @@ const riskVar = computed(() => alanlar.value.some((a) => a.risk));
         Makine dairesi risk analizi gerekli!
       </p>
     </div>
+    <FotoAlani v-model:fotolar="fotolar" />
   </SemaModal>
 </template>

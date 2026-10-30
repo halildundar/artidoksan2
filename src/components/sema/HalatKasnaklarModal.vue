@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import SemaModal from '@/components/SemaModal.vue';
+import FotoAlani from '@/components/FotoAlani.vue';
+import type { BelgeSlot } from '@/services/dosyaService';
 
 // Halat ve Kasnaklar şeması (artidoksan1'den taşındı): askı tipine göre iki
 // sabit diyagramdan biri gösterilir (1:1 → tahrik + sapturma kasnağı,
@@ -17,6 +19,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{ iptal: [] }>();
 const open = defineModel<boolean>('open', { default: false });
+const fotolar = defineModel<BelgeSlot[]>('fotolar', { default: () => [] });
 const tahrikKasnagiCapi = defineModel<Num>('tahrikKasnagiCapi', { default: null });
 const sapturmaKasnagiCapi = defineModel<Num>('sapturmaKasnagiCapi', { default: null });
 const palanga1Capi = defineModel<Num>('palanga1Capi', { default: null });
@@ -329,6 +332,7 @@ function popoverStyle(key: HotspotKey) {
         </select>
       </label>
     </div>
+    <FotoAlani v-model:fotolar="fotolar" />
   </SemaModal>
 </template>
 
