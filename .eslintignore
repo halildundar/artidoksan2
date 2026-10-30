@@ -4,6 +4,8 @@ node_modules
 /dist
 /ios
 /android
+# Backend Node projesi — frontend ESLint ayarlarıyla uyumsuz, ayrı dünyası var
+/api
 
 
 # local env files
