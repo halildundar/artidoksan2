@@ -11,8 +11,8 @@ import {
   type Satir, type BelgeSatiri,
 } from '@/utils/firmaBilgi';
 import {
-  AKSAM_SLOT_ETIKETLERI, etiket,
   asansorBolumleri, asansorRiskGruplari, asansorBelgeSatirlari, asansorFotoGruplari,
+  asansorAksamGruplari,
 } from '@/utils/asansorBilgi';
 
 // Denetim PDF raporu — bilgi popup'larının (FirmaBilgiModal/AsansorBilgiModal)
@@ -371,7 +371,8 @@ export function denetimPdfTanimi(veri: DenetimPdfVeri): TDocumentDefinitions {
       icerik.push(...semaIcerigi(semalar?.[bolum.baslik]));
     }
 
-    const katlar = asansor.katYukseklikleri ?? [];
+    // Duraklar binadaki gibi yüksekten alçağa sıralanır
+    const katlar = [...(asansor.katYukseklikleri ?? [])].sort((a, b) => b.kat - a.kat);
     if (katlar.length) {
       icerik.push(bolumTablosu(
         'Kat Yükseklikleri',
@@ -379,20 +380,21 @@ export function denetimPdfTanimi(veri: DenetimPdfVeri): TDocumentDefinitions {
       ));
     }
 
-    const aksamlar = asansor.guvenlikAksamlari ?? [];
-    if (aksamlar.length) {
+    // Aynı aksamın seri noları tek satırda virgülle birleşik (tekilleştirilmiş)
+    const aksamGruplar = asansorAksamGruplari(asansor);
+    if (aksamGruplar.length) {
       icerik.push({
         table: {
           widths: ['auto', '*', '*', '*', '*', 'auto'],
           body: [
             [{ text: 'GÜVENLİK AKSAMLARI', colSpan: 6, bold: true, color: 'white', fillColor: YESIL }, {}, {}, {}, {}, {}],
             [etiketHucre('Aksam'), etiketHucre('Marka'), etiketHucre('Tip'), etiketHucre('Seri No'), etiketHucre('Sertifika'), etiketHucre('Geçerlilik')],
-            ...aksamlar.map((g) => [
-              degerHucre(etiket(AKSAM_SLOT_ETIKETLERI, g.slot)),
-              degerHucre(g.markaSnapshot ?? ''),
-              degerHucre(g.tip ?? ''),
-              degerHucre(g.seriNo ?? ''),
-              degerHucre(g.sertifikaNo ?? ''),
+            ...aksamGruplar.map((g) => [
+              degerHucre(g.etiket),
+              degerHucre(g.marka),
+              degerHucre(g.tip),
+              degerHucre(g.seriNolar.join(', ')),
+              degerHucre(g.sertifikaNo),
               degerHucre(`${bilgiTarih(g.gecerlilikBaslangic)} – ${bilgiTarih(g.gecerlilikBitis)}`),
             ]),
           ],

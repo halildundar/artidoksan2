@@ -4,8 +4,8 @@ import { getAsansor, type Asansor } from '@/services/asansorService';
 import { getDosyaUrl, getDosyaIndirUrl, type BelgeSlot } from '@/services/dosyaService';
 import { useFileViewer, fileViewerTypeFromMime } from '@/composables/useFileViewer';
 import {
-  AKSAM_SLOT_ETIKETLERI, etiket,
   asansorBolumleri, asansorRiskGruplari, asansorBelgeSatirlari, asansorFotoGruplari,
+  asansorAksamGruplari,
 } from '@/utils/asansorBilgi';
 
 // Asansör bilgi popup'ı — TAM SAYFA, salt görüntüleme: asansöre daha önce
@@ -92,10 +92,14 @@ function onizlemeleriYukle() {
   }
 }
 
-// ---- Güvenlik aksamları ----
-const guvenlikAksamlari = computed(() => asansor.value?.guvenlikAksamlari ?? []);
+// ---- Güvenlik aksamları: tekilleştirilmiş gruplar (seri nolar birleşik,
+// montaj fotoğraflarıyla) ----
+const aksamGruplari = computed(() => (asansor.value ? asansorAksamGruplari(asansor.value) : []));
 
-const katYukseklikleri = computed(() => asansor.value?.katYukseklikleri ?? []);
+// Duraklar binadaki gibi yüksekten alçağa sıralanır (en üst kat en üstte)
+const katYukseklikleri = computed(() =>
+  [...(asansor.value?.katYukseklikleri ?? [])].sort((a, b) => b.kat - a.kat)
+);
 </script>
 
 <template>
@@ -156,36 +160,39 @@ const katYukseklikleri = computed(() => asansor.value?.katYukseklikleri ?? []);
               </table>
             </div>
 
-            <!-- Güvenlik aksamları -->
-            <div v-if="guvenlikAksamlari.length" class="overflow-hidden ring-1 ring-white/10">
+            <!-- Güvenlik aksamları: aksam başına panel — aynı aksamın seri
+              noları virgülle tek satırda, altında montaj fotoğrafları -->
+            <div v-if="aksamGruplari.length" class="overflow-hidden ring-1 ring-white/10">
               <p class="bg-[#1c2a21] px-2.5 py-1.5 text-[11px] font-bold uppercase tracking-wide text-[#6fcf97]">
                 Güvenlik Aksamları
               </p>
-              <div class="overflow-x-auto">
-                <table class="w-full text-left text-[11px]">
-                  <thead>
-                    <tr class="bg-surface-900 text-[10px] uppercase tracking-wide text-ink-muted">
-                      <th class="px-2 py-1 font-medium">Aksam</th>
-                      <th class="px-2 py-1 font-medium">Marka</th>
-                      <th class="px-2 py-1 font-medium">Tip</th>
-                      <th class="px-2 py-1 font-medium">Seri No</th>
-                      <th class="px-2 py-1 font-medium">Sertifika</th>
-                      <th class="px-2 py-1 font-medium">Geçerlilik</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr v-for="(g, i) in guvenlikAksamlari" :key="g.slot + i" class="border-t border-white/5">
-                      <td class="whitespace-nowrap px-2 py-1.5 text-ink-muted">{{ etiket(AKSAM_SLOT_ETIKETLERI, g.slot) }}</td>
-                      <td class="px-2 py-1.5 font-medium text-ink">{{ g.markaSnapshot || '—' }}</td>
-                      <td class="px-2 py-1.5 text-ink">{{ g.tip || '—' }}</td>
-                      <td class="px-2 py-1.5 text-ink">{{ g.seriNo || '—' }}</td>
-                      <td class="px-2 py-1.5 text-ink">{{ g.sertifikaNo || '—' }}</td>
-                      <td class="whitespace-nowrap px-2 py-1.5 text-ink-muted">
-                        {{ tarih(g.gecerlilikBaslangic) }} – {{ tarih(g.gecerlilikBitis) }}
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
+              <div v-for="(g, i) in aksamGruplari" :key="i" class="border-t border-white/5 px-2.5 py-2">
+                <div class="flex items-start justify-between gap-2">
+                  <span
+                    class="shrink-0 bg-surface-900 px-2 py-0.5 text-[10px] font-semibold text-[#6fcf97] ring-1 ring-white/10">
+                    {{ g.etiket }}
+                  </span>
+                  <span class="whitespace-nowrap text-[10px] text-ink-muted/80">
+                    {{ tarih(g.gecerlilikBaslangic) }} – {{ tarih(g.gecerlilikBitis) }}
+                  </span>
+                </div>
+                <p class="mt-1.5 text-xs font-bold text-ink">
+                  {{ [g.marka, g.tip].filter(Boolean).join(' — ') || '—' }}
+                </p>
+                <p v-if="g.seriNolar.length" class="mt-0.5 text-[11px] text-ink-muted">
+                  Seri No: <span class="text-ink">{{ g.seriNolar.join(', ') }}</span>
+                </p>
+                <p v-if="g.sertifikaNo" class="mt-0.5 text-[11px] text-ink-muted">
+                  Sertifika: <span class="text-ink">{{ g.sertifikaNo }}</span>
+                </p>
+                <div v-if="g.fotolar.length" class="mt-1.5 flex gap-1.5 overflow-x-auto">
+                  <button v-for="foto in g.fotolar" :key="foto.dosyaAnahtari" type="button"
+                    @click="dosyaAc(foto)" class="h-14 w-14 shrink-0 bg-surface-900 ring-1 ring-white/10">
+                    <img v-if="fotoUrller[foto.dosyaAnahtari]" :src="fotoUrller[foto.dosyaAnahtari]"
+                      :alt="foto.dosyaAdi" class="h-full w-full object-cover" />
+                    <span v-else class="grid h-full place-items-center text-[10px] text-ink-muted/60">…</span>
+                  </button>
+                </div>
               </div>
             </div>
 

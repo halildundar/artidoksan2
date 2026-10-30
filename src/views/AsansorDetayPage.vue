@@ -1619,10 +1619,12 @@ const bolumOzetleri = computed<Record<string, [string, string][]>>(() => {
         ]
       : [];
 
-  o['duraklar'] = a.katYukseklikleri?.length
+  // Gösterim binadaki gibi yüksekten alçağa (en üst kat önce)
+  const duraklarAzalan = [...(a.katYukseklikleri ?? [])].sort((x, y) => y.kat - x.kat);
+  o['duraklar'] = duraklarAzalan.length
     ? [
-        ['Duraklar', a.katYukseklikleri.map((k) => k.kat).join(', ')],
-        ['Durak Arası', `${a.katYukseklikleri.map((k) => k.yukseklik ?? '—').join(' / ')} mm`],
+        ['Duraklar', duraklarAzalan.map((k) => k.kat).join(', ')],
+        ['Durak Arası', `${duraklarAzalan.map((k) => k.yukseklik ?? '—').join(' / ')} mm`],
       ]
     : [];
 

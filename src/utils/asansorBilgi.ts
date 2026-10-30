@@ -59,6 +59,66 @@ export function etiket(harita: Record<string, string>, deger: string | null | un
   return deger ? (harita[deger] ?? deger) : '';
 }
 
+// ---- Güvenlik aksamları: gruplanmış görünüm (popup + PDF ortak) ----
+// Aynı aksam+marka+tip+sertifika satırları tekilleştirilir, seri nolar tek
+// listede toplanır (virgülle gösterilir); grubun montaj fotoğrafları ilgili
+// foto alanından eklenir (slot başına bir kez — kopya önlenir).
+export interface AksamGrubu {
+  etiket: string;
+  marka: string;
+  tip: string;
+  seriNolar: string[];
+  sertifikaNo: string;
+  gecerlilikBaslangic: string | null;
+  gecerlilikBitis: string | null;
+  fotolar: BelgeSlot[];
+}
+
+const AKSAM_FOTO_ALANLARI: Record<string, keyof Asansor> = {
+  durak_kapi_kilidi: 'durakKilitFotolari',
+  durak_kapi_kilidi_2: 'durakKilitFotolari2',
+  kabin_kapi_kilidi: 'kabinKilitFotolari',
+  kabin_kapi_kilidi_2: 'kabinKilitFotolari2',
+  kabin_tamponu: 'kabinTamponFotolari',
+  karsi_agirlik_tamponu: 'karsiAgirlikTamponFotolari',
+  fren: 'frenFotolari',
+  karsi_agirlik_freni: 'karsiAgirlikFrenFotolari',
+  kontrol_karti: 'kontrolKartiFotolari',
+  hiz_regulatoru: 'hizRegulatoruFotolari',
+  ucm_acop: 'ucmAcopFotolari',
+};
+
+export function asansorAksamGruplari(a: Asansor): AksamGrubu[] {
+  const gruplar = new Map<string, AksamGrubu>();
+  const fotosuVerilenSlotlar = new Set<string>();
+  for (const g of a.guvenlikAksamlari ?? []) {
+    const anahtar = [g.slot, g.markaSnapshot, g.tip, g.sertifikaNo ?? ''].join('|');
+    let grup = gruplar.get(anahtar);
+    if (!grup) {
+      let fotolar: BelgeSlot[] = [];
+      const alan = AKSAM_FOTO_ALANLARI[g.slot];
+      if (alan && !fotosuVerilenSlotlar.has(g.slot)) {
+        fotolar = (a[alan] as BelgeSlot[] | undefined) ?? [];
+        fotosuVerilenSlotlar.add(g.slot);
+      }
+      grup = {
+        etiket: etiket(AKSAM_SLOT_ETIKETLERI, g.slot) || g.bilesenTipiAdi || g.slot,
+        marka: g.markaSnapshot ?? '',
+        tip: g.tip ?? '',
+        seriNolar: [],
+        sertifikaNo: g.sertifikaNo ?? '',
+        gecerlilikBaslangic: g.gecerlilikBaslangic ?? null,
+        gecerlilikBitis: g.gecerlilikBitis ?? null,
+        fotolar,
+      };
+      gruplar.set(anahtar, grup);
+    }
+    const seri = (g.seriNo ?? '').trim();
+    if (seri && !grup.seriNolar.includes(seri)) grup.seriNolar.push(seri);
+  }
+  return [...gruplar.values()];
+}
+
 export interface BilgiBolumu {
   baslik: string;
   satirlar: Satir[];
