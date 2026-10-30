@@ -11,6 +11,7 @@ const ORIGINS = [
   'http://localhost:8100', // artidoksan2 ionic serve
   'http://localhost',      // Capacitor Android WebView
   'capacitor://localhost', // Capacitor iOS WebView
+  'https://artidoksan2.onrender.com', // canlı site (Render)
 ];
 
 const client = new S3Client({
