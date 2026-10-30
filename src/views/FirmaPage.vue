@@ -710,15 +710,7 @@ onIonViewWillEnter(yukle);
             </svg>
             Yeni Ekle
           </button>
-          <button v-else type="button" @click="git(`/firma/${secili._id}/duzenle`)"
-            class="flex shrink-0 items-center gap-1.5 bg-surface-800 px-4 py-2.5 text-xs font-semibold text-ink ring-1 ring-white/10 active:bg-[#1a2a20]">
-            <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-              stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M21.17 6.83a2.85 2.85 0 0 0-4-4L3.84 16.17a2 2 0 0 0-.5.83l-1.32 4.35a.5.5 0 0 0 .62.62l4.35-1.32a2 2 0 0 0 .83-.5z" />
-              <path d="m15 5 4 4" />
-            </svg>
-            Düzenle
-          </button>
+          <!-- Düzenle butonu header'da değil, yalnız Genel Bilgiler bölümünde -->
         </header>
 
       </div>
@@ -756,6 +748,18 @@ onIonViewWillEnter(yukle);
 
           <div class="min-h-48 bg-[#223c2d]/40 p-3 ring-1 ring-white/10">
             <div v-if="aktifMenu === 1" class="space-y-3">
+              <!-- Düzenle yalnız bu bölümde görünür (kullanıcı isteği) -->
+              <div class="flex justify-end">
+                <button type="button" @click="git(`/firma/${secili._id}/duzenle`)"
+                  class="flex shrink-0 items-center gap-1.5 bg-surface-800 px-4 py-2.5 text-xs font-semibold text-ink ring-1 ring-white/10 active:bg-[#1a2a20]">
+                  <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                    stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M21.17 6.83a2.85 2.85 0 0 0-4-4L3.84 16.17a2 2 0 0 0-.5.83l-1.32 4.35a.5.5 0 0 0 .62.62l4.35-1.32a2 2 0 0 0 .83-.5z" />
+                    <path d="m15 5 4 4" />
+                  </svg>
+                  Düzenle
+                </button>
+              </div>
               <!-- Genel Bilgiler: kayıtlı firma bilgileri tablosu -->
               <table class="w-full border-collapse text-xs">
                 <tbody class="divide-y divide-white/5">
