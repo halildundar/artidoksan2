@@ -17,6 +17,25 @@ export default defineConfig({
       // 'prompt': yeni sürüm hazır olduğunda GuncellemeBildirimi bileşeni
       // kullanıcıya haber verir, onaylayınca servis işçisi değişip yenilenir
       registerType: 'prompt',
+      workbox: {
+        // Çevrimdışı GÖRÜNTÜLEME: API GET yanıtları cihazda tutulur —
+        // internet varken taze veri gelir (önbellek tazelenir), yokken ya da
+        // sunucu uykudan uyanırken son görülen kopya gösterilir. Yazma
+        // istekleri (POST/PUT/DELETE) etkilenmez, internet ister.
+        runtimeCaching: [
+          {
+            urlPattern: ({ url, request }) =>
+              request.method === 'GET' && url.pathname.includes('/api/'),
+            handler: 'NetworkFirst',
+            options: {
+              cacheName: 'api-onbellek',
+              networkTimeoutSeconds: 8,
+              expiration: { maxEntries: 600, maxAgeSeconds: 7 * 24 * 60 * 60 },
+              cacheableResponse: { statuses: [0, 200] },
+            },
+          },
+        ],
+      },
       manifest: {
         name: 'TüvNord Asansör',
         short_name: 'TüvNord Asansör',
