@@ -66,6 +66,10 @@
 	</array>
 	<key>NSCameraUsageDescription</key>
 	<string>Cihaz fotoğraflarını çekmek için kamera kullanılır.</string>
+	<key>WKAppBoundDomains</key>
+	<array>
+		<string>artidoksan2.onrender.com</string>
+	</array>
 	<key>UIViewControllerBasedStatusBarAppearance</key>
 	<true/>
 </dict>
