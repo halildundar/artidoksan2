@@ -29,15 +29,16 @@ const hata = ref('');
 
 const secili = ref<Firma | null>(null);
 const aktifMenu = ref(1);
+// Firma detay menüsü — Güvenlik Aksamlar panelindeki gibi ikonlu ızgara
 const menuler = [
-  { no: 1, etiket: 'Genel Bilgiler' },
-  { no: 2, etiket: 'Montajlar' },
-  { no: 3, etiket: 'CE Belgeler' },
-  { no: 4, etiket: 'Cihazlar' },
-  { no: 5, etiket: 'HYB Belgesi' },
-  { no: 6, etiket: 'Sanayi Sicil Belgesi' },
-  { no: 7, etiket: 'SMM Bilgileri' },
-  { no: 8, etiket: 'Personel' },
+  { no: 1, etiket: 'Genel Bilgiler', icon: '🏢' },
+  { no: 2, etiket: 'Montajlar', icon: '🛠' },
+  { no: 3, etiket: 'CE Belgeler', icon: '📜' },
+  { no: 4, etiket: 'Cihazlar', icon: '🧰' },
+  { no: 5, etiket: 'HYB Belgesi', icon: '📋' },
+  { no: 6, etiket: 'Sanayi Sicil Belgesi', icon: '🏭' },
+  { no: 7, etiket: 'SMM Bilgileri', icon: '👷' },
+  { no: 8, etiket: 'Personel', icon: '👥' },
 ];
 
 // Genel Bilgiler tablosu: etiket → kayıtlı değer
@@ -720,16 +721,6 @@ onIonViewWillEnter(yukle);
           </button>
         </header>
 
-        <!-- Detayda menü sekmeleri de header'da sabit; yatayda kaydırılabilir -->
-        <div v-if="secili" class="mx-auto flex max-w-lg gap-1 overflow-x-auto px-4 scrollbar-none">
-          <button v-for="m in menuler" :key="m.no" type="button" @click="aktifMenu = m.no"
-            class="shrink-0 whitespace-nowrap px-5 py-3 text-xs font-semibold"
-            :class="aktifMenu === m.no
-              ? 'bg-[#223c2d] text-ink ring-1 ring-white/10'
-              : 'bg-surface-800 text-ink-muted'">
-            {{ m.etiket }}
-          </button>
-        </div>
       </div>
     </ion-header>
 
@@ -746,7 +737,23 @@ onIonViewWillEnter(yukle);
         </div>
 
         <!-- Firma detayı içeriği -->
-        <section v-if="secili" class="px-2 pb-6">
+        <section v-if="secili" class="space-y-2 px-2 pb-6 pt-2">
+          <!-- Menü ızgarası — Güvenlik Aksamlar panelindeki görünümün aynısı:
+          ikon + yazı yan yana kutucuklar, seçili olan vurgulu -->
+          <div class="grid grid-cols-2 gap-1.5 px-1">
+            <button v-for="m in menuler" :key="m.no" type="button" @click="aktifMenu = m.no"
+              class="flex w-full items-center gap-2 px-2.5 py-2.5 ring-1 ring-white/10"
+              :class="aktifMenu === m.no
+                ? 'bg-[#223c2d] text-ink'
+                : 'bg-surface-900 active:bg-[#1a2a20]'">
+              <span class="text-base leading-none" aria-hidden="true">{{ m.icon }}</span>
+              <span class="min-w-0 truncate text-left text-[11px] font-medium"
+                :class="aktifMenu === m.no ? 'text-ink' : 'text-ink-muted'">
+                {{ m.etiket }}
+              </span>
+            </button>
+          </div>
+
           <div class="min-h-48 bg-[#223c2d]/40 p-3 ring-1 ring-white/10">
             <div v-if="aktifMenu === 1" class="space-y-3">
               <!-- Genel Bilgiler: kayıtlı firma bilgileri tablosu -->
