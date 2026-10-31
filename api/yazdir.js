@@ -262,6 +262,15 @@ async function sablonVerisi({ tescil, firma, asansor }) {
     mak_dairesi: asansor?.makinaKonumu
       ? MAKINA_KONUMU_ETIKET[asansor.makinaKonumu] ?? asansor.makinaKonumu
       : '',
+    // "Asansörün Tipi" satırı: hidrolikse Hidrolik, değilse makine konumu
+    asansor_tipi:
+      asansor?.tahrikTipi === 'hidrolik'
+        ? 'Hidrolik'
+        : asansor?.makinaKonumu === 'MR'
+          ? 'Makine Daireli (MR)'
+          : asansor?.makinaKonumu === 'MRL'
+            ? 'Makine Dairesiz (MRL)'
+            : '',
     halat_adet: bos(asansor?.halatAdet),
     halat_mm: halatCapMM(asansor?.halatTipi),
     kab_gen: bos(asansor?.kabinGenislik),
