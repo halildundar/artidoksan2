@@ -393,13 +393,106 @@ function duzMetinIcerir(xml, aranan) {
   return duz.includes(aranan);
 }
 
+// ---- Üstbilgi/altbilgi görselleri: docxtemplater'ın görsel modülü header
+// parçalarındaki metin kutularını güvenilir işlemiyor (canlı doğrulanan
+// hata: etiket tüketiliyor, resim basılmıyor) — bu parçalarda {%tag}
+// run'ı, resim + ilişki + medya dosyası zip'e elle yazılarak değiştirilir ----
+function sonAcilisIndeksi(xml, sinirIdx) {
+  const re = /<w:r[ >]/g;
+  let son = -1;
+  let m;
+  while ((m = re.exec(xml)) && m.index < sinirIdx) son = m.index;
+  return son;
+}
+
+function inlineResimXml(rId, wPx, hPx, docPrId) {
+  const cx = Math.round(wPx * 9525);
+  const cy = Math.round(hPx * 9525);
+  // xmlns bildirimleri bilerek eleman üstünde — header kökünde wp/a/pic/r
+  // tanımlı olmayabilir
+  return (
+    '<w:r><w:drawing>' +
+    '<wp:inline distT="0" distB="0" distL="0" distR="0" xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing">' +
+    `<wp:extent cx="${cx}" cy="${cy}"/><wp:effectExtent l="0" t="0" r="0" b="0"/>` +
+    `<wp:docPr id="${docPrId}" name="Gorsel${docPrId}"/>` +
+    '<wp:cNvGraphicFramePr><a:graphicFrameLocks xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" noChangeAspect="1"/></wp:cNvGraphicFramePr>' +
+    '<a:graphic xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">' +
+    '<a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture">' +
+    '<pic:pic xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture">' +
+    `<pic:nvPicPr><pic:cNvPr id="${docPrId}" name="gorsel"/><pic:cNvPicPr/></pic:nvPicPr>` +
+    `<pic:blipFill><a:blip r:embed="${rId}" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"/><a:stretch><a:fillRect/></a:stretch></pic:blipFill>` +
+    `<pic:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="${cx}" cy="${cy}"/></a:xfrm>` +
+    '<a:prstGeom prst="rect"><a:avLst/></a:prstGeom></pic:spPr>' +
+    '</pic:pic></a:graphicData></a:graphic></wp:inline></w:drawing></w:r>'
+  );
+}
+
+// Parçanın rels dosyasına görsel ilişkisi + medya dosyası ekler, rId döner
+function zipeResimEkle(zip, parca, buffer, sayac) {
+  const medyaAdi = `media/yazdir_gorsel_${sayac}.png`;
+  zip.file(`word/${medyaAdi}`, buffer);
+
+  // [Content_Types].xml'de png tanımlı olmalı
+  const ctYolu = '[Content_Types].xml';
+  const ct = zip.file(ctYolu).asText();
+  if (!/Extension="png"/.test(ct)) {
+    zip.file(ctYolu, ct.replace('</Types>', '<Default Extension="png" ContentType="image/png"/></Types>'));
+  }
+
+  const relsYolu = `word/_rels/${parca.slice('word/'.length)}.rels`;
+  const relsDosyasi = zip.file(relsYolu);
+  const rId = `rIdYazdirGorsel${sayac}`;
+  const iliski = `<Relationship Id="${rId}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="${medyaAdi}"/>`;
+  if (relsDosyasi) {
+    zip.file(relsYolu, relsDosyasi.asText().replace('</Relationships>', `${iliski}</Relationships>`));
+  } else {
+    zip.file(
+      relsYolu,
+      `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">${iliski}</Relationships>`
+    );
+  }
+  return rId;
+}
+
+// Word metin kutularını mc:AlternateContent içinde İKİ kopya saklar
+// (mc:Choice = modern wps, mc:Fallback = eski VML). docxtemplater görseli
+// yalnız Fallback kopyasına basıyor, LibreOffice ise Choice kopyasını
+// çiziyor → kutu boş kalıyordu (canlı doğrulanan hata). Görsel tag'i
+// içeren bloklar render ÖNCESİ Choice içeriğine indirgenir; görselsiz
+// bloklara dokunulmaz.
+function gorselluAlternatifleriSadelestir(xml, gorselTagleri) {
+  if (!gorselTagleri.length) return xml;
+  return xml.replace(/<mc:AlternateContent>([\s\S]*?)<\/mc:AlternateContent>/g, (tum, ic) => {
+    // Etiket hangi kopyadaysa O kopya kalır (Word, kullanıcının yazdığı
+    // metni bazen yalnız Fallback kopyasına koyuyor — canlı doğrulandı)
+    const tagIceriyor = (parca) =>
+      !!parca && gorselTagleri.some((tag) => duzMetinIcerir(parca, `{%${tag}}`));
+    const choice = /<mc:Choice[^>]*>([\s\S]*?)<\/mc:Choice>/.exec(ic);
+    const fallback = /<mc:Fallback>([\s\S]*?)<\/mc:Fallback>/.exec(ic);
+    if (tagIceriyor(choice?.[1])) return choice[1];
+    if (tagIceriyor(fallback?.[1])) return fallback[1];
+    return tum;
+  });
+}
+
+// Görsel tag'leri gövdede VEYA üstbilgi/altbilgide olabilir — hepsi taranır
+const GORSEL_PARCA_DESENI = /^word\/(document|header\d*|footer\d*)\.xml$/;
+
 async function sablonDoldur(sablonYolu, veri, firma) {
   const zip = new PizZip(await fs.readFile(sablonYolu));
-  const xml = zip.file('word/document.xml').asText();
+  const parcalar = Object.keys(zip.files).filter((n) => GORSEL_PARCA_DESENI.test(n));
 
-  // Şablonda geçen görsel tag'leri bul, firma görsellerini R2'den çek —
-  // tag varsa görsel ZORUNLU (eksik görselli resmî belge sessizce üretilmez)
-  const gorselTagleri = Object.keys(GORSEL_TAG_KAYNAKLARI).filter((tag) => duzMetinIcerir(xml, `{%${tag}}`));
+  // Şablonda geçen görsel tag'leri bul (tüm parçalarda), firma görsellerini
+  // R2'den çek — tag varsa görsel ZORUNLU (eksik görselli resmî belge
+  // sessizce üretilmez)
+  const gorselTagleri = [
+    ...new Set(
+      parcalar.flatMap((parca) => {
+        const xml = zip.file(parca).asText();
+        return Object.keys(GORSEL_TAG_KAYNAKLARI).filter((tag) => duzMetinIcerir(xml, `{%${tag}}`));
+      })
+    ),
+  ];
   for (const tag of gorselTagleri) {
     const alan = GORSEL_TAG_KAYNAKLARI[tag];
     const anahtar = firma?.belgeler?.[alan]?.dosyaAnahtari;
@@ -414,34 +507,77 @@ async function sablonDoldur(sablonYolu, veri, firma) {
     veri[tag] = await getObjectBuffer(anahtar);
   }
 
-  // Görsel kutularının gerçek boyutu/hizası şablondan okunur ve düzeltilir
-  const { xml: duzeltilmisXml, boyutlar, donduruler } = sablonGorselYerlesimHazirla(xml, gorselTagleri);
-  zip.file('word/document.xml', duzeltilmisXml);
+  // Görsel kutularının gerçek boyutu/hizası her parçada okunur ve düzeltilir
+  const boyutlar = {};
+  const parcaDonduruler = {};
+  for (const parca of parcalar) {
+    const sadeXml = gorselluAlternatifleriSadelestir(zip.file(parca).asText(), gorselTagleri);
+    const sonuc = sablonGorselYerlesimHazirla(sadeXml, gorselTagleri);
+    zip.file(parca, sonuc.xml);
+    Object.assign(boyutlar, sonuc.boyutlar);
+    if (Object.keys(sonuc.donduruler).length) parcaDonduruler[parca] = sonuc.donduruler;
+  }
+
+  // Üstbilgi/altbilgilerdeki görsel etiketleri elle yerleştirilir (görsel
+  // modülü bu parçalarda güvenilir çalışmıyor — üstteki yorum)
+  let gorselSayac = 0;
+  for (const parca of parcalar) {
+    if (parca === 'word/document.xml') continue;
+    let xml = zip.file(parca).asText();
+    let degisti = false;
+    for (const tag of gorselTagleri) {
+      const hedef = `{%${tag}}`;
+      let idx;
+      while ((idx = xml.indexOf(hedef)) !== -1) {
+        const runBas = sonAcilisIndeksi(xml, idx);
+        const runSonIdx = xml.indexOf('</w:r>', idx);
+        if (runBas === -1 || runSonIdx === -1) break;
+        const buffer = veri[tag];
+        const { width, height } = imageSize(buffer);
+        const [hedefW, hedefH] =
+          boyutlar[tag] ?? [VARSAYILAN_HEDEF_GENISLIK_PX, VARSAYILAN_HEDEF_YUKSEKLIK_PX];
+        const oran = Math.min(hedefW / width, hedefH / height);
+        gorselSayac += 1;
+        const rId = zipeResimEkle(zip, parca, buffer, gorselSayac);
+        xml =
+          xml.slice(0, runBas) +
+          inlineResimXml(rId, Math.round(width * oran), Math.round(height * oran), 9000 + gorselSayac) +
+          xml.slice(runSonIdx + '</w:r>'.length);
+        degisti = true;
+      }
+    }
+    if (degisti) zip.file(parca, xml);
+  }
+
+  // Gövdedeki görselleri docxtemplater'ın görsel modülü işler (orada
+  // güvenilir çalışıyor, canlı doğrulandı)
+  const govdeGorselVar = gorselTagleri.some((tag) =>
+    duzMetinIcerir(zip.file('word/document.xml').asText(), `{%${tag}}`)
+  );
 
   const tpl = new Docxtemplater(zip, {
     paragraphLoop: true,
     linebreaks: true,
-    // Görsel modülü SADECE şablonda {%...} etiketi varsa bağlanır — modül,
+    // Görsel modülü SADECE gövdede {%...} etiketi varsa bağlanır — modül,
     // etiketi olmayan bazı şablonlarda (İÇİNDEKİLER) renderAsync'i
     // "reading 'length'" ile çökertiyor (canlı doğrulanan hata)
-    modules: gorselTagleri.length ? [createImageModule(boyutlar)] : [],
+    modules: govdeGorselVar ? [createImageModule(boyutlar)] : [],
     // Eksik tag "undefined" yerine boş basılır (artidoksan1'de canlı
     // doğrulanan hatanın önlemi)
     nullGetter: () => '',
   });
   // Görsel modülü async çözümlenir — senkron render() Buffer'ı çözümlenmiş
-  // sanıp patlar (artidoksan1'de canlı doğrulanan hata); modülsüzde de
-  // renderAsync güvenli
-  if (gorselTagleri.length) await tpl.renderAsync(veri);
+  // sanıp patlar (artidoksan1'de canlı doğrulanan hata)
+  if (govdeGorselVar) await tpl.renderAsync(veri);
   else tpl.render(veri);
 
   // Döndürülmüş kutudaki görsel LibreOffice'te dönmez — kutudan çıkarılıp
   // kendi rotasyonuyla bağımsız nesne olarak yeniden yerleştirilir
-  if (Object.keys(donduruler).length > 0) {
-    const renderZip = tpl.getZip();
-    renderZip.file('word/document.xml', sablonGorselDondur(renderZip.file('word/document.xml').asText(), donduruler));
+  const renderZip = tpl.getZip();
+  for (const [parca, donduruler] of Object.entries(parcaDonduruler)) {
+    renderZip.file(parca, sablonGorselDondur(renderZip.file(parca).asText(), donduruler));
   }
-  return tpl.getZip().generate({ type: 'nodebuffer', compression: 'DEFLATE' });
+  return renderZip.generate({ type: 'nodebuffer', compression: 'DEFLATE' });
 }
 
 function slotOlustur(key, dosyaAdi, mimeType, boyut) {
