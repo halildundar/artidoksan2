@@ -3,6 +3,10 @@ import { IonApp, IonRouterOutlet } from '@ionic/vue';
 import FileViewerHost from '@/components/FileViewerHost.vue';
 import GuncellemeBildirimi from '@/components/GuncellemeBildirimi.vue';
 import GirisEkrani from '@/components/GirisEkrani.vue';
+import { useTema } from '@/composables/useTema';
+
+// Kayıtlı tema tercihi uygulanır (koyu varsayılan)
+useTema().baslat();
 </script>
 
 <template>

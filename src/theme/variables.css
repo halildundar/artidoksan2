@@ -32,3 +32,31 @@ ion-content {
     #0a110d 100%
   );
 }
+
+/* ---- Açık tema (useTema.ts html'e .acik-tema sınıfını koyar) ---- */
+html.acik-tema {
+  --ion-background-color: #eef3ef;
+  --ion-background-color-rgb: 238, 243, 239;
+
+  --ion-text-color: #182b20;
+  --ion-text-color-rgb: 24, 43, 32;
+
+  --ion-toolbar-background: #dfeae2;
+  --ion-toolbar-color: #182b20;
+
+  --ion-tab-bar-background: #dfeae2;
+  --ion-tab-bar-color: #5a6f63;
+  --ion-tab-bar-color-selected: #1e6b3d;
+
+  --ion-item-background: #ffffff;
+  --ion-card-background: #ffffff;
+}
+
+html.acik-tema ion-content {
+  --background: radial-gradient(
+    140% 110% at 50% 0%,
+    #f7fbf8 0%,
+    #eef3ef 55%,
+    #e2ebe4 100%
+  );
+}

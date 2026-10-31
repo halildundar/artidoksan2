@@ -753,7 +753,8 @@ const bolumler = computed<Bolum[]>(() => [
   { key: 'kuyu-ust-alani', label: 'Kuyu Üst Alanı', icon: '🔝' },
   { key: 'agirlik-hesabi', label: 'Ağırlık Hesabı', icon: '⚖' },
   { key: 'halat-kasnaklar', label: 'Halat ve Kasnaklar', icon: '🔗' },
-  { key: 'kurum-evraklari', label: 'Kurum Evrakları', icon: '📄' },
+  // Kurum Evrakları menüden çıkarıldı (kullanıcı isteği) — veri ve modal
+  // kodu duruyor, yazdırma/raporlar kurumEvraklari alanını kullanmaya devam eder
   ...(asansor.value?.makinaKonumu === 'MR'
     ? [{ key: 'makine-dairesi', label: 'Makine Dairesi', icon: '🏠' }]
     : []),

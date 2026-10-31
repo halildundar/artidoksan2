@@ -2,6 +2,9 @@
 import { IonPage, IonContent, IonHeader } from '@ionic/vue';
 import { useRouter } from 'vue-router';
 import { blurActive } from '@/utils/blurActive';
+import { useTema } from '@/composables/useTema';
+
+const { tema, degistir } = useTema();
 
 const router = useRouter();
 
@@ -16,8 +19,29 @@ function git(path: string) {
     <!-- Header: scroll boyunca üstte sabit -->
     <ion-header class="ion-no-border">
       <div class="border-b border-white/5 bg-surface-bar">
-        <header class="mx-auto max-w-lg px-4 py-3">
+        <header class="mx-auto flex max-w-lg items-center justify-between px-4 py-3">
           <h1 class="text-xl font-bold leading-8 tracking-wide text-ink">Ayarlar</h1>
+          <!-- Koyu/açık tema anahtarı: ay — kaydırıcı — güneş -->
+          <button type="button" @click="degistir"
+            :aria-label="tema === 'acik' ? 'Koyu temaya geç' : 'Açık temaya geç'"
+            class="relative flex h-8 w-[4.25rem] shrink-0 items-center justify-between bg-surface-900 px-2 ring-1 ring-white/10">
+            <!-- Kaydırıcı -->
+            <span class="absolute left-1 top-1 h-6 w-7 bg-[#2b5c3d] ring-1 ring-white/10 transition-transform duration-200"
+              :class="tema === 'acik' ? 'translate-x-8' : 'translate-x-0'"></span>
+            <!-- Ay (koyu) — aktifken yeşil kaydırıcının üstünde, her temada açık renk -->
+            <svg class="relative z-10 h-4 w-4" :class="tema === 'acik' ? 'text-ink-muted/60' : 'text-[#f2f7f3]'"
+              viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+              stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9" />
+            </svg>
+            <!-- Güneş (açık) — aktifken yeşil kaydırıcının üstünde, her temada açık renk -->
+            <svg class="relative z-10 h-4 w-4" :class="tema === 'acik' ? 'text-[#f2f7f3]' : 'text-ink-muted/60'"
+              viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+              stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="4" />
+              <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41" />
+            </svg>
+          </button>
         </header>
       </div>
     </ion-header>

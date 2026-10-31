@@ -275,14 +275,10 @@ async function tumunuIndir() {
 
               <!-- Şablon: üretilmiş PDF/DOCX aksiyonları (DOCX yalnız indirilir) -->
               <div v-if="kalem.tip === 'sablon' && kalem.uretilen" class="flex flex-wrap gap-1.5">
+                <!-- PDF indirme görüntüleyicinin kendi indir butonundan yapılır -->
                 <button v-if="kalem.uretilen.pdf" type="button" @click="goruntule(kalem.uretilen.pdf)"
                   class="bg-surface-900 px-2.5 py-1.5 text-[11px] font-semibold text-ink ring-1 ring-white/10 active:bg-[#1a2a20]">
                   PDF Görüntüle
-                </button>
-                <button v-if="kalem.uretilen.pdf" type="button"
-                  @click="indir(kalem.uretilen.pdf, kalemDosyaAdi(kalem, kalem.uretilen.pdf))"
-                  class="bg-surface-900 px-2.5 py-1.5 text-[11px] font-semibold text-ink ring-1 ring-white/10 active:bg-[#1a2a20]">
-                  PDF İndir
                 </button>
                 <button v-if="kalem.uretilen.docx" type="button"
                   @click="indir(kalem.uretilen.docx, kalemDosyaAdi(kalem, kalem.uretilen.docx))"

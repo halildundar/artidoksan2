@@ -44,7 +44,9 @@
   }
 }
 
-/* Marka paleti — variables.css'teki Ionic temasıyla aynı tonlar */
+/* Marka paleti — variables.css'teki Ionic temasıyla aynı tonlar.
+   Tailwind v4 utility'leri bu değişkenlere var() ile bağlanır; açık tema
+   aşağıda html.acik-tema altında aynı değişkenleri ezerek çalışır. */
 @theme {
   --color-surface-950: #0a110d; /* en koyu kenar */
   --color-surface-900: #0d1612; /* temel zemin */
@@ -54,3 +56,45 @@
   --color-ink: #e6ede8;         /* ana metin */
   --color-ink-muted: #9db3a7;   /* ikincil metin */
 }
+
+/* ---- Açık tema (Ayarlar'daki anahtar; useTema.ts html'e sınıfı koyar) ----
+   Token sınıfları (bg-surface-*, text-ink*) değişken ezmesiyle kendiliğinden
+   döner; sabit hex/beyaz-halka sınıflarına burada açık karşılıkları verilir.
+   Koyu tema varsayılandır, bu blok yalnız html.acik-tema'da devreye girer. */
+html.acik-tema {
+  --color-surface-950: #dde6df;
+  --color-surface-900: #eef3ef;
+  --color-surface-800: #ffffff;
+  --color-surface-700: #f5f9f6;
+  --color-surface-bar: #dfeae2;
+  --color-ink: #182b20;
+  --color-ink-muted: #5a6f63;
+}
+
+/* Popup zemini */
+html.acik-tema .bg-\[\#101a14\] { background-color: #ffffff; }
+/* Rozet/ikon kutusu zemini + rozet yeşili metin */
+html.acik-tema .bg-\[\#1c2a21\] { background-color: #d9e9de; }
+html.acik-tema .text-\[\#6fcf97\] { color: #1e6b3d; }
+/* Seçili sekme / vurgulu satır zeminleri */
+html.acik-tema .bg-\[\#223c2d\] { background-color: #c8e0d0; }
+html.acik-tema .bg-\[\#1d3a28\] { background-color: #d3e6da; }
+/* Birincil (yeşil) butonlar: zemin korunur, üzerindeki koyu ink yerine
+   açık metin zorlanır (alt öğeler kalıtımla alır) */
+html.acik-tema .bg-\[\#2b5c3d\] { background-color: #2e6242; color: #f2f7f3; }
+html.acik-tema .active\:bg-\[\#346e4a\]:active { background-color: #275538; }
+html.acik-tema .active\:bg-\[\#1a2a20\]:active { background-color: #e0eae4; }
+/* Beyaz halka/kenarlıklar koyu yeşile döner */
+html.acik-tema .ring-white\/5 { --tw-ring-color: rgb(16 42 27 / 0.10); }
+html.acik-tema .ring-white\/10 { --tw-ring-color: rgb(16 42 27 / 0.16); }
+html.acik-tema .ring-white\/15 { --tw-ring-color: rgb(16 42 27 / 0.20); }
+html.acik-tema .ring-white\/20 { --tw-ring-color: rgb(16 42 27 / 0.26); }
+html.acik-tema .ring-white\/30,
+html.acik-tema .focus\:ring-white\/30:focus,
+html.acik-tema .focus-within\:ring-white\/30:focus-within { --tw-ring-color: rgb(16 42 27 / 0.45); }
+html.acik-tema .border-white\/5 { border-color: rgb(16 42 27 / 0.10); }
+html.acik-tema .border-white\/10 { border-color: rgb(16 42 27 / 0.16); }
+html.acik-tema .border-white\/20 { border-color: rgb(16 42 27 / 0.30); }
+html.acik-tema .border-white\/30 { border-color: rgb(16 42 27 / 0.38); }
+html.acik-tema .active\:border-white\/40:active { border-color: rgb(16 42 27 / 0.48); }
+html.acik-tema .active\:border-white\/60:active { border-color: rgb(16 42 27 / 0.60); }
