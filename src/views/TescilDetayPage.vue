@@ -15,7 +15,9 @@ import { asansorSemaCizimleri } from '@/utils/semaPdf';
 import FirmaBilgiModal from '@/components/FirmaBilgiModal.vue';
 import AsansorBilgiModal from '@/components/AsansorBilgiModal.vue';
 import LinkPopup from '@/components/LinkPopup.vue';
+import YazdirPopup from '@/components/YazdirPopup.vue';
 import SilmeOnayi from '@/components/SilmeOnayi.vue';
+import FotoCekModal from '@/components/FotoCekModal.vue';
 
 // Tescil detayı — Modul G denetim detayıyla aynı içerik: firma ve asansör
 // kısa bilgileri, ek proje dosyası (PDF/ZIP), AB uygunluk beyanı / son
@@ -92,8 +94,18 @@ function tarihInput(iso: string | null | undefined) {
   return iso ? iso.slice(0, 10) : '';
 }
 
-function tarihKaydet(alan: 'abUygunlukBeyaniTarihi' | 'sonKontrolTarihi', event: Event) {
+function tarihKaydet(
+  alan: 'abUygunlukBeyaniTarihi' | 'sonKontrolTarihi' | 'dilekceTarihi'
+    | 'garantiTarihi' | 'faturaTarihi' | 'projeHizmetSozlesmeTarihi',
+  event: Event
+) {
   guncelle({ [alan]: (event.target as HTMLInputElement).value || null });
+}
+
+function metinKaydet(alan: 'belediyeAdi' | 'faturaNo', event: Event) {
+  const deger = (event.target as HTMLInputElement).value.trim();
+  if (deger === (tescil.value?.[alan] ?? '')) return;
+  guncelle({ [alan]: deger });
 }
 
 // ---- CE belgeleri: "CE Belgesi Seç" popup'ında firmanın listesinden
@@ -170,12 +182,77 @@ async function ekProjeSec(event: Event) {
   }
 }
 
+// ---- Yeşil etiket raporu (PDF): yüklenir, görüntülenir ----
+const yesilEtiketYukleniyor = ref(false);
+
+async function yesilEtiketSec(event: Event) {
+  const input = event.target as HTMLInputElement;
+  const file = input.files?.[0];
+  input.value = '';
+  if (!file) return;
+  yesilEtiketYukleniyor.value = true;
+  hata.value = '';
+  try {
+    const slot = await uploadDosya(file);
+    await guncelle({ yesilEtiketRaporu: slot });
+  } catch (e) {
+    hata.value = e instanceof Error ? e.message : 'Dosya yüklenemedi';
+  } finally {
+    yesilEtiketYukleniyor.value = false;
+  }
+}
+
+// ---- Faturalar: çoklu dosya yükleme + fotoğraf çekme ----
+const faturaYukleniyor = ref(false);
+const faturaFotoAcik = ref(false);
+const faturaSilinecek = ref<number | null>(null);
+
+// PDF/resim dışındakiler elenir (gizli inputun accept filtresiyle uyumlu)
+function dosyalariSuz(input: HTMLInputElement) {
+  const files = Array.from(input.files ?? []).filter(
+    (f) => f.type === 'application/pdf' || f.type.startsWith('image/')
+  );
+  input.value = '';
+  return files;
+}
+
+async function faturaEkle(files: File[]) {
+  const t = tescil.value;
+  if (!t || !files.length) return;
+  faturaYukleniyor.value = true;
+  hata.value = '';
+  try {
+    const slotlar: BelgeSlot[] = [];
+    for (const file of files) slotlar.push(await uploadDosya(file));
+    await guncelle({ faturalar: [...(t.faturalar ?? []), ...slotlar] });
+  } catch (e) {
+    hata.value = e instanceof Error ? e.message : 'Yükleme başarısız';
+  } finally {
+    faturaYukleniyor.value = false;
+  }
+}
+
+function faturaDosyaSec(event: Event) {
+  faturaEkle(dosyalariSuz(event.target as HTMLInputElement));
+}
+
+function faturaSilOnayla() {
+  const i = faturaSilinecek.value;
+  faturaSilinecek.value = null;
+  const t = tescil.value;
+  if (!t || i == null) return;
+  const liste = [...(t.faturalar ?? [])];
+  liste.splice(i, 1);
+  guncelle({ faturalar: liste });
+}
+
 // ---- PDF rapor linki: denetim raporuyla aynı içerik, başlık "Tescil" ve
 // seçilen CE belgeleri tablosuyla; rapor yüklenip 7 gün geçerli link üretilir ----
 const pdfLinkAcik = ref(false);
 const pdfLinkUrl = ref('');
 const pdfLinkHata = ref('');
 const pdfDosyaAdi = ref('');
+const yazdirAcik = ref(false);
 
 async function pdfLinkOlustur() {
   const t = tescil.value;
@@ -284,16 +361,28 @@ async function dosyaAc(slot: BelgeSlot) {
         <p v-if="yukleniyor" class="py-8 text-center text-sm text-ink-muted">Yükleniyor…</p>
 
         <template v-else-if="tescil">
-          <!-- PDF rapor linki: tüm bilgiler + dosya linkleri tek PDF'te -->
-          <button type="button" @click="pdfLinkOlustur"
-            class="flex w-full items-center justify-center gap-1.5 bg-[#2b5c3d] px-3 py-2.5 text-xs font-semibold text-ink ring-1 ring-white/10 active:bg-[#346e4a]">
-            <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-              stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
-              <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
-            </svg>
-            Link Oluştur (PDF Rapor)
-          </button>
+          <!-- PDF rapor linki + Yazdır: linkte tüm bilgiler + dosya linkleri tek PDF'te -->
+          <div class="flex gap-1.5">
+            <button type="button" @click="pdfLinkOlustur"
+              class="flex flex-1 items-center justify-center gap-1.5 bg-[#2b5c3d] px-3 py-2.5 text-xs font-semibold text-ink ring-1 ring-white/10 active:bg-[#346e4a]">
+              <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+                <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+              </svg>
+              Link Oluştur (PDF Rapor)
+            </button>
+            <button type="button" @click="yazdirAcik = true"
+              class="flex items-center justify-center gap-1.5 bg-surface-800 px-4 py-2.5 text-xs font-semibold text-ink ring-1 ring-white/10 active:bg-[#1a2a20]">
+              <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M6 9V3h12v6" />
+                <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" />
+                <rect x="6" y="14" width="12" height="8" />
+              </svg>
+              Yazdır
+            </button>
+          </div>
 
           <!-- Firma kısa bilgileri — dokununca tüm bilgiler popup'ta açılır -->
           <button type="button" @click="firmaBilgiAcik = true"
@@ -427,9 +516,106 @@ async function dosyaAc(slot: BelgeSlot) {
             </div>
           </section>
 
+          <!-- Yeşil etiket raporu: PDF yüklenir, görüntülenir -->
+          <section class="space-y-1.5 bg-surface-800 p-3 ring-1 ring-white/5">
+            <h2 class="text-xs font-bold uppercase tracking-wide text-ink">Yeşil Etiket Raporu</h2>
+            <div class="flex items-center gap-1.5">
+              <label
+                class="shrink-0 cursor-pointer border border-dashed border-white/20 px-2.5 py-1.5 text-[11px] font-semibold text-ink-muted active:border-white/40 active:text-ink">
+                <input type="file" class="hidden" accept="application/pdf,.pdf"
+                  @change="yesilEtiketSec" />
+                {{ yesilEtiketYukleniyor ? 'Yükleniyor…' : tescil.yesilEtiketRaporu ? 'Değiştir' : '+ Rapor Yükle (PDF)' }}
+              </label>
+              <span class="min-w-0 flex-1 truncate text-xs"
+                :class="tescil.yesilEtiketRaporu ? 'text-ink' : 'text-ink-muted/60'">
+                {{ tescil.yesilEtiketRaporu?.dosyaAdi ?? 'Rapor yüklenmedi' }}
+              </span>
+              <button v-if="tescil.yesilEtiketRaporu" type="button" @click="dosyaAc(tescil.yesilEtiketRaporu)"
+                aria-label="Yeşil etiket raporunu görüntüle"
+                class="grid h-6.5 w-8 shrink-0 place-items-center bg-[#2b5c3d] text-ink ring-1 ring-white/10 active:bg-[#346e4a]">
+                <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none"
+                  stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M2.06 12.35a1 1 0 0 1 0-.7C3.42 8.24 7.26 5 12 5s8.58 3.24 9.94 6.65a1 1 0 0 1 0 .7C20.58 15.76 16.74 19 12 19s-8.58-3.24-9.94-6.65" />
+                  <circle cx="12" cy="12" r="3" />
+                </svg>
+              </button>
+              <button v-if="tescil.yesilEtiketRaporu" type="button" @click="guncelle({ yesilEtiketRaporu: null })"
+                aria-label="Yeşil etiket raporunu kaldır"
+                class="grid h-6.5 w-7 shrink-0 place-items-center bg-surface-900 text-red-300/80 ring-1 ring-red-500/20">
+                ✕
+              </button>
+            </div>
+          </section>
+
+          <!-- Faturalar: dosya yükleme + fotoğraf çekme (çoklu) -->
+          <section class="space-y-1.5 bg-surface-800 p-3 ring-1 ring-white/5">
+            <div class="flex items-center justify-between gap-2">
+              <h2 class="text-xs font-bold uppercase tracking-wide text-ink">
+                Fatura ({{ tescil.faturalar?.length ?? 0 }})
+              </h2>
+              <div class="flex shrink-0 gap-1.5">
+                <label
+                  class="flex cursor-pointer items-center gap-1 border border-dashed border-white/20 px-2.5 py-1.5 text-[11px] font-semibold text-ink-muted active:border-white/40 active:text-ink">
+                  <input type="file" multiple accept="application/pdf,image/*" class="hidden"
+                    @change="faturaDosyaSec" />
+                  <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                    stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                    <path d="m17 8-5-5-5 5" />
+                    <path d="M12 3v12" />
+                  </svg>
+                  Dosya Yükle
+                </label>
+                <button type="button" @click="faturaFotoAcik = true"
+                  class="flex items-center gap-1 bg-[#2b5c3d] px-2.5 py-1.5 text-[11px] font-semibold text-ink ring-1 ring-white/10 active:bg-[#346e4a]">
+                  <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                    stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z" />
+                    <circle cx="12" cy="13" r="3" />
+                  </svg>
+                  Fotoğraf Çek
+                </button>
+              </div>
+            </div>
+
+            <p v-if="faturaYukleniyor" class="py-1 text-center text-[11px] text-ink-muted">Yükleniyor…</p>
+            <p v-if="!tescil.faturalar?.length && !faturaYukleniyor"
+              class="py-2 text-xs text-ink-muted/60">
+              Henüz fatura eklenmedi.
+            </p>
+            <div v-for="(d, i) in tescil.faturalar ?? []" :key="d.dosyaAnahtari + i"
+              class="flex items-center gap-1.5 bg-surface-900/60 p-2 ring-1 ring-white/5">
+              <span class="min-w-0 flex-1 truncate text-xs text-ink">{{ d.dosyaAdi }}</span>
+              <button type="button" @click="dosyaAc(d)" aria-label="Dosyayı görüntüle"
+                class="grid h-6.5 w-8 shrink-0 place-items-center bg-[#2b5c3d] text-ink ring-1 ring-white/10 active:bg-[#346e4a]">
+                <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                  stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M2.06 12.35a1 1 0 0 1 0-.7C3.42 8.24 7.26 5 12 5s8.58 3.24 9.94 6.65a1 1 0 0 1 0 .7C20.58 15.76 16.74 19 12 19s-8.58-3.24-9.94-6.65" />
+                  <circle cx="12" cy="12" r="3" />
+                </svg>
+              </button>
+              <button type="button" @click="faturaSilinecek = i" aria-label="Dosyayı sil"
+                class="grid h-6.5 w-7 shrink-0 place-items-center bg-surface-900 text-red-300/80 ring-1 ring-red-500/20">
+                ✕
+              </button>
+            </div>
+          </section>
+
           <!-- Tarihler: değişiklik anında kaydedilir -->
           <section class="space-y-2 bg-surface-800 p-3 ring-1 ring-white/5">
             <h2 class="text-xs font-bold uppercase tracking-wide text-ink">Tarihler</h2>
+            <label class="block space-y-0.5">
+              <span class="text-xs font-medium text-ink-muted">Belediye Adı</span>
+              <input :value="tescil.belediyeAdi ?? ''" type="text" placeholder="Belediye adı girin"
+                @change="metinKaydet('belediyeAdi', $event)"
+                class="w-full bg-surface-900 px-2.5 py-1.5 text-xs text-ink ring-1 ring-white/10 outline-none placeholder:text-ink-muted/50 focus:ring-white/30" />
+            </label>
+            <label class="block space-y-0.5">
+              <span class="text-xs font-medium text-ink-muted">Dilekçe Tarihi</span>
+              <input :value="tarihInput(tescil.dilekceTarihi)" type="date"
+                @change="tarihKaydet('dilekceTarihi', $event)"
+                class="w-full bg-surface-900 px-2.5 py-1.5 text-xs text-ink ring-1 ring-white/10 outline-none focus:ring-white/30" />
+            </label>
             <label class="block space-y-0.5">
               <span class="text-xs font-medium text-ink-muted">AB Uygunluk Beyanı Tarihi</span>
               <input :value="tarihInput(tescil.abUygunlukBeyaniTarihi)" type="date"
@@ -440,6 +626,38 @@ async function dosyaAc(slot: BelgeSlot) {
               <span class="text-xs font-medium text-ink-muted">Son Kontrol Tarihi</span>
               <input :value="tarihInput(tescil.sonKontrolTarihi)" type="date"
                 @change="tarihKaydet('sonKontrolTarihi', $event)"
+                class="w-full bg-surface-900 px-2.5 py-1.5 text-xs text-ink ring-1 ring-white/10 outline-none focus:ring-white/30" />
+            </label>
+          </section>
+
+          <!-- Yazdırma bilgileri: şablonlarda kullanılan kalıcı değerler
+            (kullanıcı kararı: yazdırma öncesi popup yerine burada tutulur) -->
+          <section class="space-y-2 bg-surface-800 p-3 ring-1 ring-white/5">
+            <h2 class="text-xs font-bold uppercase tracking-wide text-ink">Yazdırma Bilgileri</h2>
+            <label class="block space-y-0.5">
+              <span class="text-xs font-medium text-ink-muted">Garanti Tarihi</span>
+              <input :value="tarihInput(tescil.garantiTarihi)" type="date"
+                @change="tarihKaydet('garantiTarihi', $event)"
+                class="w-full bg-surface-900 px-2.5 py-1.5 text-xs text-ink ring-1 ring-white/10 outline-none focus:ring-white/30" />
+            </label>
+            <div class="grid grid-cols-2 gap-1.5">
+              <label class="block space-y-0.5">
+                <span class="text-xs font-medium text-ink-muted">Fatura No</span>
+                <input :value="tescil.faturaNo ?? ''" type="text" placeholder="Fatura no"
+                  @change="metinKaydet('faturaNo', $event)"
+                  class="w-full bg-surface-900 px-2.5 py-1.5 text-xs text-ink ring-1 ring-white/10 outline-none placeholder:text-ink-muted/50 focus:ring-white/30" />
+              </label>
+              <label class="block space-y-0.5">
+                <span class="text-xs font-medium text-ink-muted">Fatura Tarihi</span>
+                <input :value="tarihInput(tescil.faturaTarihi)" type="date"
+                  @change="tarihKaydet('faturaTarihi', $event)"
+                  class="w-full bg-surface-900 px-2.5 py-1.5 text-xs text-ink ring-1 ring-white/10 outline-none focus:ring-white/30" />
+              </label>
+            </div>
+            <label class="block space-y-0.5">
+              <span class="text-xs font-medium text-ink-muted">Proje Hizmet Sözleşme Tarihi</span>
+              <input :value="tarihInput(tescil.projeHizmetSozlesmeTarihi)" type="date"
+                @change="tarihKaydet('projeHizmetSozlesmeTarihi', $event)"
                 class="w-full bg-surface-900 px-2.5 py-1.5 text-xs text-ink ring-1 ring-white/10 outline-none focus:ring-white/30" />
             </label>
           </section>
@@ -524,6 +742,14 @@ async function dosyaAc(slot: BelgeSlot) {
       </div>
     </Teleport>
 
+    <!-- Fatura: fotoğraf çekme + silme onayı -->
+    <FotoCekModal v-model:acik="faturaFotoAcik" @tamam="faturaEkle" />
+    <SilmeOnayi :acik="faturaSilinecek != null"
+      :aciklama="faturaSilinecek != null
+        ? `${tescil?.faturalar?.[faturaSilinecek]?.dosyaAdi ?? 'Fatura'} silinecek. Emin misiniz?`
+        : ''"
+      @vazgec="faturaSilinecek = null" @onayla="faturaSilOnayla" />
+
     <!-- Tescilden çıkarma onayı -->
     <SilmeOnayi :acik="ceCikarilacak != null"
       :aciklama="ceCikarilacak
@@ -540,5 +766,8 @@ async function dosyaAc(slot: BelgeSlot) {
       bekleme-metni="Tescil raporu PDF'i oluşturuluyor…"
       aciklama="Tüm tescil bilgileri, seçilen CE belgeleri ve dosya linkleri PDF raporda toplandı."
       goruntule-tip="pdf" :goruntule-ad="pdfDosyaAdi || 'Tescil Raporu.pdf'" />
+
+    <!-- Yazdır tam sayfası: tescil dosyası kalem listesi -->
+    <YazdirPopup v-model:acik="yazdirAcik" :tescil-id="tescil?._id ?? null" />
   </ion-page>
 </template>

@@ -1,15 +1,15 @@
 # Render Blueprint — backend servisi bu reponun api/ klasöründen çalışır.
+# Docker imajıyla deploy edilir (LibreOffice gerekir: yazdir.js DOCX->PDF).
 # Render'da "New > Blueprint" ile bu repo seçilince servis otomatik kurulur;
 # sync: false işaretli değerler panelde elle girilir (gizli bilgiler).
 # Frontend servisi panelden elle kurulduğu için burada tanımlı değildir.
 services:
   - type: web
     name: artidoksan2-api
-    runtime: node
+    runtime: docker
     plan: free
-    rootDir: api
-    buildCommand: npm install
-    startCommand: node server.js
+    dockerfilePath: ./api/Dockerfile
+    dockerContext: .
     envVars:
       - key: MONGODB_URI
         sync: false

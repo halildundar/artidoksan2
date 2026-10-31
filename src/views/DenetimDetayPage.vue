@@ -19,6 +19,7 @@ import { asansorSemaCizimleri } from '@/utils/semaPdf';
 import FirmaBilgiModal from '@/components/FirmaBilgiModal.vue';
 import AsansorBilgiModal from '@/components/AsansorBilgiModal.vue';
 import LinkPopup from '@/components/LinkPopup.vue';
+import YazdirPopup from '@/components/YazdirPopup.vue';
 import SilmeOnayi from '@/components/SilmeOnayi.vue';
 
 // Denetim detayı (Modul G): firma ve asansör kısa bilgileri, ek proje
@@ -414,6 +415,7 @@ const pdfLinkAcik = ref(false);
 const pdfLinkUrl = ref('');
 const pdfLinkHata = ref('');
 const pdfDosyaAdi = ref('');
+const yazdirAcik = ref(false);
 
 async function pdfLinkOlustur() {
   const d = denetim.value;
@@ -507,16 +509,28 @@ async function ekProjeAc(slot: BelgeSlot) {
         <p v-if="yukleniyor" class="py-8 text-center text-sm text-ink-muted">Yükleniyor…</p>
 
         <template v-else-if="denetim">
-          <!-- PDF rapor linki: tüm bilgiler + dosya linkleri tek PDF'te -->
-          <button type="button" @click="pdfLinkOlustur"
-            class="flex w-full items-center justify-center gap-1.5 bg-[#2b5c3d] px-3 py-2.5 text-xs font-semibold text-ink ring-1 ring-white/10 active:bg-[#346e4a]">
-            <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-              stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
-              <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
-            </svg>
-            Link Oluştur (PDF Rapor)
-          </button>
+          <!-- PDF rapor linki + Yazdır: linkte tüm bilgiler + dosya linkleri tek PDF'te -->
+          <div class="flex gap-1.5">
+            <button type="button" @click="pdfLinkOlustur"
+              class="flex flex-1 items-center justify-center gap-1.5 bg-[#2b5c3d] px-3 py-2.5 text-xs font-semibold text-ink ring-1 ring-white/10 active:bg-[#346e4a]">
+              <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+                <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+              </svg>
+              Link Oluştur (PDF Rapor)
+            </button>
+            <button type="button" @click="yazdirAcik = true"
+              class="flex items-center justify-center gap-1.5 bg-surface-800 px-4 py-2.5 text-xs font-semibold text-ink ring-1 ring-white/10 active:bg-[#1a2a20]">
+              <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M6 9V3h12v6" />
+                <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" />
+                <rect x="6" y="14" width="12" height="8" />
+              </svg>
+              Yazdır
+            </button>
+          </div>
 
           <!-- Firma kısa bilgileri — dokununca tüm bilgiler popup'ta açılır -->
           <button type="button" @click="firmaBilgiAcik = true"
@@ -1018,5 +1032,8 @@ async function ekProjeAc(slot: BelgeSlot) {
       bekleme-metni="Denetim raporu PDF'i oluşturuluyor…"
       aciklama="Tüm denetim bilgileri ve dosya linkleri PDF raporda toplandı."
       goruntule-tip="pdf" :goruntule-ad="pdfDosyaAdi || 'Denetim Raporu.pdf'" />
+
+    <!-- Yazdır popup'ı — içeriği henüz boş, kullanıcı tarifiyle doldurulacak -->
+    <YazdirPopup v-model:acik="yazdirAcik" />
   </ion-page>
 </template>

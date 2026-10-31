@@ -21,8 +21,38 @@ const tescilSchema = new mongoose.Schema(
     firmaId: { type: mongoose.Schema.Types.ObjectId, ref: 'Firma', required: true },
     asansorId: { type: mongoose.Schema.Types.ObjectId, ref: 'Asansor', required: true },
     ekProje: { type: dosyaSlotSchema, default: null },
+    // Yeşil etiket raporu (PDF)
+    yesilEtiketRaporu: { type: dosyaSlotSchema, default: null },
+    // Fatura dosyaları (çoklu — yazdırma listesinde ZIP'lenir)
+    faturalar: { type: [dosyaSlotSchema], default: [] },
     abUygunlukBeyaniTarihi: { type: Date, default: null },
     sonKontrolTarihi: { type: Date, default: null },
+    belediyeAdi: { type: String, trim: true },
+    dilekceTarihi: { type: Date, default: null },
+    // Yazdırma şablonlarında kullanılan kalıcı değerler (kullanıcı kararı:
+    // popup yerine tescil sayfasında form alanı)
+    garantiTarihi: { type: Date, default: null },
+    faturaNo: { type: String, trim: true, default: '' },
+    faturaTarihi: { type: Date, default: null },
+    projeHizmetSozlesmeTarihi: { type: Date, default: null },
+    // Yazdır ekranında seçilen şablon seti (templates/<set>/)
+    sablonSeti: { type: String, trim: true, default: 'tescil-temp1' },
+    // Şablonlardan üretilen DOCX+PDF çiftleri (yazdir.js yönetir)
+    uretilenBelgeler: {
+      type: [
+        new mongoose.Schema(
+          {
+            sablonKodu: { type: String, required: true },
+            sablonAdi: { type: String, default: '' },
+            docx: { type: dosyaSlotSchema, default: null },
+            pdf: { type: dosyaSlotSchema, default: null },
+            uretimTarihi: { type: Date, default: null },
+          },
+          { _id: false }
+        ),
+      ],
+      default: [],
+    },
     // Firmanın ceBelgeleri alt belgelerinden seçilenlerin _id'leri
     ceBelgeIdleri: { type: [String], default: [] },
   },
@@ -77,14 +107,18 @@ router.put('/:id', async (req, res) => {
   try {
     const {
       firmaId, asansorId,
-      ekProje, abUygunlukBeyaniTarihi, sonKontrolTarihi, ceBelgeIdleri,
+      ekProje, yesilEtiketRaporu, faturalar, abUygunlukBeyaniTarihi, sonKontrolTarihi,
+      belediyeAdi, dilekceTarihi, garantiTarihi, faturaNo, faturaTarihi,
+      projeHizmetSozlesmeTarihi, sablonSeti, ceBelgeIdleri,
     } = req.body ?? {};
     // undefined alanlar Mongoose tarafından ayıklanır — kısmi PUT
     const tescil = await Tescil.findByIdAndUpdate(
       req.params.id,
       {
         firmaId, asansorId,
-        ekProje, abUygunlukBeyaniTarihi, sonKontrolTarihi, ceBelgeIdleri,
+        ekProje, yesilEtiketRaporu, faturalar, abUygunlukBeyaniTarihi, sonKontrolTarihi,
+        belediyeAdi, dilekceTarihi, garantiTarihi, faturaNo, faturaTarihi,
+        projeHizmetSozlesmeTarihi, sablonSeti, ceBelgeIdleri,
       },
       { new: true, runValidators: true }
     ).populate(POPULATE);
