@@ -8,9 +8,12 @@ import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import PizZip from 'pizzip';
 import Docxtemplater from 'docxtemplater';
+import ImageModule from 'docxtemplater-image-module-free';
+import { imageSize } from 'image-size';
 import { Tescil } from './tescil.js';
 import { AksamBelgesi } from './katalog.js';
-import { buildObjectKey, putObject } from './storage.js';
+import { buildObjectKey, putObject, getObjectBuffer } from './storage.js';
+import { sablonGorselYerlesimHazirla, sablonGorselDondur } from './gorselYerlesim.js';
 
 // Tescil dosyası yazdırma servisi — artidoksan1 YEDEK/apps/server/src/belgeler
 // altyapısının bu projeye portu. templates/<set>/ içindeki DOCX şablonları
@@ -349,16 +352,90 @@ async function convertDocxToPdf(docxBuffer) {
   }
 }
 
-async function sablonDoldur(sablonYolu, veri) {
+// ---- Görsel tag'leri ({%firma_logo} vb.): değer firma kaydındaki görsel
+// dosyasının buffer'ıdır; kutu boyutu şablondan okunur (gorselYerlesim.js),
+// görsel kutuya contain-fit ölçeklenir (artidoksan1 portu) ----
+const VARSAYILAN_HEDEF_GENISLIK_PX = 200;
+const VARSAYILAN_HEDEF_YUKSEKLIK_PX = 100;
+
+// Desteklenen görsel tag adları → firma.belgeler alanı ({%logo} ve
+// {%firma_logo} aynı kaynağı gösterir — şablon hazırlayan hangisini
+// yazarsa yazsın çalışır)
+const GORSEL_TAG_KAYNAKLARI = {
+  logo: 'logo',
+  firma_logo: 'logo',
+  imza_kase: 'imzaKase',
+  firma_imza_kase: 'imzaKase',
+};
+
+function createImageModule(gorselKutuBoyutlari = {}) {
+  return new ImageModule({
+    getImage: (tagValue) => tagValue,
+    // Kutu boyutu koddan asla büyütülmez — görsel kutunun genişlik VE
+    // yüksekliğine sığacak şekilde (iki oranın küçüğü) ölçeklenir
+    getSize: (buf, _value, tagName) => {
+      const { width, height } = imageSize(buf);
+      const [hedefGenislik, hedefYukseklik] =
+        gorselKutuBoyutlari[tagName] ?? [VARSAYILAN_HEDEF_GENISLIK_PX, VARSAYILAN_HEDEF_YUKSEKLIK_PX];
+      const oran = Math.min(hedefGenislik / width, hedefYukseklik / height);
+      return [Math.round(width * oran), Math.round(height * oran)];
+    },
+  });
+}
+
+// Word tag'leri birden fazla run'a bölebildiğinden tag adı XML'de düz
+// indexOf ile bulunamayabilir — tüm <w:t> içerikleri birleştirilip aranır
+function duzMetinIcerir(xml, aranan) {
+  let duz = '';
+  const re = /<w:t[^>]*>([^<]*)<\/w:t>/g;
+  let m;
+  while ((m = re.exec(xml))) duz += m[1];
+  return duz.includes(aranan);
+}
+
+async function sablonDoldur(sablonYolu, veri, firma) {
   const zip = new PizZip(await fs.readFile(sablonYolu));
+  const xml = zip.file('word/document.xml').asText();
+
+  // Şablonda geçen görsel tag'leri bul, firma görsellerini R2'den çek —
+  // tag varsa görsel ZORUNLU (eksik görselli resmî belge sessizce üretilmez)
+  const gorselTagleri = Object.keys(GORSEL_TAG_KAYNAKLARI).filter((tag) => duzMetinIcerir(xml, `{%${tag}}`));
+  for (const tag of gorselTagleri) {
+    const alan = GORSEL_TAG_KAYNAKLARI[tag];
+    const anahtar = firma?.belgeler?.[alan]?.dosyaAnahtari;
+    if (!anahtar) {
+      const etiket = alan === 'logo' ? 'logo' : 'imza-kaşe';
+      const hata = new Error(
+        `Bu firma için ${etiket} yüklenmemiş — Firmalar > Genel Bilgiler'den yükleyin (şablon {%${tag}} istiyor).`
+      );
+      hata.status = 400;
+      throw hata;
+    }
+    veri[tag] = await getObjectBuffer(anahtar);
+  }
+
+  // Görsel kutularının gerçek boyutu/hizası şablondan okunur ve düzeltilir
+  const { xml: duzeltilmisXml, boyutlar, donduruler } = sablonGorselYerlesimHazirla(xml, gorselTagleri);
+  zip.file('word/document.xml', duzeltilmisXml);
+
   const tpl = new Docxtemplater(zip, {
     paragraphLoop: true,
     linebreaks: true,
+    modules: [createImageModule(boyutlar)],
     // Eksik tag "undefined" yerine boş basılır (artidoksan1'de canlı
     // doğrulanan hatanın önlemi)
     nullGetter: () => '',
   });
-  tpl.render(veri);
+  // Görsel modülü async çözümlenir — senkron render() Buffer'ı çözümlenmiş
+  // sanıp patlar (artidoksan1'de canlı doğrulanan hata)
+  await tpl.renderAsync(veri);
+
+  // Döndürülmüş kutudaki görsel LibreOffice'te dönmez — kutudan çıkarılıp
+  // kendi rotasyonuyla bağımsız nesne olarak yeniden yerleştirilir
+  if (Object.keys(donduruler).length > 0) {
+    const renderZip = tpl.getZip();
+    renderZip.file('word/document.xml', sablonGorselDondur(renderZip.file('word/document.xml').asText(), donduruler));
+  }
   return tpl.getZip().generate({ type: 'nodebuffer', compression: 'DEFLATE' });
 }
 
@@ -465,7 +542,7 @@ router.post('/:id/yazdir/:kod', async (req, res) => {
     });
 
     const veri = await sablonVerisi(baglam);
-    const docxBuffer = await sablonDoldur(sablonYolu, veri);
+    const docxBuffer = await sablonDoldur(sablonYolu, veri, firma);
     const pdfBuffer = await convertDocxToPdf(docxBuffer);
 
     const taban = `${String(kalem.no).padStart(2, '0')}-${kalem.ad}`;
