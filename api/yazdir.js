@@ -484,11 +484,13 @@ router.post('/:id/yazdir/:kod', async (req, res) => {
       pdf: slotOlustur(pdfKey, `${taban}.pdf`, 'application/pdf', pdfBuffer.length),
       uretimTarihi: new Date(),
     };
-    tescil.uretilenBelgeler = [
-      ...(tescil.uretilenBelgeler ?? []).filter((u) => u.sablonKodu !== kalem.kod),
-      kayit,
-    ];
-    await tescil.save();
+    // Atomik güncelleme — eşzamanlı üretimlerde (Tümünü Yazdır, iki cihaz)
+    // doc.save() sürüm çakışması verir, $pull+$push vermez
+    await Tescil.updateOne(
+      { _id: tescil._id },
+      { $pull: { uretilenBelgeler: { sablonKodu: kalem.kod } } }
+    );
+    await Tescil.updateOne({ _id: tescil._id }, { $push: { uretilenBelgeler: kayit } });
     res.json(kayit);
   } catch (err) {
     res.status(err.status ?? 500).json({ message: err.message });
