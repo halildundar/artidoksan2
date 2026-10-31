@@ -421,14 +421,19 @@ async function sablonDoldur(sablonYolu, veri, firma) {
   const tpl = new Docxtemplater(zip, {
     paragraphLoop: true,
     linebreaks: true,
-    modules: [createImageModule(boyutlar)],
+    // Görsel modülü SADECE şablonda {%...} etiketi varsa bağlanır — modül,
+    // etiketi olmayan bazı şablonlarda (İÇİNDEKİLER) renderAsync'i
+    // "reading 'length'" ile çökertiyor (canlı doğrulanan hata)
+    modules: gorselTagleri.length ? [createImageModule(boyutlar)] : [],
     // Eksik tag "undefined" yerine boş basılır (artidoksan1'de canlı
     // doğrulanan hatanın önlemi)
     nullGetter: () => '',
   });
   // Görsel modülü async çözümlenir — senkron render() Buffer'ı çözümlenmiş
-  // sanıp patlar (artidoksan1'de canlı doğrulanan hata)
-  await tpl.renderAsync(veri);
+  // sanıp patlar (artidoksan1'de canlı doğrulanan hata); modülsüzde de
+  // renderAsync güvenli
+  if (gorselTagleri.length) await tpl.renderAsync(veri);
+  else tpl.render(veri);
 
   // Döndürülmüş kutudaki görsel LibreOffice'te dönmez — kutudan çıkarılıp
   // kendi rotasyonuyla bağımsız nesne olarak yeniden yerleştirilir
