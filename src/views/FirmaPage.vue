@@ -328,6 +328,64 @@ async function evrakSilOnayla() {
   await evrakKaydet(hedef.anahtar, evrakListesi(hedef.anahtar).filter((_, j) => j !== hedef.i));
 }
 
+// ---- Logo / İmza & Kaşe: Kurum Evrakları gibi satırdan yönetilir, ama TEK
+// resim (yeni yükleme/çekim eskisinin yerine geçer) ----
+const resimYukleniyor = ref<Partial<Record<BelgeSlotAnahtar, boolean>>>({});
+const resimFotoAnahtar = ref<BelgeSlotAnahtar | null>(null);
+const resimSilinecek = ref<BelgeSlotAnahtar | null>(null);
+const resimFotoAcik = computed({
+  get: () => resimFotoAnahtar.value != null,
+  set(v: boolean) {
+    if (!v) resimFotoAnahtar.value = null;
+  },
+});
+
+async function resimKaydet(anahtar: BelgeSlotAnahtar, slot: BelgeSlot | null) {
+  const f = secili.value;
+  if (!f) return;
+  const belgelerYeni = { ...f.belgeler };
+  if (slot) belgelerYeni[anahtar] = slot;
+  else delete belgelerYeni[anahtar];
+  await firmaGuncelle({ belgeler: belgelerYeni });
+  if (secili.value) resimleriYukle(secili.value);
+}
+
+async function resimYukle(anahtar: BelgeSlotAnahtar, file: File | undefined) {
+  if (!file || !secili.value) return;
+  if (!file.type.startsWith('image/')) {
+    hata.value = 'Yalnızca resim dosyası yüklenebilir';
+    return;
+  }
+  resimYukleniyor.value[anahtar] = true;
+  try {
+    await resimKaydet(anahtar, await uploadDosya(file));
+  } catch (e) {
+    hata.value = e instanceof Error ? e.message : 'Yükleme başarısız';
+  } finally {
+    resimYukleniyor.value[anahtar] = false;
+  }
+}
+
+function resimSec(anahtar: BelgeSlotAnahtar, event: Event) {
+  const input = event.target as HTMLInputElement;
+  const file = input.files?.[0];
+  input.value = '';
+  resimYukle(anahtar, file);
+}
+
+// Kamera oturumundan tek resim: son çekilen kare kullanılır
+function resimFotoCekildi(fotolar: File[]) {
+  const anahtar = resimFotoAnahtar.value;
+  resimFotoAnahtar.value = null;
+  if (anahtar) resimYukle(anahtar, fotolar[fotolar.length - 1]);
+}
+
+async function resimSilOnayla() {
+  const anahtar = resimSilinecek.value;
+  resimSilinecek.value = null;
+  if (anahtar) await resimKaydet(anahtar, null);
+}
+
 // ---- CE belgeleri: kart listesi + ortak formla (CeBelgeFormu) ekleme ve
 // yerinde düzenleme + SilmeOnayi ile silme ----
 const ceEkleAcik = ref(false);
@@ -770,18 +828,59 @@ onIonViewWillEnter(yukle);
                 </tbody>
               </table>
 
-              <!-- Logo + İmza & Kaşe küçük önizlemeleri -->
-              <div class="grid grid-cols-2 gap-1.5">
-                <div v-for="s in RESIM_SLOTLARI" :key="s.anahtar" class="space-y-0.5">
-                  <span class="text-xs font-medium text-ink-muted">{{ s.etiket }}</span>
+              <!-- Logo + İmza & Kaşe: tek resim — yükle / fotoğraf çek / görüntüle / sil -->
+              <div class="space-y-1.5">
+                <p class="text-xs font-semibold text-ink">Logo ve İmza & Kaşe</p>
+                <div v-for="s in RESIM_SLOTLARI" :key="s.anahtar"
+                  class="flex items-center gap-1.5 bg-surface-900/60 p-2 ring-1 ring-white/5">
                   <button type="button" :disabled="!secili.belgeler?.[s.anahtar]"
-                    @click="belgeGoruntule(s.anahtar)"
-                    class="grid h-24 w-full place-items-center overflow-hidden bg-surface-900/60 ring-1 ring-white/5">
+                    @click="belgeGoruntule(s.anahtar)" :aria-label="`${s.etiket} görüntüle`"
+                    class="grid h-12 w-12 shrink-0 place-items-center overflow-hidden bg-surface-900 ring-1 ring-white/5">
                     <img v-if="resimUrller[s.anahtar]" :src="resimUrller[s.anahtar]" :alt="s.etiket"
-                      class="h-full w-full object-contain p-1" />
-                    <span v-else class="text-[11px] text-ink-muted/50">
-                      {{ secili.belgeler?.[s.anahtar] ? 'Yükleniyor…' : 'Yüklenmemiş' }}
+                      class="h-full w-full object-contain p-0.5" />
+                    <span v-else class="text-[9px] text-ink-muted/50">
+                      {{ secili.belgeler?.[s.anahtar] ? '…' : 'Yok' }}
                     </span>
+                  </button>
+                  <span class="min-w-0 flex-1">
+                    <span class="block text-xs font-medium text-ink-muted">{{ s.etiket }}</span>
+                    <span class="block truncate text-[11px]"
+                      :class="secili.belgeler?.[s.anahtar] ? 'text-ink' : 'text-ink-muted/50'">
+                      {{ resimYukleniyor[s.anahtar] ? 'Yükleniyor…' : secili.belgeler?.[s.anahtar]?.dosyaAdi || 'Yüklenmemiş' }}
+                    </span>
+                  </span>
+                  <label :aria-label="`${s.etiket} için resim yükle`"
+                    class="grid h-6.5 w-8 shrink-0 cursor-pointer place-items-center border border-dashed border-white/20 text-ink-muted active:border-white/40 active:text-ink">
+                    <input type="file" accept="image/*" class="hidden" @change="resimSec(s.anahtar, $event)" />
+                    <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                      stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                      <path d="m17 8-5-5-5 5" />
+                      <path d="M12 3v12" />
+                    </svg>
+                  </label>
+                  <button type="button" @click="resimFotoAnahtar = s.anahtar"
+                    :aria-label="`${s.etiket} için fotoğraf çek`"
+                    class="grid h-6.5 w-8 shrink-0 place-items-center bg-[#2b5c3d] text-ink ring-1 ring-white/10 active:bg-[#346e4a]">
+                    <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                      stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z" />
+                      <circle cx="12" cy="13" r="3" />
+                    </svg>
+                  </button>
+                  <button v-if="secili.belgeler?.[s.anahtar]" type="button"
+                    @click="belgeGoruntule(s.anahtar)" :aria-label="`${s.etiket} görüntüle`"
+                    class="grid h-6.5 w-8 shrink-0 place-items-center bg-[#2b5c3d] text-ink ring-1 ring-white/10 active:bg-[#346e4a]">
+                    <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                      stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M2.06 12.35a1 1 0 0 1 0-.7C3.42 8.24 7.26 5 12 5s8.58 3.24 9.94 6.65a1 1 0 0 1 0 .7C20.58 15.76 16.74 19 12 19s-8.58-3.24-9.94-6.65" />
+                      <circle cx="12" cy="12" r="3" />
+                    </svg>
+                  </button>
+                  <button v-if="secili.belgeler?.[s.anahtar]" type="button"
+                    @click="resimSilinecek = s.anahtar" :aria-label="`${s.etiket} sil`"
+                    class="grid h-6.5 w-7 shrink-0 place-items-center bg-surface-900 text-red-300/80 ring-1 ring-red-500/20">
+                    ✕
                   </button>
                 </div>
               </div>
@@ -1536,6 +1635,13 @@ onIonViewWillEnter(yukle);
     <FotoCekModal v-model:acik="muhFotoAcik" @tamam="muhFotolarEkle" />
     <FotoCekModal v-model:acik="sgkFotoAcik" @tamam="sgkEkle" />
     <FotoCekModal v-model:acik="evrakFotoAcik" @tamam="evrakFotoCekildi" />
+    <FotoCekModal v-model:acik="resimFotoAcik" @tamam="resimFotoCekildi" />
+
+    <SilmeOnayi :acik="resimSilinecek != null"
+      :aciklama="resimSilinecek
+        ? `${RESIM_SLOTLARI.find((r) => r.anahtar === resimSilinecek)?.etiket ?? 'Resim'} silinecek. Emin misiniz?`
+        : ''"
+      @vazgec="resimSilinecek = null" @onayla="resimSilOnayla" />
 
     <SilmeOnayi :acik="evrakSilinecek != null"
       :aciklama="evrakSilinecek != null

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
+import { useRouter } from 'vue-router';
 import { getFirma, type Firma } from '@/services/firmaService';
 import { getDosyaUrl, getDosyaIndirUrl, type BelgeSlot } from '@/services/dosyaService';
 import { useFileViewer, fileViewerTypeFromMime } from '@/composables/useFileViewer';
@@ -14,6 +15,15 @@ import {
 // önizlemeyle görüntülenir. Kayıt popup açılınca taze çekilir.
 const props = defineProps<{ firmaId: string | null }>();
 const acik = defineModel<boolean>('acik', { default: false });
+const router = useRouter();
+
+// Düzenle: popup kapanır, firma edit sayfası açılır; kayıttan/geriden sonra
+// çağıran sayfaya dönülür (geri=1) ve sayfa verisini yeniler
+function duzenle() {
+  if (!props.firmaId) return;
+  acik.value = false;
+  router.push(`/firma/${props.firmaId}/duzenle?geri=1`);
+}
 
 const firma = ref<Firma | null>(null);
 const yukleniyor = ref(false);
@@ -89,10 +99,19 @@ const sgkDokumleri = computed(() => firma.value?.sgkDokumleri ?? []);
       <div
         class="flex shrink-0 items-center justify-between border-b border-white/5 bg-surface-bar px-4 py-3 pt-[max(0.75rem,env(safe-area-inset-top))]">
         <h2 class="truncate text-sm font-bold text-ink">{{ firma?.ad || 'Firma Bilgileri' }}</h2>
-        <button type="button" @click="acik = false"
-          class="grid h-8 w-8 shrink-0 place-items-center bg-surface-800 text-ink-muted ring-1 ring-white/10">
-          ✕
-        </button>
+        <div class="flex shrink-0 items-center gap-1.5">
+          <button v-if="firmaId" type="button" @click="duzenle"
+            class="flex h-8 items-center gap-1 bg-[#2b5c3d] px-2.5 text-[11px] font-semibold text-ink ring-1 ring-white/10 active:bg-[#346e4a]">
+            <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" />
+            </svg>
+            Düzenle
+          </button>
+          <button type="button" @click="acik = false"
+            class="grid h-8 w-8 shrink-0 place-items-center bg-surface-800 text-ink-muted ring-1 ring-white/10">
+            ✕
+          </button>
+        </div>
       </div>
 
       <div class="min-h-0 flex-1 overflow-auto">

@@ -15,6 +15,11 @@ const fotolar = ref<{ file: File; url: string }[]>([]);
 const kameraHatasi = ref('');
 let stream: MediaStream | null = null;
 
+// Cihaz ışığı (flaş/meşale): yalnız kamera 'torch' yeteneğini bildiriyorsa
+// (çoğu Android Chrome; iOS Safari desteklemez) buton gösterilir
+const isikDestegi = ref(false);
+const isikAcik = ref(false);
+
 watch(acik, (a) => (a ? kameraAc() : kapat()));
 onBeforeUnmount(kapat);
 
@@ -28,6 +33,9 @@ async function kameraAc() {
     // video elemanı v-if ile bu watch'tan sonra DOM'a girer
     await nextTick();
     if (video.value) video.value.srcObject = stream;
+    const iz = stream.getVideoTracks()[0];
+    const yetenekler = iz?.getCapabilities?.() as (MediaTrackCapabilities & { torch?: boolean }) | undefined;
+    isikDestegi.value = !!yetenekler?.torch;
   } catch {
     kameraHatasi.value = 'Kamera açılamadı. Kamera iznini verdiğinizden emin olun.';
   }
@@ -36,11 +44,25 @@ async function kameraAc() {
 // Popup kapanınca oturum sıfırlanır: kamera kapatılır, önizlemeler bırakılır
 function kapat() {
   stream?.getTracks().forEach((t) => t.stop());
+  isikDestegi.value = false;
+  isikAcik.value = false;
   stream = null;
   if (video.value) video.value.srcObject = null;
   for (const f of fotolar.value) URL.revokeObjectURL(f.url);
   fotolar.value = [];
   kameraHatasi.value = '';
+}
+
+async function isikDegistir() {
+  const iz = stream?.getVideoTracks()[0];
+  if (!iz) return;
+  const yeni = !isikAcik.value;
+  try {
+    await iz.applyConstraints({ advanced: [{ torch: yeni } as MediaTrackConstraintSet] });
+    isikAcik.value = yeni;
+  } catch {
+    isikDestegi.value = false; // cihaz ışığı açamadı — buton gizlenir
+  }
 }
 
 function ekle(file: File) {
@@ -92,10 +114,21 @@ function tamam() {
       <div
         class="flex shrink-0 items-center justify-between bg-black/80 px-4 py-3 pt-[max(0.75rem,env(safe-area-inset-top))]">
         <h2 class="truncate text-sm font-bold text-white">Fotoğraf Çek</h2>
-        <button type="button" @click="acik = false" aria-label="Kapat"
-          class="grid h-8 w-8 shrink-0 place-items-center bg-white/10 text-white ring-1 ring-white/20">
-          ✕
-        </button>
+        <div class="flex shrink-0 items-center gap-1.5">
+          <!-- Cihaz ışığı aç/kapat (yalnız destekleyen cihazlarda) -->
+          <button v-if="isikDestegi" type="button" @click="isikDegistir"
+            :aria-label="isikAcik ? 'Işığı kapat' : 'Işığı aç'" :aria-pressed="isikAcik"
+            class="grid h-8 w-8 place-items-center ring-1 ring-white/20"
+            :class="isikAcik ? 'bg-yellow-300 text-black' : 'bg-white/10 text-white'">
+            <svg class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+              <path d="M13 2 4 14h6l-1 8 9-12h-6l1-8Z" />
+            </svg>
+          </button>
+          <button type="button" @click="acik = false" aria-label="Kapat"
+            class="grid h-8 w-8 shrink-0 place-items-center bg-white/10 text-white ring-1 ring-white/20">
+            ✕
+          </button>
+        </div>
       </div>
 
       <!-- Canlı kamera önizlemesi -->

@@ -18,6 +18,9 @@ import { useFileViewer, fileViewerTypeFromMime } from '@/composables/useFileView
 // kopyalanır (kapanışta detay sayfası kaydeder). Aranan adres yoksa
 // "+ Yeni Adres Ekle" ile form açılır, kaydedilen adres koleksiyona eklenir
 // ve otomatik seçili gelir.
+// mevcut: asansörün şu anki adres alanları — düzenlenen kayıt bunlarla aynıysa
+// (asansör o adresi kullanıyorsa) düzenleme asansöre de yansıtılır
+const props = defineProps<{ mevcut?: Partial<Record<'il' | 'ilce' | 'mahalle' | 'postaKodu' | 'adres' | 'ada' | 'parsel', string | null | undefined>> }>();
 const emit = defineEmits<{ iptal: [] }>();
 const open = defineModel<boolean>('open', { default: false });
 const secilen = defineModel<AdresKaydi | null>('secilen', { default: null });
@@ -117,8 +120,15 @@ async function yeniKaydet() {
   try {
     const veri = { ...yeni.value, yapiRuhsatiDosya: yeniRuhsat.value };
     if (duzenlenenId.value) {
-      // Düzenleme: kayıt güncellenir, listeye dönülür (seçim yapılmaz)
+      // Düzenleme: kayıt güncellenir, listeye dönülür. Asansör bu adresi
+      // kullanıyorsa (eski değerler asansörünkiyle aynı) güncel kayıt seçilir —
+      // Tamam'da asansöre de yazılır; aksi halde seçim yapılmaz
+      const onceki = kayitlar.value.find((k) => k._id === duzenlenenId.value);
       const kayit = await updateAdresKaydi(duzenlenenId.value, veri);
+      const alanlar = ['il', 'ilce', 'mahalle', 'postaKodu', 'adres', 'ada', 'parsel'] as const;
+      if (onceki && props.mevcut && alanlar.every((a) => (onceki[a] ?? '') === (props.mevcut?.[a] ?? ''))) {
+        secilen.value = kayit;
+      }
       const i = kayitlar.value.findIndex((k) => k._id === kayit._id);
       if (i >= 0) kayitlar.value[i] = kayit;
       formAcik.value = false;

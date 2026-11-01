@@ -878,8 +878,9 @@ watch(adresAcik, (acik, onceki) => {
     mahalle: k.mahalle,
     postaKodu: k.postaKodu,
     adres: k.adres,
-    ada: k.ada,
-    parsel: k.parsel,
+    // undefined JSON'da düşer ve eski ada/parsel kalırdı — boş dize ile temizlenir
+    ada: k.ada ?? '',
+    parsel: k.parsel ?? '',
     yapiRuhsatiDosya: k.yapiRuhsatiDosya ?? null,
   });
 });
@@ -2147,7 +2148,7 @@ const onBilgi = computed(() => {
     <!-- Asansör Adresi — kayıtlı adreslerden seçim (yoksa yeni adres ekleme);
     kapanınca seçilen kaydın verileri adres alanlarına kopyalanır -->
     <AsansorAdresModal v-model:open="adresAcik" @iptal="iptalEdildi = true"
-      v-model:secilen="secilenAdresL" />
+      v-model:secilen="secilenAdresL" :mevcut="asansor ?? undefined" />
 
     <!-- Kapı ve Ölçüleri — panel sayısı/tip/yön + şema üzerinden ölçüler;
     kapanınca giriş kapı alanlarına kaydedilir -->

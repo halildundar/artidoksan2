@@ -2,8 +2,7 @@
 import { IonPage, IonContent, IonHeader, IonFooter } from '@ionic/vue';
 import { computed, onMounted, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { createFirma, getFirma, updateFirma, type BelgeSlotAnahtar, type FirmaBelgeleri } from '@/services/firmaService';
-import { uploadDosya, getDosyaUrl } from '@/services/dosyaService';
+import { createFirma, getFirma, updateFirma, type FirmaBelgeleri } from '@/services/firmaService';
 import AdresSecici from '@/components/AdresSecici.vue';
 import { blurActive } from '@/utils/blurActive';
 
@@ -19,44 +18,10 @@ const form = ref<{
   yetkili: string; belgeler: FirmaBelgeleri;
 }>({ ad: '', unvan: '', telefon: '', email: '', il: '', ilce: '', mahalle: '', postaKodu: '', adres: '', yetkili: '', belgeler: {} });
 
-// Önizlemeli 2 resim yuvası (PNG şart) — artidoksan1'deki IMAGE_SLOTS deseni
-const RESIM_SLOTLARI: { anahtar: BelgeSlotAnahtar; etiket: string }[] = [
-  { anahtar: 'logo', etiket: 'Logo' },
-  { anahtar: 'imzaKase', etiket: 'İmza & Kaşe' },
-];
-// Kurum evrakları (imza sirküsü, vergi levhası, sicil gazetesi, faaliyet
-// belgesi) bu formda DEĞİL — Firmalar > Genel Bilgiler'deki çoklu dosya
-// listesinden yönetilir (kullanıcı isteği, 30 Eki 2026).
+// Logo, İmza & Kaşe ve kurum evrakları bu formda DEĞİL — Firmalar > Genel
+// Bilgiler'den sonradan yüklenir/görüntülenir (kullanıcı isteği). Mevcut
+// belgeler (form.belgeler) güncellemede olduğu gibi geri gönderilir, kaybolmaz.
 
-const onizleme = ref<Partial<Record<BelgeSlotAnahtar, string>>>({});
-const slotYukleniyor = ref<Partial<Record<BelgeSlotAnahtar, boolean>>>({});
-const slotHata = ref<Partial<Record<BelgeSlotAnahtar, string>>>({});
-
-async function dosyaSecildi(anahtar: BelgeSlotAnahtar, event: Event, sadecePng: boolean) {
-  const input = event.target as HTMLInputElement;
-  const file = input.files?.[0];
-  input.value = '';
-  if (!file) return;
-  if (sadecePng && file.type !== 'image/png') {
-    slotHata.value[anahtar] = 'Sadece PNG dosyası yüklenebilir';
-    return;
-  }
-  if (!sadecePng && file.type !== 'application/pdf' && !file.type.startsWith('image/')) {
-    slotHata.value[anahtar] = 'PDF veya resim dosyası yükleyin';
-    return;
-  }
-  slotHata.value[anahtar] = '';
-  slotYukleniyor.value[anahtar] = true;
-  try {
-    const slot = await uploadDosya(file);
-    form.value.belgeler[anahtar] = slot;
-    if (file.type.startsWith('image/')) onizleme.value[anahtar] = URL.createObjectURL(file);
-  } catch (e) {
-    slotHata.value[anahtar] = e instanceof Error ? e.message : 'Yükleme başarısız';
-  } finally {
-    slotYukleniyor.value[anahtar] = false;
-  }
-}
 const yukleniyor = ref(false);
 const kaydediliyor = ref(false);
 const hata = ref('');
@@ -84,15 +49,6 @@ onMounted(async () => {
       yetkili: firma.yetkili,
       belgeler: firma.belgeler ?? {},
     };
-    // mevcut resimlerin önizlemesi için kısa ömürlü URL al
-    for (const s of RESIM_SLOTLARI) {
-      const slot = form.value.belgeler[s.anahtar];
-      if (slot) {
-        getDosyaUrl(slot.dosyaAnahtari)
-          .then((url) => (onizleme.value[s.anahtar] = url))
-          .catch(() => { /* önizleme alınamazsa yuva boş görünür */ });
-      }
-    }
   } catch (e) {
     hata.value = e instanceof Error ? e.message : 'Firma yüklenemedi';
   } finally {
@@ -110,7 +66,9 @@ async function kaydet() {
       : await createFirma(form.value);
     // kayıttan sonra Firma ekranına dön; eklenen/düzenlenen firma seçili gelsin
     blurActive();
-    router.replace(`/firma?secili=${firma._id}`);
+    // Denetim/Tescil'den açıldıysa (geri=1) oraya dön, değilse Firma ekranına
+    if (route.query.geri) router.back();
+    else router.replace(`/firma?secili=${firma._id}`);
   } catch (e) {
     hata.value = e instanceof Error ? e.message : 'Kayıt başarısız';
   } finally {
@@ -191,32 +149,6 @@ async function kaydet() {
               class="w-full bg-surface-900 px-2.5 py-1.5 text-xs text-ink ring-1 ring-white/10 outline-none placeholder:text-ink-muted/50 focus:ring-white/30"
               placeholder="Ad Soyad" />
           </label>
-
-          <!-- Logo + İmza & Kaşe: PNG, önizlemeli, yan yana -->
-          <div class="grid grid-cols-2 gap-1.5">
-            <div v-for="s in RESIM_SLOTLARI" :key="s.anahtar" class="space-y-0.5">
-              <span class="text-xs font-medium text-ink-muted">{{ s.etiket }} (PNG)</span>
-              <label class="block cursor-pointer bg-surface-900 ring-1 ring-white/10">
-                <input type="file" accept="image/png" class="hidden"
-                  @change="dosyaSecildi(s.anahtar, $event, true)" />
-                <span class="grid aspect-4/3 place-items-center overflow-hidden">
-                  <img v-if="onizleme[s.anahtar]" :src="onizleme[s.anahtar]" :alt="s.etiket"
-                    class="h-full w-full object-contain p-1" />
-                  <span v-else-if="slotYukleniyor[s.anahtar]" class="text-xs text-ink-muted">Yükleniyor…</span>
-                  <span v-else class="flex flex-col items-center gap-1 text-xs text-ink-muted/70">
-                    <svg class="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                      stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                      <rect x="3" y="3" width="18" height="18" rx="2" />
-                      <circle cx="9" cy="9" r="2" />
-                      <path d="m21 15-3.1-3.1a2 2 0 0 0-2.8 0L6 21" />
-                    </svg>
-                    PNG seç
-                  </span>
-                </span>
-              </label>
-              <p v-if="slotHata[s.anahtar]" class="text-[11px] text-red-300">{{ slotHata[s.anahtar] }}</p>
-            </div>
-          </div>
 
         </form>
       </div>
