@@ -556,12 +556,32 @@ app.put('/api/firmalar/:id', async (req, res) => {
 
 app.delete('/api/firmalar/:id', async (req, res) => {
   try {
+    // Bağlı kayıt kalırsa yetim asansör/tescil/denetim oluşur — önce onlar silinmeli
+    const [asansor, tescil, denetim] = await Promise.all(
+      ['Asansor', 'Tescil', 'Denetim'].map((ad) => mongoose.model(ad).countDocuments({ firmaId: req.params.id }))
+    );
+    if (asansor || tescil || denetim) {
+      const parcalar = [
+        asansor && `${asansor} asansör`,
+        tescil && `${tescil} tescil`,
+        denetim && `${denetim} denetim`,
+      ].filter(Boolean);
+      return res.status(409).json({
+        message: `Bu firmaya bağlı ${parcalar.join(', ')} var. Firmayı silmek için önce bunları silin.`,
+      });
+    }
     const firma = await Firma.findByIdAndDelete(req.params.id);
     if (!firma) return res.status(404).json({ message: 'Firma bulunamadı' });
     res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
+});
+
+// Beklenmeyen bir Promise hatası tüm API'yi düşürmesin (Node 15+ varsayılanı
+// çökmektir): loglanır, süreç çalışmaya devam eder
+process.on('unhandledRejection', (neden) => {
+  console.error('Yakalanmamış Promise hatası:', neden instanceof Error ? neden.stack : neden);
 });
 
 mongoose

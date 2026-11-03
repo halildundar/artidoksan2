@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue';
 import SemaModal from '@/components/SemaModal.vue';
+import KomponentIslemleri from './KomponentIslemleri.vue';
 import FotoEkleCek from '@/components/FotoEkleCek.vue';
 import AramaliSelect from '@/components/AramaliSelect.vue';
 import { getDosyaUrl, getDosyaIndirUrl, uploadDosya, type BelgeSlot } from '@/services/dosyaService';
@@ -12,6 +13,8 @@ import { kilitBelgesiBul, type KilitBelgeSecenek, type AksamBolum } from './kapi
 // devreHiziGoster açıksa (Hız Regülatörü) ek olarak devreye girme hızı girilir.
 const props = defineProps<{
   baslik: string;
+  // Bileşen tipi kodu (katalogda komponent eklemek/düzenlemek için)
+  kod: string;
   belgeler: KilitBelgeSecenek[];
   devreHiziGoster?: boolean;
 }>();
@@ -155,6 +158,9 @@ async function fotoAc(foto: BelgeSlot) {
             @update:model-value="bolum.tip = ($event as string | null) || null" />
         </label>
       </div>
+      <KomponentIslemleri :kod="props.kod" :belgeler="props.belgeler" :marka="bolum.marka" :tip="bolum.tip"
+        @sec="bolum.marka = $event.marka; bolum.tip = $event.tip" />
+
 
       <button v-if="bolum.tip && belgesi()?.dosya" type="button" @click="belgeAc(belgesi())"
         class="flex items-center gap-1 bg-[#2b5c3d] px-2.5 py-1.5 text-[11px] font-semibold text-ink ring-1 ring-white/10 active:bg-[#346e4a]">

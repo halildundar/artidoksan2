@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue';
 import SemaModal from '@/components/SemaModal.vue';
+import KomponentIslemleri from './KomponentIslemleri.vue';
 import FotoEkleCek from '@/components/FotoEkleCek.vue';
 import AramaliSelect from '@/components/AramaliSelect.vue';
 import RaporBelgeEkleModal from '@/components/sema/RaporBelgeEkleModal.vue';
@@ -160,7 +161,11 @@ async function fotoAc(foto: BelgeSlot) {
 
         <!-- Durak Kapı Kilidi -->
         <div class="space-y-1.5 bg-surface-900/60 p-2.5 ring-1 ring-white/5">
-          <h4 class="text-xs font-bold text-ink">Durak Kapı Kilidi</h4>
+          <div class="flex items-center justify-between gap-2">
+            <h4 class="min-w-0 truncate text-xs font-bold text-ink">Durak Kapı Kilidi</h4>
+            <KomponentIslemleri kompakt kod="durak_kapi_kilidi" :belgeler="props.durakBelgeleri" :marka="g.durakMarka"
+              :tip="g.durakTip" @sec="g.durakMarka = $event.marka; g.durakTip = $event.tip" />
+          </div>
           <div class="grid grid-cols-2 gap-1.5">
             <label class="block space-y-0.5">
               <span class="text-xs font-medium text-ink-muted">Marka</span>
@@ -175,6 +180,7 @@ async function fotoAc(foto: BelgeSlot) {
                 @update:model-value="g.durakTip = ($event as string | null) || null" />
             </label>
           </div>
+
 
           <!-- CE belgesi — tip de seçildikten sonra görüntülenebilir -->
           <button v-if="g.durakTip && kilitBelgesiBul(props.durakBelgeleri, g.durakMarka, g.durakTip)?.dosya"
@@ -265,7 +271,11 @@ async function fotoAc(foto: BelgeSlot) {
 
         <!-- Kabin Kapı Kilidi -->
         <div class="space-y-1.5 bg-surface-900/60 p-2.5 ring-1 ring-white/5">
-          <h4 class="text-xs font-bold text-ink">Kabin Kapı Kilidi</h4>
+          <div class="flex items-center justify-between gap-2">
+            <h4 class="min-w-0 truncate text-xs font-bold text-ink">Kabin Kapı Kilidi</h4>
+            <KomponentIslemleri kompakt kod="kabin_kapi_kilidi" :belgeler="props.kabinBelgeleri" :marka="g.kabinMarka"
+              :tip="g.kabinTip" @sec="g.kabinMarka = $event.marka; g.kabinTip = $event.tip" />
+          </div>
           <div class="grid grid-cols-2 gap-1.5">
             <label class="block space-y-0.5">
               <span class="text-xs font-medium text-ink-muted">Marka</span>
@@ -280,6 +290,7 @@ async function fotoAc(foto: BelgeSlot) {
                 @update:model-value="g.kabinTip = ($event as string | null) || null" />
             </label>
           </div>
+
 
           <button v-if="g.kabinTip && kilitBelgesiBul(props.kabinBelgeleri, g.kabinMarka, g.kabinTip)?.dosya"
             type="button" @click="belgeAc(kilitBelgesiBul(props.kabinBelgeleri, g.kabinMarka, g.kabinTip))"

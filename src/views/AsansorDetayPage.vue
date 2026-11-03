@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { IonPage, IonContent, IonHeader, onIonViewWillEnter } from '@ionic/vue';
-import { computed, ref, watch } from 'vue';
+import { computed, provide, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { getAsansor, updateAsansor, type Asansor, type AsansorGuncelleme, type GuvenlikAksami } from '@/services/asansorService';
 import { getAksamBelgeleri, type AksamBelgesi } from '@/services/aksamBelgesiService';
@@ -83,6 +83,14 @@ function sayi(v: Num): number | null {
 // seçenekleri buradan türetilir.
 const katalogBelgeler = ref<AksamBelgesi[]>([]);
 
+// Aksam popup'larındaki "Yeni Komponent / Seçiliyi Düzenle" formu kaydedince
+// katalog listesi güncellenir (yeni belge eklenir, düzenlenen yerinde değişir)
+provide('komponentKaydedildi', (belge: AksamBelgesi) => {
+  const i = katalogBelgeler.value.findIndex((b) => b._id === belge._id);
+  if (i >= 0) katalogBelgeler.value[i] = belge;
+  else katalogBelgeler.value.push(belge);
+});
+
 // Halat tipi seçenekleri: standart liste (HALAT_TIPI_DEGERLERI) + katalogdaki
 // aktif halat sertifikalarının tipler[] listesi (birleşik).
 const halatTipiSecenekleri = computed(() => {
@@ -141,11 +149,10 @@ async function yukle() {
     .then((belgeler) => (katalogBelgeler.value = belgeler))
     .catch(() => { /* katalog çekilemezse sabit listelerle devam edilir */ });
 
-  if (!smmFirmalar.value.length) {
-    getSmmFirmalari()
-      .then((liste) => (smmFirmalar.value = liste))
-      .catch(() => { /* havuz çekilemezse mevcut snapshot gösterilmeye devam eder */ });
-  }
+  // Havuz her ekran girişinde tazelenir (sonradan eklenen SMM firması görünsün)
+  getSmmFirmalari()
+    .then((liste) => (smmFirmalar.value = liste))
+    .catch(() => { /* havuz çekilemezse mevcut snapshot gösterilmeye devam eder */ });
 }
 
 onIonViewWillEnter(yukle);
@@ -344,8 +351,8 @@ watch(ucmAcik, (acik, onceki) => {
     iptalEdildi.value = false;
     return;
   }
-  // UCM/ACOP aksam satırı yalnızca Kart + Hız Reg. + Fren çözümünde tutulur
-  const row = ucmTur.value === 'kart-reg-fren'
+  // UCM/ACOP aksam satırı yalnızca Kart + Motor Fren çözümünde tutulur
+  const row = ucmTur.value === 'kart-motor-fren'
     ? aksamSatiri(ucmAcopBelgeleri.value, 'ucm_acop', ucmBolum.value)
     : null;
   const digerleri = (asansor.value?.guvenlikAksamlari ?? []).filter((r) => r.slot !== 'ucm_acop');
@@ -882,6 +889,11 @@ watch(adresAcik, (acik, onceki) => {
     ada: k.ada ?? '',
     parsel: k.parsel ?? '',
     yapiRuhsatiDosya: k.yapiRuhsatiDosya ?? null,
+    // Yapı bilgileri yalnız adres kaydında doluysa kopyalanır (boş kayıt asansördeki
+    // mevcut değeri silmesin)
+    ...(k.yapiBelgeNo ? { yapiRuhsatNo: k.yapiBelgeNo } : {}),
+    ...(k.yapiSahibi ? { yapiSahibiAdi: k.yapiSahibi } : {}),
+    ...(k.muteahhitFirma ? { yapiMuteahhidi: k.muteahhitFirma } : {}),
   });
 });
 
@@ -1270,23 +1282,36 @@ const GUVENLIK_SLOT_ETIKETLERI: Record<string, string> = {
   ucm_acop: 'UCM/ACOP',
 };
 
+function katalogBelge(belgeId: string | null | undefined) {
+  return belgeId ? katalogBelgeler.value.find((b) => b._id === belgeId) ?? null : null;
+}
+
 const guvenlikOzetSatirlari = computed(() => {
   const a = asansor.value;
   if (!a) return [];
   const satirlar: {
     bolum: string; marka: string; tip: string; seriNo: string;
+    nobo: string; sertifikaNo: string;
     belgeId: string | null; fotolar: BelgeSlot[]; fotoAlani: keyof Asansor | null;
   }[] = [];
   for (const [slot, etiket] of Object.entries(GUVENLIK_SLOT_ETIKETLERI)) {
     const rows = (a.guvenlikAksamlari ?? []).filter((r) => r.slot === slot);
     // Aynı slotta marka+tip aynıysa seri no'lar tek satırda birleştirilir
     // (örn. birden fazla durak kilidi serisi / tampon adedi)
-    const gruplar = new Map<string, { marka: string; tip: string; seriler: string[]; belgeId: string | null }>();
+    const gruplar = new Map<
+      string,
+      { marka: string; tip: string; seriler: string[]; belgeId: string | null; nobo: string; sertifikaNo: string }
+    >();
     for (const r of rows) {
       const anahtar = `${r.markaSnapshot}|${r.tip}`;
       const grup =
         gruplar.get(anahtar) ??
-        { marka: r.markaSnapshot, tip: r.tip, seriler: [], belgeId: r.aksamBelgesiId || null };
+        {
+          marka: r.markaSnapshot, tip: r.tip, seriler: [], belgeId: r.aksamBelgesiId || null,
+          // NoBo/sertifika no: kayıttaki seçim anı bilgisi, yoksa katalogdaki belge
+          nobo: r.onayliKurumNobo || katalogBelge(r.aksamBelgesiId)?.onayliKurumNobo || '',
+          sertifikaNo: r.sertifikaNo || katalogBelge(r.aksamBelgesiId)?.sertifikaNo || '',
+        };
       if (r.seriNo) grup.seriler.push(r.seriNo);
       gruplar.set(anahtar, grup);
     }
@@ -1299,6 +1324,8 @@ const guvenlikOzetSatirlari = computed(() => {
         marka: g.marka || '—',
         tip: g.tip || '—',
         seriNo: g.seriler.join(', ') || '—',
+        nobo: g.nobo,
+        sertifikaNo: g.sertifikaNo,
         belgeId: g.belgeId,
         fotolar: slotFotolar,
         fotoAlani: slotFotolar.length ? (alan ?? null) : null,
@@ -1313,6 +1340,8 @@ const guvenlikOzetSatirlari = computed(() => {
       marka: a.motorMarkaSnapshot || '—',
       tip: a.motorTip || '—',
       seriNo: a.motorSeriNo || '—',
+      nobo: katalogBelge(a.motorAksamBelgesiId)?.onayliKurumNobo ?? '',
+      sertifikaNo: katalogBelge(a.motorAksamBelgesiId)?.sertifikaNo ?? '',
       belgeId: a.motorAksamBelgesiId || null,
       fotolar: a.motorFotolari ?? [],
       fotoAlani: 'motorFotolari',
@@ -1679,7 +1708,7 @@ const onBilgi = computed(() => {
                 Adres Bilgisi
               </button>
             </div>
-            <p v-if="!adresYeri && !adresDetayi && !asansor.adres && !asansor.yapiRuhsatiDosya"
+            <p v-if="!adresYeri && !adresDetayi && !asansor.adres && !asansor.yapiRuhsatiDosya && !asansor.yapiRuhsatNo && !asansor.yapiSahibiAdi && !asansor.yapiMuteahhidi"
               class="text-xs text-ink-muted">
               Henüz adres girilmedi.
             </p>
@@ -1687,6 +1716,18 @@ const onBilgi = computed(() => {
               <div>
                 <p v-if="adresYeri" class="text-xs font-normal text-ink-muted">{{ adresYeri }}</p>
                 <p v-if="adresDetayi" class="text-[10px] text-ink-muted/80">{{ adresDetayi }}</p>
+              </div>
+              <!-- Yapı bilgileri: yapı ruhsatının hemen üstünde -->
+              <div v-if="asansor.yapiRuhsatNo || asansor.yapiSahibiAdi || asansor.yapiMuteahhidi"
+                class="mt-2 space-y-1 border-t border-white/5 pt-2">
+                <div v-for="[etiket, deger] in ([
+                  ['Yapı Belge No', asansor.yapiRuhsatNo],
+                  ['Yapı Sahibi', asansor.yapiSahibiAdi],
+                  ['Müteahhit Firma', asansor.yapiMuteahhidi],
+                ] as [string, string][]).filter((x) => x[1])" :key="etiket" class="flex gap-2 text-xs">
+                  <span class="w-28 shrink-0 text-ink-muted">{{ etiket }}</span>
+                  <span class="min-w-0 flex-1 break-words font-medium text-ink">{{ deger }}</span>
+                </div>
               </div>
               <div v-if="asansor.yapiRuhsatiDosya"
                 class="mt-2 flex items-center justify-between gap-2 border-t border-white/5 pt-2">
@@ -1786,6 +1827,11 @@ const onBilgi = computed(() => {
                     <span v-if="satir.seriNo && satir.seriNo !== '—'"
                       class="mt-0.5 block text-[11px] text-ink-muted">
                       Seri No: <span class="text-ink">{{ satir.seriNo }}</span>
+                    </span>
+                    <span v-if="satir.nobo || satir.sertifikaNo" class="mt-0.5 block text-[11px] text-ink-muted">
+                      <template v-if="satir.nobo">NoBo: <span class="text-ink">{{ satir.nobo }}</span></template>
+                      <template v-if="satir.nobo && satir.sertifikaNo"> • </template>
+                      <template v-if="satir.sertifikaNo">Sertifika No: <span class="text-ink">{{ satir.sertifikaNo }}</span></template>
                     </span>
                   </span>
                   <!-- Belgeyi görüntüle (dosyası olan satırlarda) -->
@@ -2091,13 +2137,13 @@ const onBilgi = computed(() => {
     kapanınca güvenlik aksamlarına kaydedilir -->
     <AksamModal v-model:open="hizRegAcik" @iptal="iptalEdildi = true"
       v-model:bolum="hizRegBolum" v-model:devre-hizi="devreHiziL"
-      baslik="Hız Regülatörü" :belgeler="hizRegulatoruBelgeleri" devre-hizi-goster />
+      baslik="Hız Regülatörü" kod="hiz_regulatoru" :belgeler="hizRegulatoruBelgeleri" devre-hizi-goster />
 
     <!-- Kontrol Kartı — marka/tip/seri + fotoğraflar;
     kapanınca güvenlik aksamlarına kaydedilir -->
     <AksamModal v-model:open="kontrolKartiAcik" @iptal="iptalEdildi = true"
       v-model:bolum="kontrolKartiBolum"
-      baslik="Kontrol Kartı" :belgeler="kontrolKartiBelgeleri" />
+      baslik="Kontrol Kartı" kod="kontrol_karti" :belgeler="kontrolKartiBelgeleri" />
 
     <!-- Motor — dişlisiz/dişlili; marka/tip/seri + güç/rpm (+ ratio) +
     fotoğraflar; kapanınca motor alanlarına kaydedilir -->
@@ -2105,7 +2151,7 @@ const onBilgi = computed(() => {
       v-model:motor="motorBilgi"
       :dislisiz-belgeleri="motorDislisizBelgeleri" :dislili-belgeleri="motorDisliliBelgeleri" />
 
-    <!-- UCM/ACOP — çözüm türü seçimi; Kart + Hız Reg. + Fren'de aksam formu,
+    <!-- UCM/ACOP — çözüm türü seçimi; Kart + Motor Fren'de aksam formu,
     diğerinde kart/regülatör/fren bilgileri; kapanınca kaydedilir -->
     <UcmAcopModal v-model:open="ucmAcik" @iptal="iptalEdildi = true"
       v-model:tur="ucmTur" v-model:bolum="ucmBolum"

@@ -41,7 +41,7 @@ export interface FirmaOzet {
 
 export interface Asansor {
   _id: string;
-  firmaId: string | FirmaOzet;
+  firmaId: string | FirmaOzet | null;
   yapiRuhsatNo: string;
   yapiSahibiAdi: string;
   yapiMuteahhidi: string;
@@ -255,13 +255,14 @@ export interface Asansor {
 }
 
 export type YeniAsansor = Partial<Omit<Asansor, '_id' | 'createdAt' | 'updatedAt' | 'firmaId'>> & {
-  firmaId: string;
+  // Firma zorunlu değil: null/boş = firmasız asansör
+  firmaId?: string | null;
 };
 
 // Kısmi güncelleme — şema modalı kapanınca tek bölümün alanları gönderilir,
 // firmaId zorunlu değildir (backend yalnızca gönderilen alanları doğrular).
 export type AsansorGuncelleme = Partial<Omit<Asansor, '_id' | 'createdAt' | 'updatedAt' | 'firmaId'>> & {
-  firmaId?: string;
+  firmaId?: string | null;
 };
 
 export function getAsansorler(params?: { firmaId?: string; search?: string }): Promise<Asansor[]> {

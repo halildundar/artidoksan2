@@ -3,11 +3,11 @@ import { IonPage, IonContent, IonHeader, onIonViewWillEnter } from '@ionic/vue';
 import { computed, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import {
-  getFirmalar, updateFirma,
+  getFirmalar, updateFirma, deleteFirma,
   type Firma, type YeniFirma, type BelgeSlotAnahtar, type KurumEvrakAnahtar,
   type CeBelgesi, type FirmaPersonel, type Muhendis,
 } from '@/services/firmaService';
-import { getAsansorler, type Asansor } from '@/services/asansorService';
+import { getAsansorler, updateAsansor, deleteAsansor, type Asansor } from '@/services/asansorService';
 import { getDosyaUrl, getDosyaIndirUrl, uploadDosya, createZipLink, type BelgeSlot } from '@/services/dosyaService';
 import { useFileViewer, fileViewerTypeFromMime } from '@/composables/useFileViewer';
 import { getOnayliKurumSecenekleri, type OnayliKurumSecenek } from '@/services/onayliKurumService';
@@ -186,8 +186,10 @@ const seciliSmmEtiket = computed(() => {
   return f ? [f.smmYil, f.smmKisaAd].filter(Boolean).join(' — ') : '';
 });
 
-watch([aktifMenu, secili], ([menu]) => {
-  if (menu !== 7 || !secili.value || smmFirmalar.value.length) return;
+// Havuz her SMM bölümü açılışında ve seçim penceresi açılırken yeniden çekilir:
+// Ayarlar'dan sonradan eklenen SMM firması listede hemen görünsün
+watch([aktifMenu, secili, smmSecAcik], ([menu, , secimAcik]) => {
+  if (!secili.value || (menu !== 7 && !secimAcik)) return;
   getSmmFirmalari()
     .then((liste) => (smmFirmalar.value = liste))
     .catch(() => { /* havuz alınamazsa liste boş görünür */ });
@@ -716,6 +718,47 @@ async function montajlariYukle(firmaIdDegeri: string) {
   }
 }
 
+// Montajlar satırındaki ✕: üç seçenekli pencere — yalnız firmadan kaldır
+// (asansör firmasız kalır), tamamen sil (kayıt + dosyalar) ya da iptal
+const montajIslemi = ref<Asansor | null>(null);
+const montajIsleniyor = ref(false);
+
+async function montajIslemYap(islem: 'kaldir' | 'sil') {
+  const m = montajIslemi.value;
+  if (!m || !secili.value || montajIsleniyor.value) return;
+  montajIsleniyor.value = true;
+  hata.value = '';
+  try {
+    if (islem === 'kaldir') await updateAsansor(m._id, { firmaId: null });
+    else await deleteAsansor(m._id);
+    montajIslemi.value = null;
+    await montajlariYukle(secili.value._id);
+  } catch (e) {
+    montajIslemi.value = null;
+    hata.value = e instanceof Error ? e.message : 'İşlem yapılamadı';
+  } finally {
+    montajIsleniyor.value = false;
+  }
+}
+
+// ---- Firma silme: SilmeOnayi ile onaylanır; bağlı asansör/tescil/denetim
+// varsa sunucu reddeder (mesaj ekranda gösterilir) ----
+const firmaSilOnayAcik = ref(false);
+
+async function firmaSilOnayla() {
+  firmaSilOnayAcik.value = false;
+  const f = secili.value;
+  if (!f) return;
+  hata.value = '';
+  try {
+    await deleteFirma(f._id);
+    secili.value = null;
+    await yukle();
+  } catch (e) {
+    hata.value = e instanceof Error ? e.message : 'Firma silinemedi';
+  }
+}
+
 function sec(firma: Firma) {
   secili.value = firma;
   aktifMenu.value = 1;
@@ -807,7 +850,17 @@ onIonViewWillEnter(yukle);
           <div class="min-h-48 bg-[#223c2d]/40 p-3 ring-1 ring-white/10">
             <div v-if="aktifMenu === 1" class="space-y-3">
               <!-- Düzenle yalnız bu bölümde görünür (kullanıcı isteği) -->
-              <div class="flex justify-end">
+              <div class="flex justify-end gap-1.5">
+                <button type="button" @click="firmaSilOnayAcik = true"
+                  class="flex shrink-0 items-center gap-1.5 bg-surface-800 px-4 py-2.5 text-xs font-semibold text-red-300/90 ring-1 ring-red-500/25 active:bg-[#1a2a20]">
+                  <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                    stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M3 6h18" />
+                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
+                    <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                  </svg>
+                  Sil
+                </button>
                 <button type="button" @click="git(`/firma/${secili._id}/duzenle`)"
                   class="flex shrink-0 items-center gap-1.5 bg-surface-800 px-4 py-2.5 text-xs font-semibold text-ink ring-1 ring-white/10 active:bg-[#1a2a20]">
                   <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor"
@@ -962,20 +1015,25 @@ onIonViewWillEnter(yukle);
               <p v-else-if="!montajlar.length" class="py-4 text-center text-xs text-ink-muted">
                 Bu firmaya kayıtlı asansör yok.
               </p>
-              <button v-for="montaj in montajlar" :key="montaj._id" type="button"
-                @click="git(`/asansor/${montaj._id}`)"
-                class="flex w-full items-center gap-2 bg-surface-900/60 px-2.5 py-2 text-left ring-1 ring-white/5 active:bg-[#1a2a20]">
-                <span class="min-w-0 flex-1">
-                  <span class="block truncate text-xs font-semibold text-ink">Seri: {{ montaj.seriNo || montaj.yapiRuhsatNo || '—' }}</span>
-                  <span class="block truncate text-[11px] text-ink-muted">
-                    {{ [[montaj.ilce, montaj.il].filter(Boolean).join('/'), montaj.yapiRuhsatNo ? `Ruhsat: ${montaj.yapiRuhsatNo}` : ''].filter(Boolean).join(' • ') || '—' }}
+              <div v-for="montaj in montajlar" :key="montaj._id" class="flex items-stretch gap-1.5">
+                <button type="button" @click="git(`/asansor/${montaj._id}`)"
+                  class="flex min-w-0 flex-1 items-center gap-2 bg-surface-900/60 px-2.5 py-2 text-left ring-1 ring-white/5 active:bg-[#1a2a20]">
+                  <span class="min-w-0 flex-1">
+                    <span class="block truncate text-xs font-semibold text-ink">Seri: {{ montaj.seriNo || montaj.yapiRuhsatNo || '—' }}</span>
+                    <span class="block truncate text-[11px] text-ink-muted">
+                      {{ [[montaj.ilce, montaj.il].filter(Boolean).join('/'), montaj.yapiRuhsatNo ? `Ruhsat: ${montaj.yapiRuhsatNo}` : ''].filter(Boolean).join(' • ') || '—' }}
+                    </span>
                   </span>
-                </span>
-                <svg class="h-3.5 w-3.5 shrink-0 text-ink-muted/60" viewBox="0 0 24 24" fill="none"
-                  stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="m9 18 6-6-6-6" />
-                </svg>
-              </button>
+                  <svg class="h-3.5 w-3.5 shrink-0 text-ink-muted/60" viewBox="0 0 24 24" fill="none"
+                    stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="m9 18 6-6-6-6" />
+                  </svg>
+                </button>
+                <button type="button" @click="montajIslemi = montaj" aria-label="Asansörü kaldır veya sil"
+                  class="grid w-9 shrink-0 place-items-center bg-surface-900 text-red-300/80 ring-1 ring-red-500/20 active:bg-[#1a2a20]">
+                  ✕
+                </button>
+              </div>
             </div>
             <!-- CE Belgeleri: modül/kurum/belge no/tarih tablosu + ekle/sil -->
             <div v-else-if="aktifMenu === 3" class="space-y-2">
@@ -1636,6 +1694,42 @@ onIonViewWillEnter(yukle);
     <FotoCekModal v-model:acik="sgkFotoAcik" @tamam="sgkEkle" />
     <FotoCekModal v-model:acik="evrakFotoAcik" @tamam="evrakFotoCekildi" />
     <FotoCekModal v-model:acik="resimFotoAcik" @tamam="resimFotoCekildi" />
+
+    <!-- Asansör: firmadan kaldır / tamamen sil / iptal -->
+    <Teleport to="body">
+      <div v-if="montajIslemi" class="fixed inset-0 z-50 grid place-items-center bg-black/70 p-4"
+        @click.self="montajIslemi = null">
+        <div class="w-full max-w-sm bg-[#101a14] p-4 ring-1 ring-white/10">
+          <h2 class="text-sm font-bold text-ink">Asansör</h2>
+          <p class="mt-2 text-xs leading-relaxed text-ink-muted">
+            <strong class="font-semibold text-ink">Seri: {{ montajIslemi.seriNo || montajIslemi.yapiRuhsatNo || '—' }}</strong>
+            için ne yapmak istiyorsunuz?
+          </p>
+          <ul class="mt-2 space-y-1 text-[11px] leading-relaxed text-ink-muted">
+            <li><strong class="text-ink">Firmadan Kaldır:</strong> yalnız firma bağlantısı kalkar, asansör ve dosyaları durur.</li>
+            <li><strong class="text-red-300">Tamamen Sil:</strong> asansör bilgileri ve tüm dosyaları kalıcı silinir, geri alınamaz.</li>
+          </ul>
+          <div class="mt-4 space-y-1.5">
+            <button type="button" :disabled="montajIsleniyor" @click="montajIslemYap('kaldir')"
+              class="w-full bg-[#2b5c3d] px-4 py-2.5 text-xs font-semibold text-ink ring-1 ring-white/10 active:bg-[#346e4a] disabled:opacity-50">
+              Firmadan Kaldır
+            </button>
+            <button type="button" :disabled="montajIsleniyor" @click="montajIslemYap('sil')"
+              class="w-full bg-red-900/80 px-4 py-2.5 text-xs font-semibold text-red-100 ring-1 ring-red-500/30 active:bg-red-900 disabled:opacity-50">
+              {{ montajIsleniyor ? 'İşleniyor…' : 'Tamamen Sil' }}
+            </button>
+            <button type="button" :disabled="montajIsleniyor" @click="montajIslemi = null"
+              class="w-full bg-surface-800 px-4 py-2.5 text-xs font-semibold text-ink-muted ring-1 ring-white/10">
+              İptal
+            </button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
+
+    <SilmeOnayi :acik="firmaSilOnayAcik"
+      :aciklama="`${secili?.ad ?? 'Firma'} silinecek. Emin misiniz?`"
+      @vazgec="firmaSilOnayAcik = false" @onayla="firmaSilOnayla" />
 
     <SilmeOnayi :acik="resimSilinecek != null"
       :aciklama="resimSilinecek

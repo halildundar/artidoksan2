@@ -199,6 +199,8 @@ const hepsiTamam = computed(
 );
 const sifirlaOnayAcik = ref(false);
 const sifirlaniyor = ref(false);
+// Yazdırma/sıfırlama sürerken yazdırma düğmeleri ve üretilmiş belge işlemleri pasif
+const yazdirmaMesgul = computed(() => aktifIsler.value.length > 0 || sifirlaniyor.value);
 
 async function sifirla() {
   sifirlaOnayAcik.value = false;
@@ -389,7 +391,7 @@ async function tumunuIndir() {
                 </select>
               </label>
               <div class="flex gap-1.5">
-                <button type="button" @click="tumunuYazdir" :disabled="aktifIsler.length > 0 || sifirlaniyor"
+                <button type="button" @click="tumunuYazdir" :disabled="yazdirmaMesgul"
                   class="flex flex-1 items-center justify-center gap-1.5 bg-[#2b5c3d] px-3 py-2.5 text-xs font-semibold text-ink ring-1 ring-white/10 active:bg-[#346e4a] disabled:opacity-60">
                   <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                     stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -400,7 +402,7 @@ async function tumunuIndir() {
                   {{ topluAktif ? `Yazdırılıyor ${topluAktif.tamamlanan}/${topluAktif.toplam}…` : 'Tümünü Yazdır' }}
                 </button>
                 <button v-if="uretilmisVar" type="button" @click="sifirlaOnayAcik = true"
-                  :disabled="aktifIsler.length > 0 || sifirlaniyor"
+                  :disabled="yazdirmaMesgul"
                   class="flex items-center justify-center gap-1.5 bg-surface-900 px-3 py-2.5 text-xs font-semibold text-red-300/90 ring-1 ring-red-500/25 active:bg-[#1a2a20] disabled:opacity-60">
                   <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                     stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -445,7 +447,7 @@ async function tumunuIndir() {
                   </span>
                   <span v-else-if="kalem.uretilen"
                     class="shrink-0 bg-[#1c2a21] px-1.5 py-0.5 text-[10px] font-semibold text-[#6fcf97] ring-1 ring-white/10">✓</span>
-                  <button type="button" @click="uret(kalem)" :disabled="aktifIsler.length > 0 || sifirlaniyor"
+                  <button type="button" @click="uret(kalem)" :disabled="yazdirmaMesgul"
                     class="shrink-0 bg-[#2b5c3d] px-2.5 py-1.5 text-[11px] font-semibold text-ink ring-1 ring-white/10 active:bg-[#346e4a] disabled:opacity-60">
                     {{ kalemDurumu(kalem.kod) === 'uretiliyor' ? 'Üretiliyor…' : kalemDurumu(kalem.kod) === 'bekliyor' ? 'Sırada…' : kalem.uretilen ? 'Yeniden Yazdır' : 'Yazdır' }}
                   </button>
@@ -468,12 +470,14 @@ async function tumunuIndir() {
               <div v-if="kalem.tip === 'sablon' && kalem.uretilen" class="flex flex-wrap gap-1.5">
                 <!-- PDF indirme görüntüleyicinin kendi indir butonundan yapılır -->
                 <button v-if="kalem.uretilen.pdf" type="button" @click="goruntule(kalem.uretilen.pdf)"
-                  class="bg-surface-900 px-2.5 py-1.5 text-[11px] font-semibold text-ink ring-1 ring-white/10 active:bg-[#1a2a20]">
+                  :disabled="yazdirmaMesgul"
+                  class="bg-surface-900 px-2.5 py-1.5 text-[11px] font-semibold text-ink ring-1 ring-white/10 active:bg-[#1a2a20] disabled:opacity-40">
                   PDF Görüntüle
                 </button>
                 <button v-if="kalem.uretilen.docx" type="button"
                   @click="indir(kalem.uretilen.docx, kalemDosyaAdi(kalem, kalem.uretilen.docx))"
-                  class="bg-surface-900 px-2.5 py-1.5 text-[11px] font-semibold text-ink ring-1 ring-white/10 active:bg-[#1a2a20]">
+                  :disabled="yazdirmaMesgul"
+                  class="bg-surface-900 px-2.5 py-1.5 text-[11px] font-semibold text-ink ring-1 ring-white/10 active:bg-[#1a2a20] disabled:opacity-40">
                   DOCX İndir
                 </button>
               </div>

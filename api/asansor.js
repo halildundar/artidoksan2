@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import mongoose from 'mongoose';
+import { deleteObject } from './storage.js';
 
 // Asansör modeli — artidoksan1 Asansor.js'in uyarlaması (kullanıcı/rol,
 // danışman snapshot'ı ve tescil dosyası alanları bu projede yok).
@@ -74,7 +75,7 @@ const ekBelgeSchema = new mongoose.Schema(
 
 const asansorSchema = new mongoose.Schema(
   {
-    firmaId: { type: mongoose.Schema.Types.ObjectId, ref: 'Firma', required: true, index: true },
+    firmaId: { type: mongoose.Schema.Types.ObjectId, ref: 'Firma', default: null, index: true },
     // Kimlik alanı artık seri no (kullanıcı isteği) — ruhsat no opsiyonel.
     yapiRuhsatNo: { type: String, trim: true, default: '' },
     yapiSahibiAdi: { type: String, trim: true, default: '' },
@@ -336,7 +337,8 @@ router.get('/:id', async (req, res) => {
 router.post('/', async (req, res) => {
   try {
     const veri = temizle(req.body);
-    if (!veri.firmaId) return res.status(400).json({ message: 'Firma seçimi zorunludur' });
+    // Firma zorunlu değil: boş/yoksa asansör firmasız kaydedilir
+    veri.firmaId = veri.firmaId || null;
     if (!veri.seriNo || !String(veri.seriNo).trim()) {
       return res.status(400).json({ message: 'Asansör seri no zorunludur' });
     }
@@ -352,9 +354,8 @@ router.put('/:id', async (req, res) => {
     const veri = temizle(req.body);
     // Kısmi güncelleme (örn. şema modalı kapanınca tek bölüm kaydı) destekli:
     // zorunlu alanlar yalnızca gövdede GÖNDERİLDİYSE boş olamaz.
-    if ('firmaId' in veri && !veri.firmaId) {
-      return res.status(400).json({ message: 'Firma seçimi zorunludur' });
-    }
+    // firmaId null/boş gönderilirse asansör firmadan ayrılır (firma zorunlu değil)
+    if ('firmaId' in veri) veri.firmaId = veri.firmaId || null;
     if ('seriNo' in veri && (!veri.seriNo || !String(veri.seriNo).trim())) {
       return res.status(400).json({ message: 'Asansör seri no zorunludur' });
     }
@@ -369,11 +370,61 @@ router.put('/:id', async (req, res) => {
   }
 });
 
+// Bir kayıttaki (iç içe) tüm dosya anahtarlarını toplar
+function dosyaAnahtarlari(deger, kume = new Set()) {
+  if (Array.isArray(deger)) deger.forEach((d) => dosyaAnahtarlari(d, kume));
+  else if (deger && typeof deger === 'object' && !(deger instanceof Date) && !deger._bsontype) {
+    if (typeof deger.dosyaAnahtari === 'string') kume.add(deger.dosyaAnahtari);
+    Object.values(deger).forEach((d) => dosyaAnahtarlari(d, kume));
+  }
+  return kume;
+}
+
+// Asansörün dosyalarından başka kayıtlarla PAYLAŞILANLARI (SMM havuzundan/
+// firmadan kopyalanan belgeler gibi) ayıklamak için tüm modellerdeki diğer
+// kayıtların anahtarları toplanır — paylaşılan dosya silinmez.
+async function baskasinaAitAnahtarlar(asansorId) {
+  const kume = new Set();
+  // Dosya taşıyan modeller (adres önbelleği gibi büyük koleksiyonlar taranmaz)
+  for (const ad of ['Firma', 'Asansor', 'Tescil', 'Denetim', 'SmmFirmasi', 'AksamBelgesi']) {
+    if (!mongoose.models[ad]) continue;
+    const kayitlar = await mongoose.model(ad).find().lean();
+    for (const k of kayitlar) {
+      if (ad === 'Asansor' && String(k._id) === String(asansorId)) continue;
+      dosyaAnahtarlari(k, kume);
+    }
+  }
+  return kume;
+}
+
+// Tamamen sil: asansör kaydı + yalnız bu asansöre ait dosyalar (fotoğraflar,
+// belgeler) R2'den silinir. Bağlı tescil/denetim varsa reddedilir.
 router.delete('/:id', async (req, res) => {
   try {
-    const asansor = await Asansor.findByIdAndDelete(req.params.id);
-    if (!asansor) return res.status(404).json({ message: 'Asansör bulunamadı' });
-    res.json({ ok: true });
+    const mevcut = await Asansor.findById(req.params.id).lean();
+    if (!mevcut) return res.status(404).json({ message: 'Asansör bulunamadı' });
+    const [tescil, denetim] = await Promise.all(
+      ['Tescil', 'Denetim'].map((ad) => mongoose.models[ad]?.countDocuments({ asansorId: req.params.id }) ?? 0)
+    );
+    if (tescil || denetim) {
+      const parcalar = [tescil && `${tescil} tescil`, denetim && `${denetim} denetim`].filter(Boolean);
+      return res.status(409).json({
+        message: `Bu asansöre bağlı ${parcalar.join(', ')} var. Asansörü silmek için önce bunları silin.`,
+      });
+    }
+    const paylasilan = await baskasinaAitAnahtarlar(req.params.id);
+    const silinecek = [...dosyaAnahtarlari(mevcut)].filter((a) => !paylasilan.has(a));
+    await Asansor.findByIdAndDelete(req.params.id);
+    let silinen = 0;
+    for (const anahtar of silinecek) {
+      try {
+        await deleteObject(anahtar);
+        silinen += 1;
+      } catch (err) {
+        console.error('R2 silme hatası:', anahtar, err.message);
+      }
+    }
+    res.json({ ok: true, depodanSilinen: silinen });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }

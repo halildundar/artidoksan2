@@ -269,6 +269,8 @@ async function sablonVerisi({ tescil, firma, asansor }) {
     ada: bos(asansor?.ada),
     parsel: bos(asansor?.parsel),
     yapi_sahibi: bos(asansor?.yapiSahibiAdi),
+    yapi_belge_no: bos(asansor?.yapiRuhsatNo),
+    muteahhit_firma: bos(asansor?.yapiMuteahhidi),
     imal_yili: bos(asansor?.montajYili),
     durak_sayisi: bos(asansor?.durakSayisi),
     kisi_sayisi: bos(asansor?.kisiSayisi),

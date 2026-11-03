@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import SemaModal from '@/components/SemaModal.vue';
+import SemaOlcekle from './SemaOlcekle.vue';
 import FotoAlani from '@/components/FotoAlani.vue';
 import type { BelgeSlot } from '@/services/dosyaService';
 import { KABIN_RAY_TIPLERI, KARSI_AGIRLIK_RAY_TIPLERI } from '@/utils/rayTipleri';
@@ -118,8 +119,8 @@ const mmText = (v: Num) => (n(v) != null ? `${n(v)} mm` : 'ölçü');
       K. Ağırlık Konumu alanını seçin.
     </p>
 
-    <div v-else class="flex flex-col items-center gap-3 overflow-x-auto py-1">
-      <div ref="diagramWrapRef" class="sema-wrap shrink-0" :style="{ width: `${SVG_W}px`, height: `${SVG_H}px` }"
+    <div v-else class="flex flex-col items-center gap-3 py-1">
+      <SemaOlcekle :genislik="SVG_W" :yukseklik="SVG_H"><div ref="diagramWrapRef" class="sema-wrap shrink-0" :style="{ width: `${SVG_W}px`, height: `${SVG_H}px` }"
         @click="aktifHotspot = null">
         <svg :viewBox="`0 0 ${VB_W} ${VB_H}`" :width="SVG_W" :height="SVG_H" class="sema-svg">
           <defs>
@@ -343,7 +344,7 @@ const mmText = (v: Num) => (n(v) != null ? `${n(v)} mm` : 'ölçü');
             </select>
           </label>
         </div>
-      </div>
+      </div></SemaOlcekle>
 
       <!-- 1:1 askıda halat arası mesafe -->
       <p class="text-center text-xs text-ink-muted">

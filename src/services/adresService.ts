@@ -35,6 +35,9 @@ export interface AdresKaydi {
   adres: string;
   ada: string;
   parsel: string;
+  yapiBelgeNo?: string;
+  yapiSahibi?: string;
+  muteahhitFirma?: string;
   yapiRuhsatiDosya?: BelgeSlot | null;
 }
 

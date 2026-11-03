@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import SemaModal from '@/components/SemaModal.vue';
+import SemaOlcekle from './SemaOlcekle.vue';
 import FotoAlani from '@/components/FotoAlani.vue';
 import type { BelgeSlot } from '@/services/dosyaService';
 
@@ -154,7 +155,7 @@ const dipRiskVar = computed(() => kabinAltRiski.value || etekRiski.value || ivRi
   <SemaModal v-model:open="open" title="Kuyu Dip Alanı" @iptal="emit('iptal')">
     <div class="flex flex-col items-center gap-3 py-1">
       <h4 class="text-xs font-semibold text-ink">Kabin En Alt Konum</h4>
-      <div ref="diagramWrapRef" class="sema-wrap" :style="{ width: `${SVG_W}px`, height: `${SVG_H}px` }"
+      <SemaOlcekle :genislik="SVG_W" :yukseklik="SVG_H"><div ref="diagramWrapRef" class="sema-wrap" :style="{ width: `${SVG_W}px`, height: `${SVG_H}px` }"
         @click="aktifHotspot = null">
         <svg :viewBox="`0 0 ${VB_W} ${VB_H}`" :width="SVG_W" :height="SVG_H" class="sema-svg">
           <defs>
@@ -303,7 +304,7 @@ const dipRiskVar = computed(() => kabinAltRiski.value || etekRiski.value || ivRi
             </select>
           </label>
         </div>
-      </div>
+      </div></SemaOlcekle>
 
       <p class="text-center text-xs text-ink-muted">
         Son Hareket Mesafesi (Boşluk + Stroke + 0,035 × Hız²):
@@ -326,7 +327,7 @@ const dipRiskVar = computed(() => kabinAltRiski.value || etekRiski.value || ivRi
       <div class="mt-1 flex w-full justify-center border-t border-white/5 pt-4">
         <h4 class="text-xs font-semibold text-ink">Kabin En Üst Konum</h4>
       </div>
-      <div ref="diagramWrap2Ref" class="sema-wrap" :style="{ width: `${SVG_W}px`, height: `${SVG_H}px` }"
+      <SemaOlcekle :genislik="SVG_W" :yukseklik="SVG_H"><div ref="diagramWrap2Ref" class="sema-wrap" :style="{ width: `${SVG_W}px`, height: `${SVG_H}px` }"
         @click="aktifHotspot = null">
         <svg :viewBox="`0 0 ${VB_W} ${VB_H}`" :width="SVG_W" :height="SVG_H" class="sema-svg">
           <defs>
@@ -377,7 +378,7 @@ const dipRiskVar = computed(() => kabinAltRiski.value || etekRiski.value || ivRi
           <input v-model.number="karsiStroke" type="number" class="sema-popover__input" placeholder="mm" autofocus />
           <span class="sema-popover__unit">mm</span>
         </div>
-      </div>
+      </div></SemaOlcekle>
 
       <p class="text-center text-xs text-ink-muted">
         Son Hareket Mesafesi (Boşluk + Stroke + 0,035 × Hız²):

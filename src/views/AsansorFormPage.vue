@@ -95,7 +95,7 @@ const form = ref({
 const yukleniyor = ref(false);
 const kaydediliyor = ref(false);
 const hata = ref('');
-const gecerli = computed(() => form.value.firmaId !== '' && form.value.seriNo.trim() !== '');
+const gecerli = computed(() => form.value.seriNo.trim() !== '');
 
 // ---- şema modalları (artidoksan1'deki şekil üzerinden veri girişi) ----
 const kabinSemaAcik = ref(false);
@@ -374,7 +374,7 @@ onMounted(async () => {
       // eslint-disable-next-line @typescript-eslint/no-unused-vars -- forma kopyalanmayacak alanlar destructure ile atılır
       const { _id, createdAt, updatedAt, guvenlikAksamlari, firmaId, abUygunlukBeyaniTarihi, ...geriKalan } = a as never as Record<string, unknown>;
       Object.assign(form.value, geriKalan);
-      form.value.firmaId = typeof a.firmaId === 'object' && a.firmaId ? a.firmaId._id : (a.firmaId as string);
+      form.value.firmaId = typeof a.firmaId === 'object' && a.firmaId ? a.firmaId._id : ((a.firmaId as string | null) ?? '');
       form.value.abUygunlukBeyaniTarihi = a.abUygunlukBeyaniTarihi ? a.abUygunlukBeyaniTarihi.slice(0, 10) : '';
       form.value.motorAksamBelgesiId = (a.motorAksamBelgesiId as string | null) ?? '';
       // null sayısal alanlar input'ta '' olarak gösterilir
@@ -500,7 +500,7 @@ async function kaydet() {
           </button>
           <div v-if="acik.genel" class="space-y-2 bg-surface-800/40 p-2 ring-1 ring-white/5">
             <label class="block space-y-0.5">
-              <span class="text-xs font-medium text-ink-muted">Firma *</span>
+              <span class="text-xs font-medium text-ink-muted">Firma</span>
               <AramaliSelect v-model="firmaModel" :options="firmaSecenekleri" placeholder="Firma seçiniz" />
             </label>
             <div class="grid grid-cols-2 gap-1.5">

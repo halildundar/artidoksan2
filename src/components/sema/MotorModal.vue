@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
 import SemaModal from '@/components/SemaModal.vue';
+import KomponentIslemleri from './KomponentIslemleri.vue';
 import FotoEkleCek from '@/components/FotoEkleCek.vue';
 import AramaliSelect from '@/components/AramaliSelect.vue';
 import { getDosyaUrl, getDosyaIndirUrl, uploadDosya, type BelgeSlot } from '@/services/dosyaService';
@@ -161,6 +162,10 @@ async function fotoAc(foto: BelgeSlot) {
             @update:model-value="motor.tip = ($event as string | null) || null" />
         </label>
       </div>
+      <KomponentIslemleri :kod="dislili ? 'motor_dislili' : 'motor_dislisiz'" :belgeler="aktifBelgeler"
+        :marka="motor.marka" :tip="motor.tip"
+        @sec="motor.marka = $event.marka; motor.tip = $event.tip" />
+
 
       <button v-if="motor.tip && belgesi()?.dosya" type="button" @click="belgeAc(belgesi())"
         class="flex items-center gap-1 bg-[#2b5c3d] px-2.5 py-1.5 text-[11px] font-semibold text-ink ring-1 ring-white/10 active:bg-[#346e4a]">

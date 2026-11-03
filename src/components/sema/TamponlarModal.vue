@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue';
 import SemaModal from '@/components/SemaModal.vue';
+import KomponentIslemleri from './KomponentIslemleri.vue';
 import FotoEkleCek from '@/components/FotoEkleCek.vue';
 import AramaliSelect from '@/components/AramaliSelect.vue';
 import { getDosyaUrl, getDosyaIndirUrl, uploadDosya, type BelgeSlot } from '@/services/dosyaService';
@@ -144,7 +145,14 @@ const bolumler = [
       <div v-for="bolum in bolumler" :key="bolum.baslik"
         class="space-y-1.5 bg-surface-900/60 p-2.5 ring-1 ring-white/5">
         <div class="flex items-center justify-between gap-2">
-          <h4 class="text-xs font-bold text-ink">{{ bolum.baslik }}</h4>
+          <div class="flex min-w-0 items-center gap-2">
+            <h4 class="text-xs font-bold text-ink">{{ bolum.baslik }}</h4>
+            <!-- Komponent ekle/düzenle: seçim ilk satıra uygulanır -->
+            <KomponentIslemleri v-if="bolum.model.value.satirlar.length" kompakt kod="tampon"
+              :belgeler="props.tamponBelgeleri" :marka="bolum.model.value.satirlar[0].marka"
+              :tip="bolum.model.value.satirlar[0].tip"
+              @sec="bolum.model.value.satirlar[0].marka = $event.marka; bolum.model.value.satirlar[0].tip = $event.tip" />
+          </div>
           <!-- Ağırlık hesabından P+Q (kabin) / P+Q/2 (karşı ağırlık) bilgisi -->
           <p v-if="props.kabinAgirligi != null" class="min-w-0 flex-1 text-right text-xs text-ink-muted">
             {{ bolum.yarimQ ? 'P + Q/2' : 'P + Q' }} =

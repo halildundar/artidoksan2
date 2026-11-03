@@ -23,6 +23,10 @@ const adresKaydiSchema = new mongoose.Schema(
     adres: { type: String, trim: true, default: '' },
     ada: { type: String, trim: true, default: '' },
     parsel: { type: String, trim: true, default: '' },
+    // Yapı bilgileri (yapı ruhsatının üstündeki alanlar)
+    yapiBelgeNo: { type: String, trim: true, default: '' },
+    yapiSahibi: { type: String, trim: true, default: '' },
+    muteahhitFirma: { type: String, trim: true, default: '' },
     yapiRuhsatiDosya: { type: dosyaSlotSchema, default: undefined },
   },
   { timestamps: true, collection: 'adresKayitlari' }
@@ -51,10 +55,14 @@ router.get('/', async (req, res) => {
 
 router.post('/', async (req, res) => {
   try {
-    const { il, ilce, mahalle, postaKodu, adres, ada, parsel, yapiRuhsatiDosya } = req.body ?? {};
+    const {
+      il, ilce, mahalle, postaKodu, adres, ada, parsel, yapiRuhsatiDosya,
+      yapiBelgeNo, yapiSahibi, muteahhitFirma,
+    } = req.body ?? {};
     if (!il || !ilce) return res.status(400).json({ message: 'İl ve ilçe zorunludur' });
     const kayit = await AdresKaydi.create({
       il, ilce, mahalle, postaKodu, adres, ada, parsel,
+      yapiBelgeNo, yapiSahibi, muteahhitFirma,
       yapiRuhsatiDosya: yapiRuhsatiDosya ?? undefined,
     });
     res.status(201).json(kayit);
@@ -65,11 +73,18 @@ router.post('/', async (req, res) => {
 
 router.put('/:id', async (req, res) => {
   try {
-    const { il, ilce, mahalle, postaKodu, adres, ada, parsel, yapiRuhsatiDosya } = req.body ?? {};
+    const {
+      il, ilce, mahalle, postaKodu, adres, ada, parsel, yapiRuhsatiDosya,
+      yapiBelgeNo, yapiSahibi, muteahhitFirma,
+    } = req.body ?? {};
     if (!il || !ilce) return res.status(400).json({ message: 'İl ve ilçe zorunludur' });
     const kayit = await AdresKaydi.findByIdAndUpdate(
       req.params.id,
-      { il, ilce, mahalle, postaKodu, adres, ada, parsel, yapiRuhsatiDosya: yapiRuhsatiDosya ?? null },
+      {
+        il, ilce, mahalle, postaKodu, adres, ada, parsel,
+        yapiBelgeNo, yapiSahibi, muteahhitFirma,
+        yapiRuhsatiDosya: yapiRuhsatiDosya ?? null,
+      },
       { new: true, runValidators: true }
     );
     if (!kayit) return res.status(404).json({ message: 'Adres bulunamadı' });

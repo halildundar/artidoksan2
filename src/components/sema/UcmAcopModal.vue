@@ -1,16 +1,17 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue';
 import SemaModal from '@/components/SemaModal.vue';
+import KomponentIslemleri from './KomponentIslemleri.vue';
 import FotoEkleCek from '@/components/FotoEkleCek.vue';
 import AramaliSelect from '@/components/AramaliSelect.vue';
 import { getDosyaUrl, getDosyaIndirUrl, uploadDosya, type BelgeSlot } from '@/services/dosyaService';
 import { useFileViewer, fileViewerTypeFromMime } from '@/composables/useFileViewer';
 import { kilitBelgesiBul, type KilitBelgeSecenek, type AksamBolum } from './kapiKilitleriTipleri';
 
-// UCM/ACOP popup'ı: çözüm türü radio ile seçilir. "Kart + Hız Reg. + Fren"
-// (varsayılan) seçiliyken UCM/ACOP aksamı formu (marka/tip/seri + belge
-// görüntüleme + fotoğraflar) ve seçili kontrol kartı bilgisi metin olarak
-// gösterilir; "Kart + Motor Fren" seçiliyken yalnızca kart/regülatör/fren
+// UCM/ACOP popup'ı: çözüm türü radio ile seçilir. "Kart + Motor Fren"
+// seçiliyken UCM/ACOP aksamı formu (marka/tip/seri + belge görüntüleme +
+// fotoğraflar) ve seçili kontrol kartı bilgisi gösterilir; "Kart + Hız Reg.
+// + Fren" (varsayılan) seçiliyken yalnızca zaten seçili kart/regülatör/fren
 // bilgileri metin olarak listelenir.
 const props = defineProps<{
   belgeler: KilitBelgeSecenek[];
@@ -140,8 +141,8 @@ async function fotoAc(foto: BelgeSlot) {
         </div>
       </div>
 
-      <!-- Kart + Hız Reg. + Fren: UCM/ACOP aksamı formu -->
-      <template v-if="tur === 'kart-reg-fren'">
+      <!-- Kart + Motor Fren: UCM/ACOP aksamı formu -->
+      <template v-if="tur === 'kart-motor-fren'">
         <div class="grid grid-cols-2 gap-1.5">
           <label class="block space-y-0.5">
             <span class="text-xs font-medium text-ink-muted">Marka</span>
@@ -156,6 +157,9 @@ async function fotoAc(foto: BelgeSlot) {
               @update:model-value="bolum.tip = ($event as string | null) || null" />
           </label>
         </div>
+        <KomponentIslemleri kod="ucm_acop" :belgeler="props.belgeler" :marka="bolum.marka" :tip="bolum.tip"
+          @sec="bolum.marka = $event.marka; bolum.tip = $event.tip" />
+
 
         <button v-if="bolum.tip && belgesi()?.dosya" type="button" @click="belgeAc(belgesi())"
           class="flex items-center gap-1 bg-[#2b5c3d] px-2.5 py-1.5 text-[11px] font-semibold text-ink ring-1 ring-white/10 active:bg-[#346e4a]">
@@ -204,7 +208,7 @@ async function fotoAc(foto: BelgeSlot) {
         </div>
       </template>
 
-      <!-- Kart + Motor Fren: yalnızca kart/regülatör/fren bilgileri -->
+      <!-- Kart + Hız Reg. + Fren: yalnızca kart/regülatör/fren bilgileri -->
       <template v-else>
         <div class="space-y-1.5 border-t border-white/5 pt-2">
           <div v-for="[etiket, deger] in ([

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue';
 import SemaModal from '@/components/SemaModal.vue';
+import KomponentIslemleri from './KomponentIslemleri.vue';
 import FotoEkleCek from '@/components/FotoEkleCek.vue';
 import AramaliSelect from '@/components/AramaliSelect.vue';
 import { getDosyaUrl, getDosyaIndirUrl, uploadDosya, type BelgeSlot } from '@/services/dosyaService';
@@ -131,7 +132,11 @@ async function belgeAc(belge: KilitBelgeSecenek | null) {
       <!-- Kabin Fren -->
       <div class="space-y-1.5 bg-surface-900/60 p-2.5 ring-1 ring-white/5">
         <div class="flex items-center justify-between gap-2">
-          <h4 class="text-xs font-bold text-ink">Kabin Fren</h4>
+          <div class="flex min-w-0 items-center gap-2">
+            <h4 class="text-xs font-bold text-ink">Kabin Fren</h4>
+            <KomponentIslemleri kompakt kod="fren" :belgeler="props.frenBelgeleri" :marka="kabin.marka"
+              :tip="kabin.tip" @sec="kabin.marka = $event.marka; kabin.tip = $event.tip" />
+          </div>
           <p v-if="props.kabinAgirligi != null" class="shrink-0 text-xs text-ink-muted">
             P + Q = <strong class="font-semibold text-[#6fcf97]">{{ props.kabinAgirligi + (props.beyanYuku ?? 0) }} kg</strong>
           </p>
@@ -151,6 +156,7 @@ async function belgeAc(belge: KilitBelgeSecenek | null) {
               @update:model-value="kabin.tip = ($event as string | null) || null" />
           </label>
         </div>
+
 
         <button v-if="kabin.tip && belgesi(kabin)?.dosya" type="button" @click="belgeAc(belgesi(kabin))"
           class="flex items-center gap-1 bg-[#2b5c3d] px-2.5 py-1.5 text-[11px] font-semibold text-ink ring-1 ring-white/10 active:bg-[#346e4a]">
@@ -210,7 +216,11 @@ async function belgeAc(belge: KilitBelgeSecenek | null) {
       <!-- Karşı Ağırlık Fren -->
       <div class="space-y-1.5 bg-surface-900/60 p-2.5 ring-1 ring-white/5">
         <div class="flex items-center justify-between gap-2">
-          <h4 class="text-xs font-bold text-ink">Karşı Ağırlık Fren</h4>
+          <div class="flex min-w-0 items-center gap-2">
+            <h4 class="text-xs font-bold text-ink">Karşı Ağırlık Fren</h4>
+            <KomponentIslemleri kompakt kod="fren" :belgeler="props.frenBelgeleri" :marka="karsiAgirlik.marka"
+              :tip="karsiAgirlik.tip" @sec="karsiAgirlik.marka = $event.marka; karsiAgirlik.tip = $event.tip" />
+          </div>
           <p v-if="props.kabinAgirligi != null" class="shrink-0 text-xs text-ink-muted">
             P + Q/2 = <strong class="font-semibold text-[#6fcf97]">{{ props.kabinAgirligi + (props.beyanYuku ?? 0) / 2 }} kg</strong>
           </p>
@@ -246,6 +256,7 @@ async function belgeAc(belge: KilitBelgeSecenek | null) {
                 @update:model-value="karsiAgirlik.tip = ($event as string | null) || null" />
             </label>
           </div>
+
 
           <button v-if="karsiAgirlik.tip && belgesi(karsiAgirlik)?.dosya" type="button"
             @click="belgeAc(belgesi(karsiAgirlik))"

@@ -30,6 +30,8 @@ type Sayi = number | '' | null;
 // Yeni kayıtta varsayılan seçili değerler (artidoksan1 ile aynı); düzenlemede
 // onMounted içinde gerçek kayıt değerleriyle ezilir.
 const firmaId = ref<string | null>((route.query.firma as string | undefined) ?? null);
+// Firmanın Montajlar bölümünden "Yeni Asansör" ile gelindiyse firma seçili ve değiştirilemez
+const firmaKilitli = !!route.query.firma && !route.params.id;
 const seriNo = ref('');
 const sinif = ref<string | null>('insan_ve_yuk');
 const hiz = ref<number | null>(1.0);
@@ -67,7 +69,7 @@ const yukleniyor = ref(false);
 const kaydediliyor = ref(false);
 const hata = ref('');
 
-const gecerli = computed(() => !!firmaId.value && seriNo.value.trim() !== '');
+const gecerli = computed(() => seriNo.value.trim() !== '');
 
 function sayi(v: Sayi): number | null {
   return typeof v === 'number' && Number.isFinite(v) ? v : null;
@@ -89,7 +91,7 @@ onMounted(async () => {
   yukleniyor.value = true;
   try {
     const a = await getAsansor(duzenlenenId.value);
-    firmaId.value = typeof a.firmaId === 'object' && a.firmaId ? a.firmaId._id : (a.firmaId as string);
+    firmaId.value = typeof a.firmaId === 'object' && a.firmaId ? a.firmaId._id : ((a.firmaId as string | null) ?? null);
     seriNo.value = a.seriNo ?? '';
     sinif.value = a.sinif ?? null;
     hiz.value = a.hiz ?? null;
@@ -115,7 +117,7 @@ async function kaydet() {
   hata.value = '';
   try {
     const veri = {
-      firmaId: firmaId.value as string,
+      firmaId: firmaId.value,
       seriNo: seriNo.value.trim(),
       sinif: (sinif.value as 'insan_ve_yuk' | 'yuk' | null) ?? null,
       hiz: hiz.value,
@@ -173,8 +175,8 @@ async function kaydet() {
 
         <form v-else id="asansor-on-bilgi-form" class="space-y-2 px-4 py-4" @submit.prevent="kaydet">
           <label class="block space-y-0.5">
-            <span class="text-xs font-medium text-ink-muted">Firma *</span>
-            <AramaliSelect v-model="firmaId" :options="firmaSecenekleri" :disabled="firmalarYukleniyor"
+            <span class="text-xs font-medium text-ink-muted">Firma</span>
+            <AramaliSelect v-model="firmaId" :options="firmaSecenekleri" :disabled="firmalarYukleniyor || firmaKilitli"
               :placeholder="firmalarYukleniyor ? 'Yükleniyor...' : 'Firma seçiniz'" />
           </label>
 

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import SemaModal from '@/components/SemaModal.vue';
+import SemaOlcekle from './SemaOlcekle.vue';
 import FotoAlani from '@/components/FotoAlani.vue';
 import type { BelgeSlot } from '@/services/dosyaService';
 
@@ -126,7 +127,7 @@ const ustRiskVar = computed(() => korkulukRiski.value || suspRiski.value || durm
         Son Hareket Mesafesi (Boşluk + Stroke + 0,035 × Hız²):
         <strong class="font-semibold text-[#6fcf97]">{{ sonHareketMesafesiCm != null ? `${sonHareketMesafesiCm} cm` : '—' }}</strong>
       </p>
-      <div ref="diagramWrapRef" class="sema-wrap" :style="{ width: `${SVG_W}px`, height: `${SVG_H}px` }"
+      <SemaOlcekle :genislik="SVG_W" :yukseklik="SVG_H"><div ref="diagramWrapRef" class="sema-wrap" :style="{ width: `${SVG_W}px`, height: `${SVG_H}px` }"
         @click="aktifHotspot = null">
         <svg :viewBox="`0 0 ${VB_W} ${VB_H}`" :width="SVG_W" :height="SVG_H" class="sema-svg">
           <defs>
@@ -242,7 +243,7 @@ const ustRiskVar = computed(() => korkulukRiski.value || suspRiski.value || durm
             </select>
           </label>
         </div>
-      </div>
+      </div></SemaOlcekle>
 
       <div v-if="ustRiskVar" class="space-y-0.5 text-center text-xs font-semibold text-red-400">
         <p v-if="korkulukRiski">

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import SemaModal from '@/components/SemaModal.vue';
+import SemaOlcekle from './SemaOlcekle.vue';
 import FotoAlani from '@/components/FotoAlani.vue';
 import type { BelgeSlot } from '@/services/dosyaService';
 
@@ -143,7 +144,7 @@ function popoverStyle(key: HotspotKey) {
 <template>
   <SemaModal v-model:open="open" title="Halat ve Kasnaklar" @iptal="emit('iptal')">
     <div class="flex justify-center py-1">
-      <div ref="diagramWrapRef" class="sema-wrap shrink-0"
+      <SemaOlcekle :genislik="svgOlcu.w" :yukseklik="svgOlcu.h"><div ref="diagramWrapRef" class="sema-wrap shrink-0"
         :style="{ width: `${svgOlcu.w}px`, height: `${svgOlcu.h}px` }">
         <svg :viewBox="svgViewBox" :width="svgOlcu.w" :height="svgOlcu.h" class="sema-svg">
           <defs>
@@ -282,7 +283,7 @@ function popoverStyle(key: HotspotKey) {
           <input v-model.number="dikeyMesafe" type="number" class="sema-popover__input" placeholder="mm" autofocus />
           <span class="sema-popover__unit">mm</span>
         </div>
-      </div>
+      </div></SemaOlcekle>
     </div>
 
     <!-- Sarım açısı: 1:1'de A=halat mesafesi−d1/2−d2/2 ve B'den otomatik

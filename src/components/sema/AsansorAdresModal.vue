@@ -84,7 +84,10 @@ function kayitDetayi(k: AdresKaydi): string {
 }
 
 // ---- Adres formu (yeni ekleme / düzenleme) ----
-const yeni = ref({ il: '', ilce: '', mahalle: '', postaKodu: '', adres: '', ada: '', parsel: '' });
+const yeni = ref({
+  il: '', ilce: '', mahalle: '', postaKodu: '', adres: '', ada: '', parsel: '',
+  yapiBelgeNo: '', yapiSahibi: '', muteahhitFirma: '',
+});
 const yeniRuhsat = ref<BelgeSlot | null>(null);
 const duzenlenenId = ref<string | null>(null);
 const kaydediliyor = ref(false);
@@ -92,7 +95,10 @@ const belgeYukleniyor = ref(false);
 
 function formAc() {
   duzenlenenId.value = null;
-  yeni.value = { il: '', ilce: '', mahalle: '', postaKodu: '', adres: '', ada: '', parsel: '' };
+  yeni.value = {
+  il: '', ilce: '', mahalle: '', postaKodu: '', adres: '', ada: '', parsel: '',
+  yapiBelgeNo: '', yapiSahibi: '', muteahhitFirma: '',
+};
   yeniRuhsat.value = null;
   hata.value = '';
   formAcik.value = true;
@@ -104,6 +110,7 @@ function duzenle(k: AdresKaydi) {
   yeni.value = {
     il: k.il, ilce: k.ilce, mahalle: k.mahalle, postaKodu: k.postaKodu,
     adres: k.adres, ada: k.ada, parsel: k.parsel,
+    yapiBelgeNo: k.yapiBelgeNo ?? '', yapiSahibi: k.yapiSahibi ?? '', muteahhitFirma: k.muteahhitFirma ?? '',
   };
   yeniRuhsat.value = k.yapiRuhsatiDosya ?? null;
   hata.value = '';
@@ -177,8 +184,9 @@ async function ruhsatSec(event: Event) {
   belgeYukleniyor.value = true;
   try {
     yeniRuhsat.value = await uploadDosya(dosya);
-  } catch {
-    /* yüklenemezse mevcut belge korunur */
+  } catch (e) {
+    // Yüklenemezse mevcut belge korunur; hata kullanıcıya gösterilir
+    hata.value = e instanceof Error ? `Yapı ruhsatı yüklenemedi: ${e.message}` : 'Yapı ruhsatı yüklenemedi';
   } finally {
     belgeYukleniyor.value = false;
   }
@@ -197,8 +205,8 @@ async function dosyaAc(dosya: BelgeSlot | null | undefined) {
       return;
     }
     openFile({ url, downloadUrl, name: dosya.dosyaAdi, type });
-  } catch {
-    /* imzalı URL alınamazsa açılmaz */
+  } catch (e) {
+    hata.value = e instanceof Error ? `Belge açılamadı: ${e.message}` : 'Belge açılamadı';
   }
 }
 </script>
@@ -282,6 +290,25 @@ async function dosyaAc(dosya: BelgeSlot | null | undefined) {
               class="w-full bg-surface-900 px-2.5 py-1.5 text-xs text-ink ring-1 ring-white/10 outline-none placeholder:text-ink-muted/40 focus:ring-white/30" />
           </label>
         </div>
+
+        <!-- Yapı bilgileri: yapı ruhsatının hemen üstünde -->
+        <div class="grid grid-cols-2 gap-1.5">
+          <label class="block space-y-0.5">
+            <span class="text-xs font-medium text-ink-muted">Yapı Belge No</span>
+            <input v-model="yeni.yapiBelgeNo" type="text" placeholder="Yapı belge no"
+              class="w-full bg-surface-900 px-2.5 py-1.5 text-xs text-ink ring-1 ring-white/10 outline-none placeholder:text-ink-muted/40 focus:ring-white/30" />
+          </label>
+          <label class="block space-y-0.5">
+            <span class="text-xs font-medium text-ink-muted">Yapı Sahibi</span>
+            <input v-model="yeni.yapiSahibi" type="text" placeholder="Yapı sahibi"
+              class="w-full bg-surface-900 px-2.5 py-1.5 text-xs text-ink ring-1 ring-white/10 outline-none placeholder:text-ink-muted/40 focus:ring-white/30" />
+          </label>
+        </div>
+        <label class="block space-y-0.5">
+          <span class="text-xs font-medium text-ink-muted">Müteahhit Firma</span>
+          <input v-model="yeni.muteahhitFirma" type="text" placeholder="Müteahhit firma"
+            class="w-full bg-surface-900 px-2.5 py-1.5 text-xs text-ink ring-1 ring-white/10 outline-none placeholder:text-ink-muted/40 focus:ring-white/30" />
+        </label>
 
         <!-- Yapı ruhsatı belgesi -->
         <div class="block space-y-0.5">
