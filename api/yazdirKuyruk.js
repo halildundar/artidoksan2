@@ -6,15 +6,22 @@ import { randomUUID } from 'node:crypto';
 //   Free 512 MB'ta tek LibreOffice güvenli). Her çalışan kendi "slot"unu
 //   (LibreOffice profil dizini) kullanır, birbirini kilitlemez.
 // - Tek yazdırma (öncelik 0) toplu yazdırmanın (öncelik 1) önüne geçer.
-// - Toplu işler kendi aralarında sırayla (round-robin) ilerler: biri 36
-//   belge yollasa da diğerleri arkada kalmaz.
-// - Aynı tescil + aynı belge zaten kuyruktaysa/çalışıyorsa ikinci istek yeni
-//   görev açmaz, aynı sonuca bağlanır (çift üretim ve R2'de yetim dosya olmaz).
+// - Toplu iş TEK görevdir: önce tüm Word dosyaları doldurulur, sonra LibreOffice
+//   bir kez açılıp hepsi sırayla PDF'e çevrilir, en son kaydedilir.
+//   Aşamalar iş üzerinde `faz` olarak, belgeler `durum` olarak izlenir.
+// - Aynı tescil + aynı belge zaten kuyruktaysa/çalışıyorsa ikinci tek istek
+//   yeni görev açmaz, aynı sonuca bağlanır (çift üretim/yetim dosya olmaz).
 // - Durum bellektedir; sunucu yeniden başlarsa kuyruk kaybolur, ama hangi
 //   belgelerin üretildiği veritabanındadır (değişmeyen belge tekrar çevrilmez).
 
 const PARALEL = Math.max(1, Number(process.env.YAZDIR_PARALEL) || 1);
 const IS_SAKLAMA_MS = 10 * 60 * 1000;
+
+// Belge durumları: bekliyor → uretiliyor (Word dolduruluyor) → hazir (Word
+// hazır, PDF bekliyor) → cevrildi (PDF hazır, kaydedilecek) → tamam
+const BITMIS = ['tamam', 'guncel', 'hata', 'iptal'];
+const WORD_HAZIR = ['hazir', 'cevrildi', 'tamam', 'guncel'];
+const PDF_HAZIR = ['cevrildi', 'tamam', 'guncel'];
 
 const isler = new Map(); // isId -> iş
 const gorevler = new Map(); // anahtar -> bekleyen/çalışan görev
@@ -32,10 +39,6 @@ function temizle() {
   for (const [id, is] of isler) {
     if (is.bitis && is.bitis < sinir) isler.delete(id);
   }
-}
-
-function kuyrukluGorev(g) {
-  return g.durum === 'bekliyor';
 }
 
 function kuyruktanCikar(g) {
@@ -60,23 +63,50 @@ function sonrakiGorev() {
   return null;
 }
 
-function isBittiMi(is) {
-  return [...is.kalemler.values()].every((k) => ['tamam', 'guncel', 'hata', 'iptal'].includes(k.durum));
-}
-
 function isiKapatmaKontrolu(is) {
-  if (is.bitis || !isBittiMi(is)) return;
+  if (is.bitis) return;
+  if (![...is.kalemler.values()].every((k) => BITMIS.includes(k.durum))) return;
   is.bitis = Date.now();
+  is.faz = 'bitti';
   const i = topluIsler.indexOf(is);
   if (i !== -1) topluIsler.splice(i, 1);
 }
 
-function gorevBitti(g, durum, ayrinti) {
+function durumYaz(isSeti, kod, durum, ayrinti) {
+  for (const is of isSeti) {
+    const k = is.kalemler.get(kod);
+    if (!k) continue;
+    k.durum = durum;
+    if (ayrinti) k.hata = ayrinti;
+    isiKapatmaKontrolu(is);
+  }
+}
+
+// Görevin kendi işine bildirdiği ilerleme (aşama, belge durumu, iptal)
+function baglamKur(g) {
+  return {
+    faz: (f) => {
+      for (const is of g.isler) if (!is.bitis) is.faz = f;
+    },
+    durum: (kod, durum, ayrinti) => durumYaz(g.isler, kod, durum, ayrinti),
+    iptalMi: () => [...g.isler].some((is) => is.iptalIstegi),
+    iptalEt: () => {
+      for (const is of g.isler) {
+        for (const k of is.kalemler.values()) if (!BITMIS.includes(k.durum)) k.durum = 'iptal';
+        isiKapatmaKontrolu(is);
+      }
+    },
+  };
+}
+
+// Biten (ya da çöken) toplu görevde tamamlanmamış kalan belgeler hata sayılır
+function tamamlanmayanlariHataYap(g, mesaj) {
   for (const is of g.isler) {
-    const k = is.kalemler.get(g.kod);
-    if (k) {
-      k.durum = durum;
-      if (ayrinti) k.hata = ayrinti;
+    for (const k of is.kalemler.values()) {
+      if (!BITMIS.includes(k.durum)) {
+        k.durum = 'hata';
+        k.hata = mesaj;
+      }
     }
     isiKapatmaKontrolu(is);
   }
@@ -89,24 +119,31 @@ function pompala() {
     const slot = bosSlotlar.pop();
     g.durum = 'calisiyor';
     for (const is of g.isler) {
-      const k = is.kalemler.get(g.kod);
-      if (k) k.durum = 'uretiliyor';
+      is.faz = 'hazirlaniyor';
+      // Tek görevde belge "üretiliyor"a geçer; toplu görev belgeleri kendisi ilerletir
+      if (!g.toplu) {
+        const k = is.kalemler.get(g.kod);
+        if (k) k.durum = 'uretiliyor';
+      }
     }
+    const ctx = baglamKur(g);
     const basla = Date.now();
     Promise.resolve()
-      .then(() => g.calistir(slot, { zorla: g.zorla }))
+      .then(() => g.calistir(slot, { zorla: g.zorla, ctx }))
       .then(
         (sonuc) => {
           const durum = sonuc?.durum === 'guncel' ? 'guncel' : 'tamam';
           console.log(
-            `[yazdir] ${g.tescilId} ${g.kod} ${durum} ${Date.now() - basla}ms slot=${slot} ` +
-              `rss=${Math.round(process.memoryUsage().rss / 1048576)}MB`
+            `[yazdir] ${g.tescilId} ${g.kod} ${g.toplu ? 'toplu-bitti' : durum} ${Date.now() - basla}ms ` +
+              `slot=${slot} rss=${Math.round(process.memoryUsage().rss / 1048576)}MB`
           );
-          gorevBitti(g, durum);
+          if (g.toplu) tamamlanmayanlariHataYap(g, 'Tamamlanamadı');
+          else ctx.durum(g.kod, durum);
         },
         (err) => {
           console.error(`[yazdir] ${g.tescilId} ${g.kod} HATA:`, err.message);
-          gorevBitti(g, 'hata', err.message);
+          if (g.toplu) tamamlanmayanlariHataYap(g, err.message);
+          else ctx.durum(g.kod, 'hata', err.message);
         }
       )
       .finally(() => {
@@ -117,7 +154,8 @@ function pompala() {
   }
 }
 
-// kalemler: [{ kod, no, ad }]; calistir(kod, slot, { zorla }) => Promise<{ durum }>
+// kalemler: [{ kod, no, ad }]
+// calistir(kod, slot, { zorla, ctx }): tek görevde kod dolu; toplu görevde kod = null
 export function isBaslat({ tescilId, tip, ad, kalemler, zorla = false, calistir }) {
   temizle();
   const is = {
@@ -127,48 +165,61 @@ export function isBaslat({ tescilId, tip, ad, kalemler, zorla = false, calistir 
     ad,
     olusturma: Date.now(),
     bitis: null,
+    faz: 'sirada',
+    iptalIstegi: false,
     kalemler: new Map(),
     bekleyen: [],
   };
   isler.set(is.id, is);
-  const oncelik = tip === 'tekli' ? 0 : 1;
-
   for (const kalem of kalemler) {
     is.kalemler.set(kalem.kod, { kod: kalem.kod, no: kalem.no, ad: kalem.ad, durum: 'bekliyor', hata: '' });
+  }
+
+  if (tip === 'toplu') {
+    // Tüm iş tek görev: tek LibreOffice açılışıyla çevrilir
+    const anahtar = gorevAnahtari(is.tescilId, 'toplu');
+    const g = {
+      anahtar,
+      tescilId: is.tescilId,
+      kod: 'toplu',
+      toplu: true,
+      oncelik: 1,
+      zorla,
+      durum: 'bekliyor',
+      isler: new Set([is]),
+      calistir: (slot, secenek) => calistir(null, slot, secenek),
+    };
+    gorevler.set(anahtar, g);
+    is.bekleyen.push(g);
+    topluIsler.push(is);
+    pompala();
+    return is.id;
+  }
+
+  for (const kalem of kalemler) {
     const anahtar = gorevAnahtari(is.tescilId, kalem.kod);
     const mevcut = gorevler.get(anahtar);
     if (mevcut) {
       // Aynı belge zaten kuyrukta/çalışıyor — aynı sonuca bağlan
       mevcut.isler.add(is);
-      if (mevcut.durum === 'calisiyor') {
-        is.kalemler.get(kalem.kod).durum = 'uretiliyor';
-      } else {
-        mevcut.zorla = mevcut.zorla || zorla;
-        if (oncelik === 0 && mevcut.oncelik === 1) {
-          // Toplu işteki bekleyen görev, tek yazdırma isteğiyle öne alınır
-          kuyruktanCikar(mevcut);
-          mevcut.oncelik = 0;
-          tekliKuyruk.push(mevcut);
-        }
-      }
+      if (mevcut.durum === 'calisiyor') is.kalemler.get(kalem.kod).durum = 'uretiliyor';
+      else mevcut.zorla = mevcut.zorla || zorla;
       continue;
     }
     const g = {
       anahtar,
       tescilId: is.tescilId,
       kod: kalem.kod,
-      oncelik,
+      toplu: false,
+      oncelik: 0,
       zorla,
       durum: 'bekliyor',
       isler: new Set([is]),
       calistir: (slot, secenek) => calistir(kalem.kod, slot, secenek),
     };
     gorevler.set(anahtar, g);
-    if (oncelik === 0) tekliKuyruk.push(g);
-    else is.bekleyen.push(g);
+    tekliKuyruk.push(g);
   }
-
-  if (oncelik === 1 && is.bekleyen.length) topluIsler.push(is);
   isiKapatmaKontrolu(is);
   pompala();
   return is.id;
@@ -188,10 +239,31 @@ export function tescildeAktifIsVar(tescilId) {
 export function isIptal(tescilId, isId) {
   const is = isler.get(isId);
   if (!is || is.tescilId !== String(tescilId) || is.bitis) return false;
+
+  if (is.tip === 'toplu') {
+    const g = gorevler.get(gorevAnahtari(is.tescilId, 'toplu'));
+    if (g && g.durum === 'bekliyor') {
+      // Henüz başlamadı: görev tamamen kaldırılır
+      kuyruktanCikar(g);
+      gorevler.delete(g.anahtar);
+      for (const k of is.kalemler.values()) k.durum = 'iptal';
+      is.bekleyen = [];
+      isiKapatmaKontrolu(is);
+      return true;
+    }
+    // Word hazırlama sürüyorsa iptal istenir; PDF aşamasından sonra durdurulamaz
+    if (is.faz === 'hazirlaniyor') {
+      is.iptalIstegi = true;
+      return true;
+    }
+    return false;
+  }
+
+  let iptalEdildi = false;
   for (const k of is.kalemler.values()) {
     if (k.durum !== 'bekliyor') continue;
     const g = gorevler.get(gorevAnahtari(is.tescilId, k.kod));
-    if (g && kuyrukluGorev(g)) {
+    if (g && g.durum === 'bekliyor') {
       g.isler.delete(is);
       // Başka işe bağlı değilse görev tamamen kaldırılır
       if (!g.isler.size) {
@@ -200,20 +272,23 @@ export function isIptal(tescilId, isId) {
       }
     }
     k.durum = 'iptal';
+    iptalEdildi = true;
   }
-  is.bekleyen = [];
   isiKapatmaKontrolu(is);
-  return true;
+  return iptalEdildi;
 }
+
+const FAZ_YUZDE = { sirada: 0, hazirlaniyor: 20, cevriliyor: 55, kaydediliyor: 85, bitti: 100 };
 
 function isOzeti(is) {
   const kalemler = [...is.kalemler.values()];
   const say = (d) => kalemler.filter((k) => d.includes(k.durum)).length;
   const calisan = kalemler.filter((k) => k.durum === 'uretiliyor').map(({ kod, no, ad }) => ({ kod, no, ad }));
-  const bekleyen = say(['bekliyor']);
-  // Bu işte çalışan yokken, kuyrukta önündeki (başkalarına ait) görev sayısı
+  const wordHazir = say(WORD_HAZIR);
+  const pdfHazir = say(PDF_HAZIR);
+  // Bu iş sırada beklerken önündeki (başkalarına ait) görev sayısı
   let onunde = 0;
-  if (!is.bitis && !calisan.length) {
+  if (!is.bitis && is.faz === 'sirada') {
     for (const g of gorevler.values()) {
       if (g.isler.has(is)) continue;
       // Tek yazdırma toplu işlerin bekleyen görevlerinin önüne geçer
@@ -221,21 +296,33 @@ function isOzeti(is) {
       onunde += 1;
     }
   }
+  const yuzde = is.bitis
+    ? 100
+    : is.tip === 'toplu' && kalemler.length
+      ? Math.round(((wordHazir + pdfHazir) / (2 * kalemler.length)) * 100)
+      : FAZ_YUZDE[is.faz] ?? 0;
   return {
     id: is.id,
     tip: is.tip,
     ad: is.ad,
     durum: is.bitis ? (say(['hata']) ? 'hatali' : say(['iptal']) ? 'iptal' : 'bitti') : 'calisiyor',
+    // sirada | hazirlaniyor (Word dolduruluyor) | cevriliyor (LibreOffice) | kaydediliyor | bitti
+    faz: is.faz,
+    yuzde,
     toplam: kalemler.length,
     tamamlanan: say(['tamam', 'guncel', 'hata', 'iptal']),
+    wordHazir,
+    pdfHazir,
     uretilen: say(['tamam']),
     atlanan: say(['guncel']),
     hatali: say(['hata']),
     hatalar: kalemler.filter((k) => k.durum === 'hata').map((k) => ({ ad: `${k.no}-${k.ad}`, mesaj: k.hata })),
     calisan,
     kalemler: kalemler.map(({ kod, durum }) => ({ kod, durum })),
-    bekleyen,
+    bekleyen: say(['bekliyor']),
     onunde,
+    iptalEdilebilir:
+      !is.bitis && (is.tip === 'toplu' ? is.faz === 'sirada' || is.faz === 'hazirlaniyor' : say(['bekliyor']) > 0),
     olusturma: is.olusturma,
     bitis: is.bitis,
     // Bitişten bu yana geçen süre (ms): istemci saatinden bağımsız

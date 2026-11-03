@@ -746,9 +746,41 @@ router.get('/:id/yazdir', async (req, res) => {
   }
 });
 
+// Üretilen DOCX+PDF'i R2'ye yazar, tescil kaydını günceller, eski çıktıyı siler
+async function belgeKaydet(tescilId, kalem, ozet, docxBuffer, pdfBuffer) {
+  const taban = `${String(kalem.no).padStart(2, '0')}-${kalem.ad}`;
+  const docxKey = buildObjectKey('tesciller', `${taban}.docx`);
+  const pdfKey = buildObjectKey('tesciller', `${taban}.pdf`);
+  await Promise.all([
+    putObject(docxKey, docxBuffer, DOCX_MIME),
+    putObject(pdfKey, pdfBuffer, 'application/pdf'),
+  ]);
+
+  const kayit = {
+    sablonKodu: kalem.kod,
+    sablonAdi: kalem.ad,
+    docx: slotOlustur(docxKey, `${taban}.docx`, DOCX_MIME, docxBuffer.length),
+    pdf: slotOlustur(pdfKey, `${taban}.pdf`, 'application/pdf', pdfBuffer.length),
+    uretimTarihi: new Date(),
+    kaynakOzeti: ozet,
+  };
+  // Atomik: eski kaydı çıkarırken okunan hali al (silinecek anahtarlar tam
+  // olarak çıkarılandır, yetim dosya kalmaz), sonra yenisini ekle
+  const onceki = await Tescil.findOneAndUpdate(
+    { _id: tescilId },
+    { $pull: { uretilenBelgeler: { sablonKodu: kalem.kod } } },
+    { returnDocument: 'before', projection: { uretilenBelgeler: 1 } }
+  ).lean();
+  await Tescil.updateOne({ _id: tescilId }, { $push: { uretilenBelgeler: kayit } });
+  const eski = (onceki?.uretilenBelgeler ?? []).find((u) => u.sablonKodu === kalem.kod);
+  await anahtarlariSil([eski?.docx?.dosyaAnahtari, eski?.pdf?.dosyaAnahtari]);
+}
+
+const DOCX_MIME = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+
 // Tek bir şablon belgesini üretir (kuyruk görevi). Girdiler değişmediyse ve
 // zorla istenmediyse mevcut çıktı korunur, çevirme yapılmaz.
-async function kalemUret(tescilId, kod, slot, { zorla }) {
+async function kalemUret(tescilId, kod, slot, { zorla, ctx }) {
   const kalem = KALEMLER.find((k) => k.kod === kod && k.tip === 'sablon');
   if (!kalem) throw new Error('Bilinmeyen şablon kodu');
   const baglam = await tescilYukle(tescilId);
@@ -767,40 +799,146 @@ async function kalemUret(tescilId, kod, slot, { zorla }) {
     return { durum: 'guncel' };
   }
 
-  const docxMime = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+  ctx.faz('hazirlaniyor');
   const docxBuffer = await sablonDoldur(yol, veri, firma);
+  ctx.faz('cevriliyor');
   const pdfBuffer = await convertDocxToPdf(docxBuffer, slot);
-
-  const taban = `${String(kalem.no).padStart(2, '0')}-${kalem.ad}`;
-  const docxKey = buildObjectKey('tesciller', `${taban}.docx`);
-  const pdfKey = buildObjectKey('tesciller', `${taban}.pdf`);
-  await Promise.all([
-    putObject(docxKey, docxBuffer, docxMime),
-    putObject(pdfKey, pdfBuffer, 'application/pdf'),
-  ]);
-
-  const kayit = {
-    sablonKodu: kalem.kod,
-    sablonAdi: kalem.ad,
-    docx: slotOlustur(docxKey, `${taban}.docx`, docxMime, docxBuffer.length),
-    pdf: slotOlustur(pdfKey, `${taban}.pdf`, 'application/pdf', pdfBuffer.length),
-    uretimTarihi: new Date(),
-    kaynakOzeti: ozet,
-  };
-  // Atomik: eski kaydı çıkarırken okunan hali al (silinecek anahtarlar tam
-  // olarak çıkarılandır, yetim dosya kalmaz), sonra yenisini ekle
-  const onceki = await Tescil.findOneAndUpdate(
-    { _id: tescilId },
-    { $pull: { uretilenBelgeler: { sablonKodu: kalem.kod } } },
-    { returnDocument: 'before', projection: { uretilenBelgeler: 1 } }
-  ).lean();
-  await Tescil.updateOne({ _id: tescilId }, { $push: { uretilenBelgeler: kayit } });
-  const eski = (onceki?.uretilenBelgeler ?? []).find((u) => u.sablonKodu === kalem.kod);
-  await anahtarlariSil([eski?.docx?.dosyaAnahtari, eski?.pdf?.dosyaAnahtari]);
+  ctx.faz('kaydediliyor');
+  await belgeKaydet(tescilId, kalem, ozet, docxBuffer, pdfBuffer);
   return { durum: 'uretildi' };
 }
 
-const calistir = (tescilId) => (kod, slot, secenek) => kalemUret(tescilId, kod, slot, secenek);
+// Birden çok DOCX'i TEK LibreOffice açılışıyla sırayla PDF'e çevirir
+// (açılış maliyeti bir kez ödenir). LibreOffice dosyaları verilen sırayla
+// işler: i. PDF, (i+1). PDF göründüğünde tamamlanmıştır; ilerleme(i) bu
+// anda çağrılır. Çevrilemeyen belge için null döner (çağıran tek tek dener).
+async function topluPdfCevir(docxBufferlari, slot, ilerleme) {
+  const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'yazdir-toplu-'));
+  const cikti = path.join(tmpDir, 'cikti');
+  const ad = (i) => String(i).padStart(3, '0');
+  try {
+    await fs.mkdir(cikti);
+    const girdiler = [];
+    for (let i = 0; i < docxBufferlari.length; i++) {
+      const yol = path.join(tmpDir, `${ad(i)}.docx`);
+      await fs.writeFile(yol, docxBufferlari[i]);
+      girdiler.push(yol);
+    }
+    const profilUrl = pathToFileURL(path.join(os.tmpdir(), `yazdir-lo-profil-${slot}`)).href;
+
+    const bildirilen = new Set();
+    const tara = async (bitti) => {
+      const adlar = new Set((await fs.readdir(cikti).catch(() => [])).filter((a) => a.endsWith('.pdf')));
+      for (let i = 0; i < docxBufferlari.length; i++) {
+        if (bildirilen.has(i) || !adlar.has(`${ad(i)}.pdf`)) continue;
+        if (bitti || adlar.has(`${ad(i + 1)}.pdf`)) {
+          bildirilen.add(i);
+          ilerleme(i);
+        }
+      }
+    };
+    const zamanlayici = setInterval(() => tara(false).catch(() => {}), 700);
+    try {
+      await execFileAsync(
+        LIBREOFFICE_PATH,
+        [
+          `-env:UserInstallation=${profilUrl}`,
+          '--headless', '--norestore', '--nolockcheck', '--nofirststartwizard', '--nodefault', '--nologo',
+          '--convert-to', 'pdf', '--outdir', cikti, ...girdiler,
+        ],
+        { timeout: Math.min(600_000, 90_000 + 30_000 * docxBufferlari.length) }
+      );
+    } catch (err) {
+      console.error('[yazdir] toplu PDF dönüşümü kısmen başarısız:', err.message);
+    } finally {
+      clearInterval(zamanlayici);
+    }
+    await tara(true);
+
+    const sonuc = [];
+    for (let i = 0; i < docxBufferlari.length; i++) {
+      const pdf = await fs.readFile(path.join(cikti, `${ad(i)}.pdf`)).catch(() => null);
+      // Yarım yazılmış (çöken çeviri) PDF'i ele: dosya sonu işareti olmalı
+      const saglam = pdf && pdf.subarray(Math.max(0, pdf.length - 1024)).includes('%%EOF');
+      sonuc.push(saglam ? pdf : null);
+    }
+    return sonuc;
+  } finally {
+    await fs.rm(tmpDir, { recursive: true, force: true }).catch(() => {});
+  }
+}
+
+// Toplu yazdırma (tek görev): 1) tüm Word dosyaları doldurulur, 2) LibreOffice
+// bir kez açılıp hepsi PDF'e çevrilir, 3) kaydedilir. Güncel belgeler atlanır.
+async function topluUret(tescilId, slot, { ctx }) {
+  const baglam = await tescilYukle(tescilId);
+  if (!baglam) throw new Error('Tescil bulunamadı');
+  const { tescil, firma } = baglam;
+  const veri = await sablonVerisi(baglam);
+  const mevcutlar = new Map((tescil.uretilenBelgeler ?? []).map((u) => [u.sablonKodu, u]));
+
+  ctx.faz('hazirlaniyor');
+  const hazirlar = [];
+  for (const kalem of KALEMLER.filter((k) => k.tip === 'sablon')) {
+    if (ctx.iptalMi()) return ctx.iptalEt();
+    ctx.durum(kalem.kod, 'uretiliyor');
+    try {
+      const yol = sablonYolu(tescil, firma, kalem);
+      await fs.access(yol).catch(() => {
+        throw new Error(`Şablon dosyası bulunamadı: ${path.relative(TEMPLATES_DIR, yol)}`);
+      });
+      const ozet = await kaynakOzeti(yol, veri, firma);
+      const mevcut = mevcutlar.get(kalem.kod);
+      if (mevcut?.kaynakOzeti === ozet && mevcut.docx?.dosyaAnahtari && mevcut.pdf?.dosyaAnahtari) {
+        ctx.durum(kalem.kod, 'guncel');
+        continue;
+      }
+      const docxBuffer = await sablonDoldur(yol, { ...veri }, firma);
+      hazirlar.push({ kalem, ozet, docxBuffer });
+      ctx.durum(kalem.kod, 'hazir');
+    } catch (err) {
+      ctx.durum(kalem.kod, 'hata', err.message);
+    }
+  }
+  if (!hazirlar.length) return { durum: 'guncel' };
+  if (ctx.iptalMi()) return ctx.iptalEt();
+
+  ctx.faz('cevriliyor');
+  const pdfler = await topluPdfCevir(
+    hazirlar.map((h) => h.docxBuffer),
+    slot,
+    (i) => ctx.durum(hazirlar[i].kalem.kod, 'cevrildi')
+  );
+  // Toplu çağrıda çevrilemeyen belge tek tek yeniden denenir
+  for (let i = 0; i < hazirlar.length; i++) {
+    if (pdfler[i]) continue;
+    try {
+      pdfler[i] = await convertDocxToPdf(hazirlar[i].docxBuffer, slot);
+      ctx.durum(hazirlar[i].kalem.kod, 'cevrildi');
+    } catch (err) {
+      ctx.durum(hazirlar[i].kalem.kod, 'hata', err.message);
+    }
+  }
+
+  ctx.faz('kaydediliyor');
+  const kaydedilecek = hazirlar.map((h, i) => ({ h, pdf: pdfler[i] })).filter((x) => x.pdf);
+  for (let i = 0; i < kaydedilecek.length; i += 3) {
+    await Promise.all(
+      kaydedilecek.slice(i, i + 3).map(async ({ h, pdf }) => {
+        try {
+          await belgeKaydet(tescilId, h.kalem, h.ozet, h.docxBuffer, pdf);
+          ctx.durum(h.kalem.kod, 'tamam');
+        } catch (err) {
+          ctx.durum(h.kalem.kod, 'hata', err.message);
+        }
+      })
+    );
+  }
+  return { durum: 'uretildi' };
+}
+
+const calistir = (tescilId) => (kod, slot, secenek) =>
+  kod ? kalemUret(tescilId, kod, slot, secenek) : topluUret(tescilId, slot, secenek);
 
 // Tek yazdırma: iş kuyruğa alınır, hemen döner (ilerleme /yazdir/isler'den izlenir)
 router.post('/:id/yazdir/:kod', async (req, res) => {
@@ -809,6 +947,9 @@ router.post('/:id/yazdir/:kod', async (req, res) => {
     if (!kalem) return res.status(400).json({ message: 'Bilinmeyen şablon kodu' });
     if (!(await Tescil.exists({ _id: req.params.id }))) {
       return res.status(404).json({ message: 'Tescil bulunamadı' });
+    }
+    if (aktifTopluIs(req.params.id)) {
+      return res.status(409).json({ message: 'Toplu yazdırma sürüyor — bitmesini bekleyin.' });
     }
     const isId = isBaslat({
       tescilId: req.params.id,
@@ -833,6 +974,9 @@ router.post('/:id/yazdir-toplu', async (req, res) => {
     }
     const mevcut = aktifTopluIs(req.params.id);
     if (mevcut) return res.status(202).json({ isId: mevcut, mevcut: true });
+    if (tescildeAktifIsVar(req.params.id)) {
+      return res.status(409).json({ message: 'Bu tescilde başka bir yazdırma sürüyor — bitmesini bekleyin.' });
+    }
     const sablonlar = KALEMLER.filter((k) => k.tip === 'sablon');
     const isId = isBaslat({
       tescilId: req.params.id,

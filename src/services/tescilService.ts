@@ -109,14 +109,24 @@ export interface YazdirIs {
   tip: 'tekli' | 'toplu';
   ad: string;
   durum: 'calisiyor' | 'bitti' | 'hatali' | 'iptal';
+  // sirada | hazirlaniyor (Word dosyaları dolduruluyor) | cevriliyor (PDF'e) | kaydediliyor | bitti
+  faz: 'sirada' | 'hazirlaniyor' | 'cevriliyor' | 'kaydediliyor' | 'bitti';
+  // 0-100 genel ilerleme
+  yuzde: number;
   toplam: number;
   tamamlanan: number;
+  wordHazir: number;
+  pdfHazir: number;
+  iptalEdilebilir: boolean;
   uretilen: number;
   atlanan: number;
   hatali: number;
   hatalar: { ad: string; mesaj: string }[];
   calisan: { kod: string; no: number; ad: string }[];
-  kalemler: { kod: string; durum: 'bekliyor' | 'uretiliyor' | 'tamam' | 'guncel' | 'hata' | 'iptal' }[];
+  kalemler: {
+    kod: string;
+    durum: 'bekliyor' | 'uretiliyor' | 'hazir' | 'cevrildi' | 'tamam' | 'guncel' | 'hata' | 'iptal';
+  }[];
   bekleyen: number;
   // Bu iş sırada beklerken önündeki işlem sayısı (yaklaşık)
   onunde: number;

@@ -120,6 +120,25 @@ const gorunenIsler = computed(() =>
   )
 );
 
+// Panelde gösterilen aşama başlığı: Word dolduruluyor → PDF'e çevriliyor → kaydediliyor
+function fazMetni(is: YazdirIs) {
+  const toplu = is.tip === 'toplu';
+  switch (is.faz) {
+    case 'sirada':
+      return 'Sırada';
+    case 'hazirlaniyor':
+      return toplu
+        ? `Yazdırılıyor — Word dosyaları hazırlanıyor (${is.wordHazir}/${is.toplam})`
+        : 'Yazdırılıyor — Word dosyası hazırlanıyor';
+    case 'cevriliyor':
+      return toplu ? `PDF'e çevriliyor — LibreOffice (${is.pdfHazir}/${is.toplam})` : "PDF'e çevriliyor — LibreOffice";
+    case 'kaydediliyor':
+      return 'Kaydediliyor…';
+    default:
+      return '';
+  }
+}
+
 function isiKapat(id: string) {
   kapatilanIsler.value = new Set([...kapatilanIsler.value, id]);
 }
@@ -129,7 +148,7 @@ function kalemDurumu(kod: string): 'uretiliyor' | 'bekliyor' | null {
   let bekliyor = false;
   for (const is of aktifIsler.value) {
     const k = is.kalemler.find((x) => x.kod === kod);
-    if (k?.durum === 'uretiliyor') return 'uretiliyor';
+    if (k && ['uretiliyor', 'hazir', 'cevrildi'].includes(k.durum)) return 'uretiliyor';
     if (k?.durum === 'bekliyor') bekliyor = true;
   }
   return bekliyor ? 'bekliyor' : null;
@@ -137,7 +156,7 @@ function kalemDurumu(kod: string): 'uretiliyor' | 'bekliyor' | null {
 
 async function uret(kalem: YazdirKalemi) {
   // Devam eden bir yazdırma varken (hangi belgeye ait olursa olsun) yeni yazdırma başlatılmaz
-  if (!props.tescilId || aktifIsler.value.length) return;
+  if (!props.tescilId || aktifIsler.value.length || sifirlaniyor.value) return;
   hata.value = '';
   try {
     // Daha önce üretilmişse "Yeniden Yazdır": girdi değişmese de yeniden üretilir
@@ -150,7 +169,7 @@ async function uret(kalem: YazdirKalemi) {
 
 // Tümünü Yazdır: değişmemiş belgeler atlanır, kalanlar kuyrukta üretilir
 async function tumunuYazdir() {
-  if (!props.tescilId || aktifIsler.value.length) return;
+  if (!props.tescilId || aktifIsler.value.length || sifirlaniyor.value) return;
   hata.value = '';
   try {
     await baslatTopluTescilYazdir(props.tescilId);
@@ -311,7 +330,7 @@ async function tumunuIndir() {
             <span class="shrink-0 text-[11px] font-semibold tabular-nums text-ink-muted">
               {{ is.tamamlanan }}/{{ is.toplam }}
             </span>
-            <button v-if="is.durum === 'calisiyor' && is.bekleyen > 0" type="button" @click="isiIptalEt(is)"
+            <button v-if="is.iptalEdilebilir" type="button" @click="isiIptalEt(is)"
               class="shrink-0 bg-surface-900 px-2 py-0.5 text-[10px] font-semibold text-red-300/90 ring-1 ring-red-500/25">
               İptal
             </button>
@@ -321,20 +340,24 @@ async function tumunuIndir() {
             </button>
           </div>
           <div class="h-1.5 w-full overflow-hidden bg-surface-900 ring-1 ring-white/10">
-            <div class="h-full transition-all duration-300"
-              :class="is.hatali ? 'bg-red-400' : is.durum === 'calisiyor' ? 'bg-[#6fcf97]' : 'bg-[#6fcf97]'"
-              :style="{ width: (is.toplam ? Math.round((is.tamamlanan / is.toplam) * 100) : 100) + '%' }" />
+            <div class="h-full bg-[#6fcf97] transition-all duration-300"
+              :class="is.hatali ? '!bg-red-400' : ''"
+              :style="{ width: Math.max(is.durum === 'calisiyor' ? 3 : 0, is.yuzde) + '%' }" />
           </div>
-          <p v-if="is.durum === 'calisiyor'" class="truncate text-[11px] text-ink-muted">
-            <template v-if="is.calisan.length">
-              Üretiliyor: <span class="font-medium text-ink">{{ is.calisan.map((c) => `${c.no}-${c.ad}`).join(', ') }}</span>
-              <template v-if="is.bekleyen"> • {{ is.bekleyen }} sırada</template>
-            </template>
-            <template v-else>
-              Sırada bekliyor<template v-if="is.onunde"> — önünüzde {{ is.onunde }} işlem var</template>
-              <template v-if="is.tip === 'toplu'"> • {{ is.bekleyen }} belge</template>
-            </template>
-          </p>
+          <template v-if="is.durum === 'calisiyor'">
+            <p class="text-[11px] font-semibold text-ink">{{ fazMetni(is) }}</p>
+            <p class="truncate text-[11px] text-ink-muted">
+              <template v-if="is.faz === 'sirada'">
+                Sırada bekliyor<template v-if="is.onunde"> — önünüzde {{ is.onunde }} işlem var</template>
+              </template>
+              <template v-else-if="is.faz === 'hazirlaniyor' && is.calisan.length">
+                Word dosyası: <span class="font-medium text-ink">{{ is.calisan.map((c) => `${c.no}-${c.ad}`).join(', ') }}</span>
+              </template>
+              <template v-else-if="is.tip === 'toplu'">
+                Word: {{ is.wordHazir }}/{{ is.toplam }} • PDF: {{ is.pdfHazir }}/{{ is.toplam }}
+              </template>
+            </p>
+          </template>
           <p v-else class="text-[11px] text-ink-muted">
             <template v-if="is.durum === 'iptal'">İptal edildi — {{ is.uretilen }} belge üretildi.</template>
             <template v-else>
@@ -366,7 +389,7 @@ async function tumunuIndir() {
                 </select>
               </label>
               <div class="flex gap-1.5">
-                <button type="button" @click="tumunuYazdir" :disabled="aktifIsler.length > 0"
+                <button type="button" @click="tumunuYazdir" :disabled="aktifIsler.length > 0 || sifirlaniyor"
                   class="flex flex-1 items-center justify-center gap-1.5 bg-[#2b5c3d] px-3 py-2.5 text-xs font-semibold text-ink ring-1 ring-white/10 active:bg-[#346e4a] disabled:opacity-60">
                   <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                     stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -422,7 +445,7 @@ async function tumunuIndir() {
                   </span>
                   <span v-else-if="kalem.uretilen"
                     class="shrink-0 bg-[#1c2a21] px-1.5 py-0.5 text-[10px] font-semibold text-[#6fcf97] ring-1 ring-white/10">✓</span>
-                  <button type="button" @click="uret(kalem)" :disabled="aktifIsler.length > 0"
+                  <button type="button" @click="uret(kalem)" :disabled="aktifIsler.length > 0 || sifirlaniyor"
                     class="shrink-0 bg-[#2b5c3d] px-2.5 py-1.5 text-[11px] font-semibold text-ink ring-1 ring-white/10 active:bg-[#346e4a] disabled:opacity-60">
                     {{ kalemDurumu(kalem.kod) === 'uretiliyor' ? 'Üretiliyor…' : kalemDurumu(kalem.kod) === 'bekliyor' ? 'Sırada…' : kalem.uretilen ? 'Yeniden Yazdır' : 'Yazdır' }}
                   </button>
