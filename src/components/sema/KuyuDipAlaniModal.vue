@@ -395,7 +395,7 @@ const dipRiskVar = computed(() => kabinAltRiski.value || etekRiski.value || ivRi
 }
 
 .sema-svg {
-  color: #e6ede8;
+  color: var(--color-ink);
 }
 
 .sema-hotspot {
@@ -403,15 +403,15 @@ const dipRiskVar = computed(() => kabinAltRiski.value || etekRiski.value || ivRi
 }
 
 .sema-hotspot:hover text {
-  fill: #6fcf97;
+  fill: var(--sema-vurgu);
 }
 
 .sema-hotspot:hover line {
-  stroke: #6fcf97;
+  stroke: var(--sema-vurgu);
 }
 
 .sema-olcu-cizgi {
-  stroke: #9db3a7;
+  stroke: var(--color-ink-muted);
   stroke-dasharray: 1.5 4.5;
   stroke-linecap: round;
 }
@@ -427,8 +427,8 @@ const dipRiskVar = computed(() => kabinAltRiski.value || etekRiski.value || ivRi
   align-items: center;
   gap: 4px;
   padding: 6px 8px;
-  background: #141e17;
-  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: var(--sema-popup);
+  border: 1px solid var(--sema-kenar);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
   z-index: 5;
 }
@@ -443,9 +443,9 @@ const dipRiskVar = computed(() => kabinAltRiski.value || etekRiski.value || ivRi
   width: 80px;
   padding: 4px 6px;
   font-size: 13px;
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  background: #0d1612;
-  color: #e6ede8;
+  border: 1px solid var(--sema-kenar);
+  background: var(--color-surface-900);
+  color: var(--color-ink);
   -moz-appearance: textfield;
 }
 
@@ -457,6 +457,6 @@ const dipRiskVar = computed(() => kabinAltRiski.value || etekRiski.value || ivRi
 
 .sema-popover__unit {
   font-size: 12px;
-  color: #9db3a7;
+  color: var(--color-ink-muted);
 }
 </style>

@@ -66,7 +66,7 @@ const go = (path: string) => {
           <button type="button" @click="go('/anasayfa')"
             class="flex flex-col items-center justify-end gap-1 pb-2"
             :class="isActive('/anasayfa') ? 'text-ink' : 'text-ink-muted'">
-            <div class="grid h-14 w-14 -translate-y-5 place-items-center rounded-full shadow-lg shadow-black/50 ring-1"
+            <div class="anasayfa-daire grid h-14 w-14 -translate-y-5 place-items-center rounded-full shadow-lg shadow-black/50 ring-1"
               :class="isActive('/anasayfa') ? 'bg-[#1c2f25] ring-white/20' : 'bg-surface-700 ring-white/10'">
               <!-- Anasayfa: ev (büyük ikon) -->
               <svg class="h-7 w-7" viewBox="0 0 24 24" fill="none" stroke="currentColor"

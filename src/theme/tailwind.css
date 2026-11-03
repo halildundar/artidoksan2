@@ -57,6 +57,13 @@
   --color-ink-muted: #9db3a7;   /* ikincil metin */
 }
 
+/* Şema modalları (scoped style) için değişkenler — koyu varsayılan */
+:root {
+  --sema-popup: #141e17;
+  --sema-kenar: rgba(255, 255, 255, 0.15);
+  --sema-vurgu: #6fcf97;
+}
+
 /* ---- Açık tema (Ayarlar'daki anahtar; useTema.ts html'e sınıfı koyar) ----
    Token sınıfları (bg-surface-*, text-ink*) değişken ezmesiyle kendiliğinden
    döner; sabit hex/beyaz-halka sınıflarına burada açık karşılıkları verilir.
@@ -98,3 +105,19 @@ html.acik-tema .border-white\/20 { border-color: rgb(16 42 27 / 0.30); }
 html.acik-tema .border-white\/30 { border-color: rgb(16 42 27 / 0.38); }
 html.acik-tema .active\:border-white\/40:active { border-color: rgb(16 42 27 / 0.48); }
 html.acik-tema .active\:border-white\/60:active { border-color: rgb(16 42 27 / 0.60); }
+
+/* Şema çizimleri + açılır kutular */
+html.acik-tema {
+  --sema-popup: #ffffff;
+  --sema-kenar: rgba(16, 42, 27, 0.25);
+  --sema-vurgu: #1e6b3d;
+}
+/* Saydam hex zeminler ve ince ayırıcılar */
+html.acik-tema .bg-\[\#223c2d\]\/40 { background-color: rgb(255 255 255 / 0.55); }
+html.acik-tema .bg-\[\#141e17\] { background-color: #ffffff; }
+html.acik-tema .divide-white\/5 > :not(:last-child) { border-color: rgb(16 42 27 / 0.10); }
+html.acik-tema .even\:bg-white\/2:nth-child(even) { background-color: rgb(16 42 27 / 0.04); }
+
+/* Sekme çubuğu: Anasayfa yuvarlağı açık temada koyu yeşil, ikon beyaz */
+html.acik-tema .anasayfa-daire { background-color: #2e6242; }
+html.acik-tema .anasayfa-daire svg { color: #ffffff; }

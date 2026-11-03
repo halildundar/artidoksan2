@@ -255,10 +255,10 @@ const altBolumler: Bolum[] = [
   { key: 'kapi', label: 'Kapı', icon: '🚪' },
   { key: 'tamponlar', label: 'Tamponlar', icon: '🔩' },
   { key: 'fren', label: 'Fren', icon: '🛑' },
-  { key: 'hiz-regulatoru', label: 'Hız Regülatörü', icon: '⚙' },
-  { key: 'kontrol-karti', label: 'Kontrol Kartı', icon: '🎛' },
+  { key: 'hiz-regulatoru', label: 'Hız Regülatörü', icon: '⚙️' },
+  { key: 'kontrol-karti', label: 'Kontrol Kartı', icon: '🎛️' },
   { key: 'motor', label: 'Motor', icon: '⚡' },
-  { key: 'ucm-acop', label: 'UCM/ACOP', icon: '🛡' },
+  { key: 'ucm-acop', label: 'UCM/ACOP', icon: '🛡️' },
 ];
 
 const aktifAltBolum = ref<Bolum | null>(null);
@@ -751,7 +751,7 @@ const bolumler = computed<Bolum[]>(() => [
   { key: 'kuyu-dip-alani', label: 'Kuyu Dip Alanı', icon: '' },
   { key: 'ray-olculeri', label: 'Ray Ölçüleri', icon: '📏' },
   { key: 'kuyu-ust-alani', label: 'Kuyu Üst Alanı', icon: '🔝' },
-  { key: 'agirlik-hesabi', label: 'Ağırlık Hesabı', icon: '⚖' },
+  { key: 'agirlik-hesabi', label: 'Ağırlık Hesabı', icon: '⚖️' },
   { key: 'halat-kasnaklar', label: 'Halat ve Kasnaklar', icon: '🔗' },
   // Kurum Evrakları menüden çıkarıldı (kullanıcı isteği) — veri ve modal
   // kodu duruyor, yazdırma/raporlar kurumEvraklari alanını kullanmaya devam eder
@@ -1732,6 +1732,22 @@ const onBilgi = computed(() => {
                   <text x="14" y="11" text-anchor="middle" font-size="6" font-weight="bold" fill="#fff">BOTTOM</text>
                   <line x1="14" y1="14" x2="14" y2="20" stroke="#fff" stroke-width="2.6" />
                   <path d="M 9.5 19 L 18.5 19 L 14 25.5 Z" fill="#fff" />
+                </svg>
+                <!-- Kuyu Üst Alanı: yukarı oklu mavi TOP rozeti (emoji yerine SVG —
+                cihaz fontuna göre görünüm değişmesin) -->
+                <svg v-else-if="bolum.key === 'kuyu-ust-alani'" width="26" height="26" viewBox="0 0 28 28">
+                  <rect x="1.5" y="1.5" width="25" height="25" fill="#1c7ed6" stroke="#000" stroke-width="1.5" />
+                  <path d="M 9.5 9 L 18.5 9 L 14 2.5 Z" fill="#fff" />
+                  <line x1="14" y1="9" x2="14" y2="15" stroke="#fff" stroke-width="2.6" />
+                  <text x="14" y="23" text-anchor="middle" font-size="7" font-weight="bold" fill="#fff">TOP</text>
+                </svg>
+                <!-- Ağırlık Hesabı: ağırlık (kantar) ikonu -->
+                <svg v-else-if="bolum.key === 'agirlik-hesabi'" width="26" height="26" viewBox="0 0 24 24"
+                  fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                  stroke-linejoin="round" class="text-ink">
+                  <circle cx="12" cy="5" r="2.5" />
+                  <path d="M7 9h10l3.5 11h-17z" />
+                  <path d="M10 14h4" />
                 </svg>
                 <template v-else>{{ bolum.icon }}</template>
               </span>

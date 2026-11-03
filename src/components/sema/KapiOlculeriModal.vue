@@ -481,7 +481,7 @@ function fotoSil(g: KapiOlcum, i: number) {
 }
 
 .sema-svg {
-  color: #e6ede8;
+  color: var(--color-ink);
 }
 
 .sema-hotspot {
@@ -489,11 +489,11 @@ function fotoSil(g: KapiOlcum, i: number) {
 }
 
 .sema-hotspot:hover text {
-  fill: #6fcf97;
+  fill: var(--sema-vurgu);
 }
 
 .sema-hotspot:hover line {
-  stroke: #6fcf97;
+  stroke: var(--sema-vurgu);
 }
 
 .sema-popover {
@@ -502,8 +502,8 @@ function fotoSil(g: KapiOlcum, i: number) {
   align-items: center;
   gap: 4px;
   padding: 6px 8px;
-  background: #141e17;
-  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: var(--sema-popup);
+  border: 1px solid var(--sema-kenar);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
   z-index: 5;
 }
@@ -512,9 +512,9 @@ function fotoSil(g: KapiOlcum, i: number) {
   width: 70px;
   padding: 4px 6px;
   font-size: 13px;
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  background: #0d1612;
-  color: #e6ede8;
+  border: 1px solid var(--sema-kenar);
+  background: var(--color-surface-900);
+  color: var(--color-ink);
   -moz-appearance: textfield;
 }
 
@@ -526,6 +526,6 @@ function fotoSil(g: KapiOlcum, i: number) {
 
 .sema-popover__unit {
   font-size: 12px;
-  color: #9db3a7;
+  color: var(--color-ink-muted);
 }
 </style>
