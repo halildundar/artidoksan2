@@ -601,22 +601,24 @@ async function dosyaAc(slot: BelgeSlot) {
             </div>
           </section>
 
-          <!-- Tarihler: değişiklik anında kaydedilir -->
+          <!-- Yazdırma bilgileri: şablonlarda kullanılan kalıcı değerler ve
+            tescil tarihleri; değişiklik anında kaydedilir -->
           <section class="space-y-2 bg-surface-800 p-3 ring-1 ring-white/5">
-            <h2 class="text-xs font-bold uppercase tracking-wide text-ink">Tarihler</h2>
-            <label class="block space-y-0.5">
-              <span class="text-xs font-medium text-ink-muted">Belediye Adı</span>
-              <input :value="tescil.belediyeAdi ?? ''" type="text" placeholder="Belediye adı girin"
-                @change="metinKaydet('belediyeAdi', $event)"
-                class="w-full bg-surface-900 px-2.5 py-1.5 text-xs text-ink ring-1 ring-white/10 outline-none placeholder:text-ink-muted/50 focus:ring-white/30" />
-            </label>
+            <h2 class="text-xs font-bold uppercase tracking-wide text-ink">Yazdırma Bilgileri</h2>
+            <div class="grid grid-cols-2 gap-1.5">
+              <label class="block space-y-0.5">
+                <span class="text-xs font-medium text-ink-muted">Belediye Adı</span>
+                <input :value="tescil.belediyeAdi ?? ''" type="text" placeholder="Belediye adı girin"
+                  @change="metinKaydet('belediyeAdi', $event)"
+                  class="w-full bg-surface-900 px-2.5 py-1.5 text-xs text-ink ring-1 ring-white/10 outline-none placeholder:text-ink-muted/50 focus:ring-white/30" />
+              </label>
             <label class="block space-y-0.5">
               <span class="text-xs font-medium text-ink-muted">Dilekçe Tarihi</span>
               <input :value="tarihInput(tescil.dilekceTarihi)" type="date"
                 @change="tarihKaydet('dilekceTarihi', $event)"
                 class="w-full bg-surface-900 px-2.5 py-1.5 text-xs text-ink ring-1 ring-white/10 outline-none focus:ring-white/30" />
             </label>
-            <label class="block space-y-0.5">
+              <label class="block space-y-0.5">
               <span class="text-xs font-medium text-ink-muted">AB Uygunluk Beyanı Tarihi</span>
               <input :value="tarihInput(tescil.abUygunlukBeyaniTarihi)" type="date"
                 @change="tarihKaydet('abUygunlukBeyaniTarihi', $event)"
@@ -628,38 +630,31 @@ async function dosyaAc(slot: BelgeSlot) {
                 @change="tarihKaydet('sonKontrolTarihi', $event)"
                 class="w-full bg-surface-900 px-2.5 py-1.5 text-xs text-ink ring-1 ring-white/10 outline-none focus:ring-white/30" />
             </label>
-          </section>
-
-          <!-- Yazdırma bilgileri: şablonlarda kullanılan kalıcı değerler
-            (kullanıcı kararı: yazdırma öncesi popup yerine burada tutulur) -->
-          <section class="space-y-2 bg-surface-800 p-3 ring-1 ring-white/5">
-            <h2 class="text-xs font-bold uppercase tracking-wide text-ink">Yazdırma Bilgileri</h2>
             <label class="block space-y-0.5">
               <span class="text-xs font-medium text-ink-muted">Garanti Tarihi</span>
               <input :value="tarihInput(tescil.garantiTarihi)" type="date"
                 @change="tarihKaydet('garantiTarihi', $event)"
                 class="w-full bg-surface-900 px-2.5 py-1.5 text-xs text-ink ring-1 ring-white/10 outline-none focus:ring-white/30" />
             </label>
-            <div class="grid grid-cols-2 gap-1.5">
-              <label class="block space-y-0.5">
-                <span class="text-xs font-medium text-ink-muted">Fatura No</span>
-                <input :value="tescil.faturaNo ?? ''" type="text" placeholder="Fatura no"
-                  @change="metinKaydet('faturaNo', $event)"
-                  class="w-full bg-surface-900 px-2.5 py-1.5 text-xs text-ink ring-1 ring-white/10 outline-none placeholder:text-ink-muted/50 focus:ring-white/30" />
-              </label>
-              <label class="block space-y-0.5">
-                <span class="text-xs font-medium text-ink-muted">Fatura Tarihi</span>
-                <input :value="tarihInput(tescil.faturaTarihi)" type="date"
-                  @change="tarihKaydet('faturaTarihi', $event)"
-                  class="w-full bg-surface-900 px-2.5 py-1.5 text-xs text-ink ring-1 ring-white/10 outline-none focus:ring-white/30" />
-              </label>
-            </div>
             <label class="block space-y-0.5">
               <span class="text-xs font-medium text-ink-muted">Proje Hizmet Sözleşme Tarihi</span>
               <input :value="tarihInput(tescil.projeHizmetSozlesmeTarihi)" type="date"
                 @change="tarihKaydet('projeHizmetSozlesmeTarihi', $event)"
                 class="w-full bg-surface-900 px-2.5 py-1.5 text-xs text-ink ring-1 ring-white/10 outline-none focus:ring-white/30" />
             </label>
+              <label class="block space-y-0.5">
+                <span class="text-xs font-medium text-ink-muted">Fatura No</span>
+                <input :value="tescil.faturaNo ?? ''" type="text" placeholder="Fatura no"
+                  @change="metinKaydet('faturaNo', $event)"
+                  class="w-full bg-surface-900 px-2.5 py-1.5 text-xs text-ink ring-1 ring-white/10 outline-none placeholder:text-ink-muted/50 focus:ring-white/30" />
+              </label>
+            <label class="block space-y-0.5">
+              <span class="text-xs font-medium text-ink-muted">Fatura Tarihi</span>
+              <input :value="tarihInput(tescil.faturaTarihi)" type="date"
+                @change="tarihKaydet('faturaTarihi', $event)"
+                class="w-full bg-surface-900 px-2.5 py-1.5 text-xs text-ink ring-1 ring-white/10 outline-none focus:ring-white/30" />
+            </label>
+            </div>
           </section>
         </template>
       </div>

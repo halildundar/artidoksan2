@@ -121,3 +121,6 @@ html.acik-tema .even\:bg-white\/2:nth-child(even) { background-color: rgb(16 42 
 /* Sekme çubuğu: Anasayfa yuvarlağı açık temada koyu yeşil, ikon beyaz */
 html.acik-tema .anasayfa-daire { background-color: #2e6242; }
 html.acik-tema .anasayfa-daire svg { color: #ffffff; }
+
+/* Uyarı rozeti (Yazdır: "Güncel değil") açık zeminde koyu amber */
+html.acik-tema .text-amber-300 { color: #92400e; }

@@ -47,6 +47,8 @@ const tescilSchema = new mongoose.Schema(
             docx: { type: dosyaSlotSchema, default: null },
             pdf: { type: dosyaSlotSchema, default: null },
             uretimTarihi: { type: Date, default: null },
+            // Üretimde kullanılan girdilerin parmak izi (yazdir.js; değişmemişse yeniden çevrilmez)
+            kaynakOzeti: { type: String, default: '' },
           },
           { _id: false }
         ),

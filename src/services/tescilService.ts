@@ -44,6 +44,8 @@ export interface YazdirKalemi {
   tip: 'dosya' | 'sablon' | 'ce' | 'aksam';
   dosyalar?: BelgeSlot[];
   uretilen?: UretilenBelge | null;
+  // Üretilmiş belgenin girdileri (veri/şablon) sonradan değişti
+  eskimis?: boolean;
   altBilgi?: string;
 }
 
@@ -101,7 +103,56 @@ export function getTescilYazdir(id: string): Promise<YazdirListesi> {
   return request<YazdirListesi>(`/tesciller/${id}/yazdir`);
 }
 
-// Şablondan DOCX+PDF üretir (yeniden üretim üzerine yazar)
-export function uretTescilBelgesi(id: string, sablonKodu: string): Promise<UretilenBelge> {
-  return request<UretilenBelge>(`/tesciller/${id}/yazdir/${sablonKodu}`, { method: 'POST' });
+// ---- Yazdırma işleri: sunucuda kuyruğa alınır, ilerleme sorgulanır ----
+export interface YazdirIs {
+  id: string;
+  tip: 'tekli' | 'toplu';
+  ad: string;
+  durum: 'calisiyor' | 'bitti' | 'hatali' | 'iptal';
+  toplam: number;
+  tamamlanan: number;
+  uretilen: number;
+  atlanan: number;
+  hatali: number;
+  hatalar: { ad: string; mesaj: string }[];
+  calisan: { kod: string; no: number; ad: string }[];
+  kalemler: { kod: string; durum: 'bekliyor' | 'uretiliyor' | 'tamam' | 'guncel' | 'hata' | 'iptal' }[];
+  bekleyen: number;
+  // Bu iş sırada beklerken önündeki işlem sayısı (yaklaşık)
+  onunde: number;
+  olusturma: number;
+  bitis: number | null;
+  bitisSonra: number | null;
+}
+
+export interface YazdirIsleri {
+  isler: YazdirIs[];
+  genelBekleyen: number;
+  paralel: number;
+}
+
+// Tek şablon belgesini kuyruğa alır (zorla: girdi değişmese de yeniden üretir)
+export function baslatTescilYazdir(id: string, sablonKodu: string, zorla = false): Promise<{ isId: string }> {
+  return request<{ isId: string }>(`/tesciller/${id}/yazdir/${sablonKodu}`, {
+    method: 'POST',
+    body: JSON.stringify({ zorla }),
+  });
+}
+
+// Tüm şablon belgelerini kuyruğa alır; güncel olanlar atlanır
+export function baslatTopluTescilYazdir(id: string): Promise<{ isId: string; mevcut: boolean }> {
+  return request<{ isId: string; mevcut: boolean }>(`/tesciller/${id}/yazdir-toplu`, { method: 'POST' });
+}
+
+export function getTescilYazdirIsleri(id: string): Promise<YazdirIsleri> {
+  return request<YazdirIsleri>(`/tesciller/${id}/yazdir/isler`);
+}
+
+export function iptalTescilYazdirIsi(id: string, isId: string): Promise<{ iptal: boolean }> {
+  return request<{ iptal: boolean }>(`/tesciller/${id}/yazdir/isler/${isId}`, { method: 'DELETE' });
+}
+
+// Üretilmiş tüm DOCX/PDF çıktılarını kayıttan ve depodan siler
+export function sifirlaTescilYazdir(id: string): Promise<{ silinen: number; depodanSilinen: number }> {
+  return request<{ silinen: number; depodanSilinen: number }>(`/tesciller/${id}/yazdir`, { method: 'DELETE' });
 }

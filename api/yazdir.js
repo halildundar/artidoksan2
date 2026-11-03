@@ -2,8 +2,9 @@ import express from 'express';
 import mongoose from 'mongoose';
 import fs from 'node:fs/promises';
 import os from 'node:os';
+import { createHash } from 'node:crypto';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import PizZip from 'pizzip';
@@ -12,8 +13,9 @@ import ImageModule from 'docxtemplater-image-module-free';
 import { imageSize } from 'image-size';
 import { Tescil } from './tescil.js';
 import { AksamBelgesi } from './katalog.js';
-import { buildObjectKey, putObject, getObjectBuffer } from './storage.js';
+import { buildObjectKey, putObject, getObjectBuffer, deleteObject } from './storage.js';
 import { sablonGorselYerlesimHazirla, sablonGorselDondur } from './gorselYerlesim.js';
+import { isBaslat, aktifTopluIs, tescildeAktifIsVar, isIptal, tescilIsleri } from './yazdirKuyruk.js';
 
 // Tescil dosyası yazdırma servisi — artidoksan1 YEDEK/apps/server/src/belgeler
 // altyapısının bu projeye portu. templates/<set>/ içindeki DOCX şablonları
@@ -189,13 +191,30 @@ async function katalogHaritasi(asansor) {
 // ---- Şablon verisi: tüm şablonların token birleşimi tek objede üretilir.
 // docxtemplater nullGetter '' döndürdüğünden fazladan anahtar sorun olmaz,
 // eksik anahtar da "undefined" basmaz. ----
+// CE belgesinde kurum yalnız unvan olarak tutulur; NoBo no ve adres
+// onaylikurumlar koleksiyonundan unvana göre bulunur (boşluk/büyük-küçük harf
+// ve Türkçe i/İ farkı yok sayılır)
+const kurumAnahtari = (u) => String(u ?? '').trim().toLocaleLowerCase('tr').replace(/\s+/g, ' ');
+
+async function onayliKurumBul(unvan) {
+  const anahtar = kurumAnahtari(unvan);
+  if (!anahtar) return null;
+  const kurumlar = await mongoose.connection.db
+    .collection('onaylikurumlar')
+    .find({}, { projection: { nobo: 1, unvan: 1, adres: 1 } })
+    .toArray();
+  return kurumlar.find((k) => kurumAnahtari(k.unvan) === anahtar) ?? null;
+}
+
 async function sablonVerisi({ tescil, firma, asansor }) {
   const kapasiteKg = asansor?.beyanYuku != null && asansor?.beyanYuku !== '' ? `${asansor.beyanYuku}` : '';
   const celer = secilenCeler(tescil, firma);
   // Ana CE: asansörün kendi modülü (B dışındaki ilk seçim; yoksa ilk seçim)
   const anaCe = celer.find((ce) => ceModulKodu(ce.modul) !== 'B') ?? celer[0] ?? null;
   const bCe = celer.find((ce) => ceModulKodu(ce.modul) === 'B') ?? null;
+  const abTarih = tescil.abUygunlukBeyaniTarihi || asansor?.abUygunlukBeyaniTarihi || null;
   const anaModul = anaCe ? ceModulKodu(anaCe.modul) : '';
+  const [anaKurum, bKurum] = await Promise.all([onayliKurumBul(anaCe?.kurum), onayliKurumBul(bCe?.kurum)]);
   const modulMetin = MODUL_METIN[anaModul] ?? { annex: '', name: '', nameEn: '' };
 
   const hizReg = aksamGrubu(asansor, ['hiz_regulatoru']);
@@ -256,7 +275,8 @@ async function sablonVerisi({ tescil, firma, asansor }) {
     kapasite: kapasiteKg,
     hiz: bos(asansor?.hiz),
     sinif: asansor?.sinif ? SINIF_ETIKET[asansor.sinif] ?? asansor.sinif : '',
-    tahrik_tip: asansor?.tahrikTipi ? TAHRIK_ETIKET[asansor.tahrikTipi] ?? asansor.tahrikTipi : '',
+    // Tahrik/asansör tipi girilmemişse (varsayılan) Elektrikli basılır
+    tahrik_tip: asansor?.tahrikTipi ? TAHRIK_ETIKET[asansor.tahrikTipi] ?? asansor.tahrikTipi : 'Elektrikli',
     aski_oran: bos(asansor?.askiTipi),
     seyir_mesafesi: bos(asansor?.seyirMesafesi),
     mak_dairesi: asansor?.makinaKonumu
@@ -305,24 +325,25 @@ async function sablonVerisi({ tescil, firma, asansor }) {
     // Tescil tarihleri / alanları
     belediye: bos(tescil.belediyeAdi),
     basv_tarih: tarihStr(tescil.dilekceTarihi),
-    ab_uyg_tarih: tarihStr(tescil.abUygunlukBeyaniTarihi),
-    ab_uyg_tarih_1yil: birYilSonraBirGunOnce(tescil.abUygunlukBeyaniTarihi),
+    // AB beyan tarihi tescilde yoksa asansör kaydındakine düşülür
+    ab_uyg_tarih: tarihStr(abTarih),
+    ab_uyg_tarih_1yil: birYilSonraBirGunOnce(abTarih),
     son_kon_tarih: tarihStr(tescil.sonKontrolTarihi),
     garanti_tarih: tarihStr(tescil.garantiTarihi),
     fatura_no: bos(tescil.faturaNo),
     fatura_tarih: tarihStr(tescil.faturaTarihi),
     pro_hizmet_soz_tarih: tarihStr(tescil.projeHizmetSozlesmeTarihi),
-    // CE (ana belge + varsa Modül B referansı; NoBo no/adres CE kaydında
-    // tutulmadığından boş kalır)
+    // CE (ana belge + varsa Modül B referansı); NoBo no/adres onaylı kurum
+    // kaydından gelir
     ce_belge_no: bos(anaCe?.belgeNo),
     ce_kurum: bos(anaCe?.kurum),
     ce_tarih: tarihStr(anaCe?.gecerlilikTarihi),
-    ce_nobo: '',
-    ce_adres: '',
+    ce_nobo: bos(anaKurum?.nobo),
+    ce_adres: bos(anaKurum?.adres),
     ce_belge_no_b: bos(bCe?.belgeNo),
     ce_kurum_b: bos(bCe?.kurum),
-    ce_nobo_b: '',
-    ce_adres_b: '',
+    ce_nobo_b: bos(bKurum?.nobo),
+    ce_adres_b: bos(bKurum?.adres),
     mod_ul: anaModul,
     modul_annex: modulMetin.annex,
     modul_name: modulMetin.name,
@@ -339,14 +360,21 @@ function abBeyaniSablonu(tescil, firma) {
 }
 
 // ---- DOCX doldurma + PDF çevirme ----
-async function convertDocxToPdf(docxBuffer) {
+async function convertDocxToPdf(docxBuffer, slot = 0) {
   const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'yazdir-'));
   const docxPath = path.join(tmpDir, 'belge.docx');
+  // Her kuyruk slotunun KENDİ kalıcı LibreOffice profili vardır: slotlar
+  // birbirini kilitlemez, ilk çevirmeden sonra profil ısınır (başlangıç hızlanır)
+  const profilUrl = pathToFileURL(path.join(os.tmpdir(), `yazdir-lo-profil-${slot}`)).href;
   try {
     await fs.writeFile(docxPath, docxBuffer);
     await execFileAsync(
       LIBREOFFICE_PATH,
-      ['--headless', '--convert-to', 'pdf', '--outdir', tmpDir, docxPath],
+      [
+        `-env:UserInstallation=${profilUrl}`,
+        '--headless', '--norestore', '--nolockcheck', '--nofirststartwizard', '--nodefault', '--nologo',
+        '--convert-to', 'pdf', '--outdir', tmpDir, docxPath,
+      ],
       { timeout: 120_000 }
     );
     return await fs.readFile(path.join(tmpDir, 'belge.pdf'));
@@ -589,6 +617,39 @@ async function sablonDoldur(sablonYolu, veri, firma) {
   return renderZip.generate({ type: 'nodebuffer', compression: 'DEFLATE' });
 }
 
+// ---- Kaynak özeti: belgeyi üreten girdilerin (şablon dosyası + doldurulan
+// veri + logo/imza görselleri) parmak izi. Aynıysa belge yeniden çevrilmez;
+// URETIM_SURUMU üretim mantığı değişince artırılır ve eski çıktıları geçersiz kılar ----
+const URETIM_SURUMU = 1;
+const sablonHashOnbellek = new Map();
+
+async function sablonHash(yol) {
+  const st = await fs.stat(yol);
+  const anahtar = `${yol}|${st.mtimeMs}|${st.size}`;
+  let h = sablonHashOnbellek.get(anahtar);
+  if (!h) {
+    h = createHash('sha1').update(await fs.readFile(yol)).digest('hex');
+    sablonHashOnbellek.set(anahtar, h);
+  }
+  return h;
+}
+
+function sablonYolu(tescil, firma, kalem) {
+  const set = tescil.sablonSeti || 'tescil-temp1';
+  return path.join(TEMPLATES_DIR, set, kalem.dosya ?? abBeyaniSablonu(tescil, firma));
+}
+
+async function kaynakOzeti(yol, veri, firma) {
+  const girdi = JSON.stringify([
+    URETIM_SURUMU,
+    await sablonHash(yol),
+    Object.entries(veri).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)),
+    firma?.belgeler?.logo?.dosyaAnahtari ?? '',
+    firma?.belgeler?.imzaKase?.dosyaAnahtari ?? '',
+  ]);
+  return createHash('sha1').update(girdi).digest('hex');
+}
+
 function slotOlustur(key, dosyaAdi, mimeType, boyut) {
   return { dosyaAdi, dosyaAnahtari: key, mimeType, boyut, yuklenmeTarihi: new Date() };
 }
@@ -616,6 +677,16 @@ async function kalemListesi(baglam) {
   const katalog = await katalogHaritasi(asansor);
   const celer = secilenCeler(tescil, firma);
   const uretilenler = new Map((tescil.uretilenBelgeler ?? []).map((u) => [u.sablonKodu, u]));
+  // Üretilmiş belgenin girdileri değişmişse "güncel değil" işaretlenir
+  const ozetler = new Map();
+  try {
+    const veri = await sablonVerisi(baglam);
+    for (const kalem of KALEMLER.filter((k) => k.tip === 'sablon' && uretilenler.has(k.kod))) {
+      ozetler.set(kalem.kod, await kaynakOzeti(sablonYolu(tescil, firma, kalem), veri, firma));
+    }
+  } catch {
+    /* özet hesaplanamazsa güncellik bilgisi verilmez */
+  }
 
   return KALEMLER.map((kalem) => {
     const satir = { no: kalem.no, kod: kalem.kod, ad: kalem.ad, tip: kalem.tip };
@@ -624,6 +695,7 @@ async function kalemListesi(baglam) {
       satir.uretilen = u
         ? { docx: u.docx, pdf: u.pdf, uretimTarihi: u.uretimTarihi }
         : null;
+      satir.eskimis = !!u && ozetler.has(kalem.kod) && u.kaynakOzeti !== ozetler.get(kalem.kod);
     } else if (kalem.tip === 'ce') {
       const ce = celer[kalem.sira];
       if (ce) {
@@ -674,51 +746,145 @@ router.get('/:id/yazdir', async (req, res) => {
   }
 });
 
+// Tek bir şablon belgesini üretir (kuyruk görevi). Girdiler değişmediyse ve
+// zorla istenmediyse mevcut çıktı korunur, çevirme yapılmaz.
+async function kalemUret(tescilId, kod, slot, { zorla }) {
+  const kalem = KALEMLER.find((k) => k.kod === kod && k.tip === 'sablon');
+  if (!kalem) throw new Error('Bilinmeyen şablon kodu');
+  const baglam = await tescilYukle(tescilId);
+  if (!baglam) throw new Error('Tescil bulunamadı');
+  const { tescil, firma } = baglam;
+
+  const yol = sablonYolu(tescil, firma, kalem);
+  await fs.access(yol).catch(() => {
+    throw new Error(`Şablon dosyası bulunamadı: ${path.relative(TEMPLATES_DIR, yol)}`);
+  });
+
+  const veri = await sablonVerisi(baglam);
+  const ozet = await kaynakOzeti(yol, veri, firma);
+  const mevcut = (tescil.uretilenBelgeler ?? []).find((u) => u.sablonKodu === kod);
+  if (!zorla && mevcut?.kaynakOzeti === ozet && mevcut.docx?.dosyaAnahtari && mevcut.pdf?.dosyaAnahtari) {
+    return { durum: 'guncel' };
+  }
+
+  const docxMime = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+  const docxBuffer = await sablonDoldur(yol, veri, firma);
+  const pdfBuffer = await convertDocxToPdf(docxBuffer, slot);
+
+  const taban = `${String(kalem.no).padStart(2, '0')}-${kalem.ad}`;
+  const docxKey = buildObjectKey('tesciller', `${taban}.docx`);
+  const pdfKey = buildObjectKey('tesciller', `${taban}.pdf`);
+  await Promise.all([
+    putObject(docxKey, docxBuffer, docxMime),
+    putObject(pdfKey, pdfBuffer, 'application/pdf'),
+  ]);
+
+  const kayit = {
+    sablonKodu: kalem.kod,
+    sablonAdi: kalem.ad,
+    docx: slotOlustur(docxKey, `${taban}.docx`, docxMime, docxBuffer.length),
+    pdf: slotOlustur(pdfKey, `${taban}.pdf`, 'application/pdf', pdfBuffer.length),
+    uretimTarihi: new Date(),
+    kaynakOzeti: ozet,
+  };
+  // Atomik: eski kaydı çıkarırken okunan hali al (silinecek anahtarlar tam
+  // olarak çıkarılandır, yetim dosya kalmaz), sonra yenisini ekle
+  const onceki = await Tescil.findOneAndUpdate(
+    { _id: tescilId },
+    { $pull: { uretilenBelgeler: { sablonKodu: kalem.kod } } },
+    { returnDocument: 'before', projection: { uretilenBelgeler: 1 } }
+  ).lean();
+  await Tescil.updateOne({ _id: tescilId }, { $push: { uretilenBelgeler: kayit } });
+  const eski = (onceki?.uretilenBelgeler ?? []).find((u) => u.sablonKodu === kalem.kod);
+  await anahtarlariSil([eski?.docx?.dosyaAnahtari, eski?.pdf?.dosyaAnahtari]);
+  return { durum: 'uretildi' };
+}
+
+const calistir = (tescilId) => (kod, slot, secenek) => kalemUret(tescilId, kod, slot, secenek);
+
+// Tek yazdırma: iş kuyruğa alınır, hemen döner (ilerleme /yazdir/isler'den izlenir)
 router.post('/:id/yazdir/:kod', async (req, res) => {
   try {
     const kalem = KALEMLER.find((k) => k.kod === req.params.kod && k.tip === 'sablon');
     if (!kalem) return res.status(400).json({ message: 'Bilinmeyen şablon kodu' });
-    const baglam = await tescilYukle(req.params.id);
-    if (!baglam) return res.status(404).json({ message: 'Tescil bulunamadı' });
-    const { tescil, firma } = baglam;
-
-    const set = tescil.sablonSeti || 'tescil-temp1';
-    const dosyaAdi = kalem.dosya ?? abBeyaniSablonu(tescil, firma);
-    const sablonYolu = path.join(TEMPLATES_DIR, set, dosyaAdi);
-    await fs.access(sablonYolu).catch(() => {
-      const hata = new Error(`Şablon dosyası bulunamadı: ${set}/${dosyaAdi}`);
-      hata.status = 500;
-      throw hata;
+    if (!(await Tescil.exists({ _id: req.params.id }))) {
+      return res.status(404).json({ message: 'Tescil bulunamadı' });
+    }
+    const isId = isBaslat({
+      tescilId: req.params.id,
+      tip: 'tekli',
+      ad: `${kalem.no}-${kalem.ad}`,
+      kalemler: [{ kod: kalem.kod, no: kalem.no, ad: kalem.ad }],
+      zorla: req.body?.zorla === true,
+      calistir: calistir(req.params.id),
     });
+    res.status(202).json({ isId });
+  } catch (err) {
+    res.status(err.status ?? 500).json({ message: err.message });
+  }
+});
 
-    const veri = await sablonVerisi(baglam);
-    const docxBuffer = await sablonDoldur(sablonYolu, veri, firma);
-    const pdfBuffer = await convertDocxToPdf(docxBuffer);
+// Toplu yazdırma: tüm şablon belgeleri; güncel olanlar atlanır. Tescilde
+// zaten çalışan bir toplu iş varsa yenisi açılmaz, ona bağlanılır.
+router.post('/:id/yazdir-toplu', async (req, res) => {
+  try {
+    if (!(await Tescil.exists({ _id: req.params.id }))) {
+      return res.status(404).json({ message: 'Tescil bulunamadı' });
+    }
+    const mevcut = aktifTopluIs(req.params.id);
+    if (mevcut) return res.status(202).json({ isId: mevcut, mevcut: true });
+    const sablonlar = KALEMLER.filter((k) => k.tip === 'sablon');
+    const isId = isBaslat({
+      tescilId: req.params.id,
+      tip: 'toplu',
+      ad: 'Tümünü Yazdır',
+      kalemler: sablonlar.map(({ kod, no, ad }) => ({ kod, no, ad })),
+      zorla: false,
+      calistir: calistir(req.params.id),
+    });
+    res.status(202).json({ isId, mevcut: false });
+  } catch (err) {
+    res.status(err.status ?? 500).json({ message: err.message });
+  }
+});
 
-    const taban = `${String(kalem.no).padStart(2, '0')}-${kalem.ad}`;
-    const docxKey = buildObjectKey('tesciller', `${taban}.docx`);
-    const pdfKey = buildObjectKey('tesciller', `${taban}.pdf`);
-    await Promise.all([
-      putObject(docxKey, docxBuffer, 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'),
-      putObject(pdfKey, pdfBuffer, 'application/pdf'),
-    ]);
+router.get('/:id/yazdir/isler', (req, res) => {
+  res.json(tescilIsleri(req.params.id));
+});
 
-    const kayit = {
-      sablonKodu: kalem.kod,
-      sablonAdi: kalem.ad,
-      docx: slotOlustur(docxKey, `${taban}.docx`,
-        'application/vnd.openxmlformats-officedocument.wordprocessingml.document', docxBuffer.length),
-      pdf: slotOlustur(pdfKey, `${taban}.pdf`, 'application/pdf', pdfBuffer.length),
-      uretimTarihi: new Date(),
-    };
-    // Atomik güncelleme — eşzamanlı üretimlerde (Tümünü Yazdır, iki cihaz)
-    // doc.save() sürüm çakışması verir, $pull+$push vermez
-    await Tescil.updateOne(
-      { _id: tescil._id },
-      { $pull: { uretilenBelgeler: { sablonKodu: kalem.kod } } }
+router.delete('/:id/yazdir/isler/:isId', (req, res) => {
+  const iptal = isIptal(req.params.id, req.params.isId);
+  res.status(iptal ? 200 : 404).json({ iptal });
+});
+
+// R2 silme hatası kullanıcı akışını bozmasın: en iyi çaba, kaç tanesi silindi döner
+async function anahtarlariSil(anahtarlar) {
+  let silinen = 0;
+  for (const a of anahtarlar.filter(Boolean)) {
+    try {
+      await deleteObject(a);
+      silinen += 1;
+    } catch (err) {
+      console.error('R2 silme hatası:', a, err.message);
+    }
+  }
+  return silinen;
+}
+
+// Sıfırla: üretilmiş tüm DOCX/PDF çıktılarını depodan ve kayıttan kaldırır
+router.delete('/:id/yazdir', async (req, res) => {
+  try {
+    if (tescildeAktifIsVar(req.params.id)) {
+      return res.status(409).json({ message: 'Devam eden yazdırma var — bitmesini bekleyin veya iptal edin.' });
+    }
+    const tescil = await Tescil.findById(req.params.id).lean();
+    if (!tescil) return res.status(404).json({ message: 'Tescil bulunamadı' });
+    const liste = tescil.uretilenBelgeler ?? [];
+    await Tescil.updateOne({ _id: tescil._id }, { $set: { uretilenBelgeler: [] } });
+    const silinen = await anahtarlariSil(
+      liste.flatMap((u) => [u.docx?.dosyaAnahtari, u.pdf?.dosyaAnahtari])
     );
-    await Tescil.updateOne({ _id: tescil._id }, { $push: { uretilenBelgeler: kayit } });
-    res.json(kayit);
+    res.json({ silinen: liste.length, depodanSilinen: silinen });
   } catch (err) {
     res.status(err.status ?? 500).json({ message: err.message });
   }

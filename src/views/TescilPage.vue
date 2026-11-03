@@ -54,14 +54,13 @@ function detayAc(t: Tescil) {
   router.push(`/tescil/${t._id}`);
 }
 
-// ---- Yeni tescil popup'ı (tam sayfa): firma + asansör + AB uygunluk /
-// son kontrol tarihleri (ayrı tescil tarihi yok) ----
+// ---- Yeni tescil popup'ı (tam sayfa): yalnız firma + asansör; tarihler
+// tescil detayındaki Yazdırma Bilgileri'nden girilir ----
 const ekleAcik = ref(false);
 const kaydediliyor = ref(false);
 const form = ref<{
   firmaId: string | null; asansorId: string | null;
-  abUygunlukBeyaniTarihi: string; sonKontrolTarihi: string;
-}>({ firmaId: null, asansorId: null, abUygunlukBeyaniTarihi: '', sonKontrolTarihi: '' });
+}>({ firmaId: null, asansorId: null });
 
 const firmalar = ref<Firma[]>([]);
 const firmaSecenekleri = computed(() => firmalar.value.map((f) => ({ label: f.ad, value: f._id })));
@@ -77,7 +76,7 @@ const asansorSecenekleri = computed(() =>
 
 function ekleAc() {
   blurActive();
-  form.value = { firmaId: null, asansorId: null, abUygunlukBeyaniTarihi: '', sonKontrolTarihi: '' };
+  form.value = { firmaId: null, asansorId: null };
   asansorler.value = [];
   ekleAcik.value = true;
   if (!firmalar.value.length) {
@@ -112,8 +111,6 @@ async function kaydet() {
     await createTescil({
       firmaId: form.value.firmaId!,
       asansorId: form.value.asansorId!,
-      abUygunlukBeyaniTarihi: form.value.abUygunlukBeyaniTarihi || null,
-      sonKontrolTarihi: form.value.sonKontrolTarihi || null,
     });
     ekleAcik.value = false;
     await yukle();
@@ -240,18 +237,6 @@ async function silOnayla() {
                   : asansorlerYukleniyor
                     ? 'Yükleniyor…'
                     : asansorler.length ? 'Asansör seçiniz' : 'Bu firmada asansör yok'" />
-            </label>
-
-            <label class="block space-y-0.5">
-              <span class="text-xs font-medium text-ink-muted">AB Uygunluk Beyanı Tarihi</span>
-              <input v-model="form.abUygunlukBeyaniTarihi" type="date"
-                class="w-full bg-surface-900 px-2.5 py-1.5 text-xs text-ink ring-1 ring-white/10 outline-none focus:ring-white/30" />
-            </label>
-
-            <label class="block space-y-0.5">
-              <span class="text-xs font-medium text-ink-muted">Son Kontrol Tarihi</span>
-              <input v-model="form.sonKontrolTarihi" type="date"
-                class="w-full bg-surface-900 px-2.5 py-1.5 text-xs text-ink ring-1 ring-white/10 outline-none focus:ring-white/30" />
             </label>
           </div>
         </div>

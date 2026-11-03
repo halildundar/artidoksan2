@@ -41,6 +41,17 @@ const agirlikKonumu = ref<string | null>('arka');
 const girisTipi = ref<string>('tek');
 const durakSayisi = ref<Sayi>(null);
 const katSayisi = ref<Sayi>(null);
+const montajYili = ref<number | null>(new Date().getFullYear());
+
+// Montaj yılı: 2030'dan 2010'a azalan sırada aramalı seçim; yeni kayıtta varsayılan bu yıl
+const MONTAJ_YILLARI = Array.from({ length: 21 }, (_, i) => {
+  const yil = String(2030 - i);
+  return { label: yil, value: yil };
+});
+const montajYiliModel = computed<string | number | null>({
+  get: () => (montajYili.value == null ? null : String(montajYili.value)),
+  set(v) { montajYili.value = v == null || v === '' ? null : Number(v); },
+});
 
 const askiTipiSecenekleri = computed(() => askiTipiSecenekleriFor(makinaKonumu.value));
 
@@ -90,6 +101,7 @@ onMounted(async () => {
     girisTipi.value = a.kabinGirisTipi ?? 'tek';
     durakSayisi.value = a.durakSayisi ?? null;
     katSayisi.value = a.katSayisi ?? null;
+    montajYili.value = a.montajYili ?? null;
   } catch (e) {
     hata.value = e instanceof Error ? e.message : 'Asansör yüklenemedi';
   } finally {
@@ -115,6 +127,7 @@ async function kaydet() {
       kabinGirisTipi: girisTipi.value as 'tek' | 'cift',
       durakSayisi: sayi(durakSayisi.value),
       katSayisi: sayi(katSayisi.value),
+      montajYili: montajYili.value,
     };
     blurActive();
     if (duzenlenenId.value) {
@@ -165,12 +178,18 @@ async function kaydet() {
               :placeholder="firmalarYukleniyor ? 'Yükleniyor...' : 'Firma seçiniz'" />
           </label>
 
-          <label class="block space-y-0.5">
-            <span class="text-xs font-medium text-ink-muted">Seri No *</span>
-            <input v-model="seriNo" type="text" required
-              class="w-full bg-surface-900 px-2.5 py-1.5 text-xs text-ink ring-1 ring-white/10 outline-none placeholder:text-ink-muted/50 focus:ring-white/30"
-              placeholder="Örn. ASD-2024-001" />
-          </label>
+          <div class="grid grid-cols-2 gap-1.5">
+            <label class="block space-y-0.5">
+              <span class="text-xs font-medium text-ink-muted">Seri No *</span>
+              <input v-model="seriNo" type="text" required
+                class="w-full bg-surface-900 px-2.5 py-1.5 text-xs text-ink ring-1 ring-white/10 outline-none placeholder:text-ink-muted/50 focus:ring-white/30"
+                placeholder="Örn. ASD-2024-001" />
+            </label>
+            <label class="block space-y-0.5">
+              <span class="text-xs font-medium text-ink-muted">Montaj Yılı</span>
+              <AramaliSelect v-model="montajYiliModel" :options="MONTAJ_YILLARI" placeholder="Yıl seçiniz" />
+            </label>
+          </div>
 
           <div class="grid grid-cols-2 gap-1.5">
             <label class="block space-y-0.5">

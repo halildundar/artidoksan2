@@ -1,14 +1,20 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, ref, watch } from 'vue';
 import {
+  baslatTescilYazdir,
+  baslatTopluTescilYazdir,
   getTescilYazdir,
+  getTescilYazdirIsleri,
+  iptalTescilYazdirIsi,
+  sifirlaTescilYazdir,
   updateTescil,
-  uretTescilBelgesi,
+  type YazdirIs,
   type YazdirKalemi,
 } from '@/services/tescilService';
 import { getDosyaUrl, getDosyaIndirUrl, createZipLink, type BelgeSlot } from '@/services/dosyaService';
 import { useFileViewer, fileViewerTypeFromMime } from '@/composables/useFileViewer';
 import LinkPopup from '@/components/LinkPopup.vue';
+import SilmeOnayi from '@/components/SilmeOnayi.vue';
 
 // Tam sayfa yazdırma görünümü — tescil dosyası kalem listesi: yüklü dosyalar,
 // CE/aksam sertifikaları ve şablondan üretilen DOCX+PDF belgeler. PDF'ler
@@ -26,9 +32,9 @@ const sablonSeti = ref('tescil-temp1');
 const yukleniyor = ref(false);
 const hata = ref('');
 
-async function yukle() {
+async function yukle(sessiz = false) {
   if (!props.tescilId) return;
-  yukleniyor.value = true;
+  if (!sessiz) yukleniyor.value = true;
   hata.value = '';
   try {
     const liste = await getTescilYazdir(props.tescilId);
@@ -42,8 +48,15 @@ async function yukle() {
 }
 
 watch(acik, (a) => {
-  if (a) yukle();
+  if (a) {
+    yukle();
+    isleriYenile();
+  } else {
+    anketiDurdur();
+  }
 });
+
+onBeforeUnmount(anketiDurdur);
 
 async function setKaydet(event: Event) {
   if (!props.tescilId) return;
@@ -56,39 +69,131 @@ async function setKaydet(event: Event) {
   }
 }
 
-// ---- Tekli üretim (Yazdır / Yeniden Yazdır) ----
-const uretilenKodlar = ref<Set<string>>(new Set());
+// ---- Yazdırma işleri: üretim SUNUCUDA bir kuyrukta çalışır; burada yalnız
+// istek gönderilir ve ilerleme sorgulanır. Sayfadan/uygulamadan çıkılsa da
+// iş sürer, geri dönünce ilerleme kaldığı yerden görünür. Tescildeki diğer
+// kullanıcıların işleri de aynı panelde görünür. ----
+const isler = ref<YazdirIs[]>([]);
+const genelBekleyen = ref(0);
+const kapatilanIsler = ref<Set<string>>(new Set());
+let zamanlayici: ReturnType<typeof setTimeout> | null = null;
+let oncekiAktif = new Set<string>();
+let oncekiTamamlanan = -1;
 
-async function uret(kalem: YazdirKalemi) {
-  if (!props.tescilId || uretilenKodlar.value.has(kalem.kod)) return;
-  uretilenKodlar.value = new Set([...uretilenKodlar.value, kalem.kod]);
-  hata.value = '';
+function anketiDurdur() {
+  if (zamanlayici) clearTimeout(zamanlayici);
+  zamanlayici = null;
+}
+
+async function isleriYenile() {
+  anketiDurdur();
+  if (!props.tescilId || !acik.value) return;
   try {
-    const sonuc = await uretTescilBelgesi(props.tescilId, kalem.kod);
-    const satir = kalemler.value.find((k) => k.kod === kalem.kod);
-    if (satir) satir.uretilen = sonuc;
-  } catch (e) {
-    hata.value = e instanceof Error ? e.message : `${kalem.ad} üretilemedi`;
-  } finally {
-    const yeni = new Set(uretilenKodlar.value);
-    yeni.delete(kalem.kod);
-    uretilenKodlar.value = yeni;
+    const r = await getTescilYazdirIsleri(props.tescilId);
+    isler.value = r.isler;
+    genelBekleyen.value = r.genelBekleyen;
+    const aktifler = new Set(r.isler.filter((i) => i.durum === 'calisiyor').map((i) => i.id));
+    const tamamlanan = r.isler.reduce((t, i) => t + i.tamamlanan, 0);
+    // Bir iş bitti ya da yeni belge üretildi: liste tazelenir (hazır belge görünür)
+    if (tamamlanan !== oncekiTamamlanan || [...oncekiAktif].some((id) => !aktifler.has(id))) {
+      if (oncekiTamamlanan !== -1) await yukle(true);
+      oncekiTamamlanan = tamamlanan;
+    }
+    oncekiAktif = aktifler;
+  } catch {
+    /* geçici ağ hatası: bir sonraki turda yeniden denenir */
+  }
+  if (acik.value) {
+    zamanlayici = setTimeout(isleriYenile, isler.value.some((i) => i.durum === 'calisiyor') ? 1000 : 4000);
   }
 }
 
-// ---- Tümünü Yazdır: şablon kalemleri sırayla üretilir (LibreOffice
-// dönüşümü belge başına birkaç saniye sürer, ilerleme gösterilir) ----
-const topluUretim = ref<{ sira: number; toplam: number } | null>(null);
+const aktifIsler = computed(() => isler.value.filter((i) => i.durum === 'calisiyor'));
+const topluAktif = computed(() => aktifIsler.value.find((i) => i.tip === 'toplu') ?? null);
 
-async function tumunuYazdir() {
-  if (!props.tescilId || topluUretim.value) return;
-  const sablonlar = kalemler.value.filter((k) => k.tip === 'sablon');
-  for (let i = 0; i < sablonlar.length; i++) {
-    topluUretim.value = { sira: i + 1, toplam: sablonlar.length };
-    await uret(sablonlar[i]);
-    if (hata.value) break;
+// Panelde gösterilen işler: çalışanlar + yakın zamanda bitenler (kapatılmadıysa)
+const gorunenIsler = computed(() =>
+  isler.value.filter(
+    (i) =>
+      !kapatilanIsler.value.has(i.id) &&
+      (i.durum === 'calisiyor' || i.durum === 'hatali' || (i.bitisSonra ?? 0) < 90_000)
+  )
+);
+
+function isiKapat(id: string) {
+  kapatilanIsler.value = new Set([...kapatilanIsler.value, id]);
+}
+
+// Satırdaki belge şu an üretiliyor mu / sırada mı?
+function kalemDurumu(kod: string): 'uretiliyor' | 'bekliyor' | null {
+  let bekliyor = false;
+  for (const is of aktifIsler.value) {
+    const k = is.kalemler.find((x) => x.kod === kod);
+    if (k?.durum === 'uretiliyor') return 'uretiliyor';
+    if (k?.durum === 'bekliyor') bekliyor = true;
   }
-  topluUretim.value = null;
+  return bekliyor ? 'bekliyor' : null;
+}
+
+async function uret(kalem: YazdirKalemi) {
+  // Devam eden bir yazdırma varken (hangi belgeye ait olursa olsun) yeni yazdırma başlatılmaz
+  if (!props.tescilId || aktifIsler.value.length) return;
+  hata.value = '';
+  try {
+    // Daha önce üretilmişse "Yeniden Yazdır": girdi değişmese de yeniden üretilir
+    await baslatTescilYazdir(props.tescilId, kalem.kod, !!kalem.uretilen);
+    await isleriYenile();
+  } catch (e) {
+    hata.value = e instanceof Error ? e.message : `${kalem.ad} sıraya alınamadı`;
+  }
+}
+
+// Tümünü Yazdır: değişmemiş belgeler atlanır, kalanlar kuyrukta üretilir
+async function tumunuYazdir() {
+  if (!props.tescilId || aktifIsler.value.length) return;
+  hata.value = '';
+  try {
+    await baslatTopluTescilYazdir(props.tescilId);
+    await isleriYenile();
+  } catch (e) {
+    hata.value = e instanceof Error ? e.message : 'Toplu yazdırma başlatılamadı';
+  }
+}
+
+async function isiIptalEt(is: YazdirIs) {
+  if (!props.tescilId) return;
+  try {
+    await iptalTescilYazdirIsi(props.tescilId, is.id);
+    await isleriYenile();
+  } catch (e) {
+    hata.value = e instanceof Error ? e.message : 'İptal edilemedi';
+  }
+}
+
+// ---- Sıfırla: üretilmiş çıktıları kayıttan + depodan siler ----
+const uretilmisVar = computed(() => kalemler.value.some((k) => k.tip === 'sablon' && k.uretilen));
+// Tümünü İndir yalnız her kalemin çıktısı/dosyası tamamsa gösterilir
+const hepsiTamam = computed(
+  () =>
+    kalemler.value.length > 0 &&
+    kalemler.value.every((k) => (k.tip === 'sablon' ? !!k.uretilen && !k.eskimis : !!k.dosyalar?.length))
+);
+const sifirlaOnayAcik = ref(false);
+const sifirlaniyor = ref(false);
+
+async function sifirla() {
+  sifirlaOnayAcik.value = false;
+  if (!props.tescilId) return;
+  sifirlaniyor.value = true;
+  hata.value = '';
+  try {
+    await sifirlaTescilYazdir(props.tescilId);
+    for (const k of kalemler.value) if (k.tip === 'sablon') k.uretilen = undefined;
+  } catch (e) {
+    hata.value = e instanceof Error ? e.message : 'Sıfırlanamadı';
+  } finally {
+    sifirlaniyor.value = false;
+  }
 }
 
 // ---- Görüntüle / indir ----
@@ -195,6 +300,55 @@ async function tumunuIndir() {
         </button>
       </div>
 
+      <!-- Yazdırma süreçleri: sayfa kaydırılsa da başlığın altında sabit durur -->
+      <div v-if="tescilId && gorunenIsler.length"
+        class="shrink-0 space-y-1.5 border-b border-white/5 bg-surface-900 px-4 py-2">
+        <div v-for="is in gorunenIsler" :key="is.id" class="mx-auto max-w-lg space-y-1 bg-surface-800 p-2 ring-1 ring-white/10">
+          <div class="flex items-center justify-between gap-2">
+            <span class="min-w-0 truncate text-xs font-semibold text-ink">
+              {{ is.tip === 'toplu' ? 'Tümünü Yazdır' : is.ad }}
+            </span>
+            <span class="shrink-0 text-[11px] font-semibold tabular-nums text-ink-muted">
+              {{ is.tamamlanan }}/{{ is.toplam }}
+            </span>
+            <button v-if="is.durum === 'calisiyor' && is.bekleyen > 0" type="button" @click="isiIptalEt(is)"
+              class="shrink-0 bg-surface-900 px-2 py-0.5 text-[10px] font-semibold text-red-300/90 ring-1 ring-red-500/25">
+              İptal
+            </button>
+            <button v-if="is.durum !== 'calisiyor'" type="button" @click="isiKapat(is.id)" aria-label="Kapat"
+              class="grid h-5 w-5 shrink-0 place-items-center bg-surface-900 text-[10px] text-ink-muted ring-1 ring-white/10">
+              ✕
+            </button>
+          </div>
+          <div class="h-1.5 w-full overflow-hidden bg-surface-900 ring-1 ring-white/10">
+            <div class="h-full transition-all duration-300"
+              :class="is.hatali ? 'bg-red-400' : is.durum === 'calisiyor' ? 'bg-[#6fcf97]' : 'bg-[#6fcf97]'"
+              :style="{ width: (is.toplam ? Math.round((is.tamamlanan / is.toplam) * 100) : 100) + '%' }" />
+          </div>
+          <p v-if="is.durum === 'calisiyor'" class="truncate text-[11px] text-ink-muted">
+            <template v-if="is.calisan.length">
+              Üretiliyor: <span class="font-medium text-ink">{{ is.calisan.map((c) => `${c.no}-${c.ad}`).join(', ') }}</span>
+              <template v-if="is.bekleyen"> • {{ is.bekleyen }} sırada</template>
+            </template>
+            <template v-else>
+              Sırada bekliyor<template v-if="is.onunde"> — önünüzde {{ is.onunde }} işlem var</template>
+              <template v-if="is.tip === 'toplu'"> • {{ is.bekleyen }} belge</template>
+            </template>
+          </p>
+          <p v-else class="text-[11px] text-ink-muted">
+            <template v-if="is.durum === 'iptal'">İptal edildi — {{ is.uretilen }} belge üretildi.</template>
+            <template v-else>
+              Tamamlandı: {{ is.uretilen }} üretildi<template v-if="is.atlanan">, {{ is.atlanan }} zaten güncel (atlandı)</template><template v-if="is.hatali">, {{ is.hatali }} hata</template>.
+            </template>
+          </p>
+          <p v-for="h in is.hatalar" :key="h.ad" class="text-[11px] text-red-300">{{ h.ad }}: {{ h.mesaj }}</p>
+        </div>
+        <p v-if="aktifIsler.length && genelBekleyen > aktifIsler.reduce((t, i) => t + i.bekleyen + i.calisan.length, 0)"
+          class="mx-auto max-w-lg text-[10px] text-ink-muted/70">
+          Sunucuda toplam {{ genelBekleyen }} işlem bekliyor/çalışıyor (diğer kullanıcılar dahil).
+        </p>
+      </div>
+
       <div class="min-h-0 flex-1 overflow-auto">
         <div class="mx-auto max-w-lg space-y-2 p-4">
           <template v-if="tescilId">
@@ -212,7 +366,7 @@ async function tumunuIndir() {
                 </select>
               </label>
               <div class="flex gap-1.5">
-                <button type="button" @click="tumunuYazdir" :disabled="topluUretim != null"
+                <button type="button" @click="tumunuYazdir" :disabled="aktifIsler.length > 0"
                   class="flex flex-1 items-center justify-center gap-1.5 bg-[#2b5c3d] px-3 py-2.5 text-xs font-semibold text-ink ring-1 ring-white/10 active:bg-[#346e4a] disabled:opacity-60">
                   <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                     stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -220,9 +374,19 @@ async function tumunuIndir() {
                     <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" />
                     <rect x="6" y="14" width="12" height="8" />
                   </svg>
-                  {{ topluUretim ? `Üretiliyor ${topluUretim.sira}/${topluUretim.toplam}…` : 'Tümünü Yazdır' }}
+                  {{ topluAktif ? `Yazdırılıyor ${topluAktif.tamamlanan}/${topluAktif.toplam}…` : 'Tümünü Yazdır' }}
                 </button>
-                <button type="button" @click="tumunuIndir"
+                <button v-if="uretilmisVar" type="button" @click="sifirlaOnayAcik = true"
+                  :disabled="aktifIsler.length > 0 || sifirlaniyor"
+                  class="flex items-center justify-center gap-1.5 bg-surface-900 px-3 py-2.5 text-xs font-semibold text-red-300/90 ring-1 ring-red-500/25 active:bg-[#1a2a20] disabled:opacity-60">
+                  <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                    stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M3 12a9 9 0 1 0 3-6.7L3 8" />
+                    <path d="M3 3v5h5" />
+                  </svg>
+                  {{ sifirlaniyor ? 'Siliniyor…' : 'Sıfırla' }}
+                </button>
+                <button v-if="hepsiTamam" type="button" @click="tumunuIndir"
                   class="flex flex-1 items-center justify-center gap-1.5 bg-surface-900 px-3 py-2.5 text-xs font-semibold text-ink ring-1 ring-white/10 active:bg-[#1a2a20]">
                   <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                     stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -252,11 +416,15 @@ async function tumunuIndir() {
 
                 <!-- Şablon kalemi: üret / görüntüle / indir -->
                 <template v-if="kalem.tip === 'sablon'">
-                  <span v-if="kalem.uretilen"
+                  <span v-if="kalem.uretilen && kalem.eskimis"
+                    class="shrink-0 bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-amber-300 ring-1 ring-amber-500/30">
+                    Güncel değil
+                  </span>
+                  <span v-else-if="kalem.uretilen"
                     class="shrink-0 bg-[#1c2a21] px-1.5 py-0.5 text-[10px] font-semibold text-[#6fcf97] ring-1 ring-white/10">✓</span>
-                  <button type="button" @click="uret(kalem)" :disabled="uretilenKodlar.has(kalem.kod)"
+                  <button type="button" @click="uret(kalem)" :disabled="aktifIsler.length > 0"
                     class="shrink-0 bg-[#2b5c3d] px-2.5 py-1.5 text-[11px] font-semibold text-ink ring-1 ring-white/10 active:bg-[#346e4a] disabled:opacity-60">
-                    {{ uretilenKodlar.has(kalem.kod) ? 'Üretiliyor…' : kalem.uretilen ? 'Yeniden Yazdır' : 'Yazdır' }}
+                    {{ kalemDurumu(kalem.kod) === 'uretiliyor' ? 'Üretiliyor…' : kalemDurumu(kalem.kod) === 'bekliyor' ? 'Sırada…' : kalem.uretilen ? 'Yeniden Yazdır' : 'Yazdır' }}
                   </button>
                 </template>
 
@@ -318,6 +486,10 @@ async function tumunuIndir() {
         </div>
       </div>
     </div>
+
+    <SilmeOnayi :acik="sifirlaOnayAcik"
+      aciklama="Üretilmiş tüm DOCX/PDF belgeler ve linkleri silinecek (yüklü dosyalar etkilenmez). Emin misiniz?"
+      @vazgec="sifirlaOnayAcik = false" @onayla="sifirla" />
 
     <!-- Tümünü İndir ZIP linki -->
     <LinkPopup v-model:acik="zipAcik" :url="zipUrl" :hata="zipHata"

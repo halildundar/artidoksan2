@@ -18,6 +18,8 @@ COPY templates/ /app/templates/
 
 ENV NODE_ENV=production \
     LIBREOFFICE_PATH=soffice \
+    SAL_USE_VCLPLUGIN=svp \
+    YAZDIR_PARALEL=1 \
     TEMPLATES_DIR=/app/templates
 
 EXPOSE 3000

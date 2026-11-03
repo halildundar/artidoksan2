@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { S3Client, PutObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3';
+import { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 
 // Cloudflare R2 dosya deposu — artidoksan1'deki storage/r2.js deseninin
@@ -41,6 +41,14 @@ export async function putObject(key, buffer, mimeType) {
       Body: buffer,
       ContentType: mimeType,
     })
+  );
+}
+
+// Nesneyi R2'den siler (yoksa hata vermez). Yeniden üretilen/sıfırlanan
+// yazdırma çıktıları depoda yetim kalmasın diye kullanılır.
+export async function deleteObject(key) {
+  await getClient().send(
+    new DeleteObjectCommand({ Bucket: process.env.R2_BUCKET, Key: key })
   );
 }
 

@@ -32,7 +32,7 @@ const form = ref({
   yapiMuteahhidi: '',
   yapiRuhsatiDosya: undefined as BelgeSlot | undefined,
   seriNo: '',
-  montajYili: '' as Sayi,
+  montajYili: new Date().getFullYear() as Sayi,
   abUygunlukBeyaniTarihi: '',
   il: '', ilce: '', mahalle: '', postaKodu: '', adres: '',
   ada: '', parsel: '',
@@ -123,6 +123,16 @@ function toggle(b: string) {
 // ---- firmalar + katalog ----
 const firmaSecenekleri = ref<{ label: string; value: string }[]>([]);
 const belgeler = ref<AksamBelgesi[]>([]);
+
+// Montaj yılı: 2030'dan 2010'a azalan sırada aramalı seçim; yeni kayıtta varsayılan bu yıl
+const MONTAJ_YILLARI = Array.from({ length: 21 }, (_, i) => {
+  const yil = String(2030 - i);
+  return { label: yil, value: yil };
+});
+const montajYiliModel = computed<string | number | null>({
+  get: () => (form.value.montajYili === '' || form.value.montajYili == null ? null : String(form.value.montajYili)),
+  set(v) { form.value.montajYili = v == null || v === '' ? '' : Number(v); },
+});
 
 const firmaModel = computed<string | number | null>({
   get: () => form.value.firmaId || null,
@@ -520,8 +530,7 @@ async function kaydet() {
             <div class="grid grid-cols-2 gap-1.5">
               <label class="block space-y-0.5">
                 <span class="text-xs font-medium text-ink-muted">Montaj Yılı</span>
-                <input v-model.number="form.montajYili" type="number"
-                  class="w-full bg-surface-900 px-2.5 py-1.5 text-xs text-ink ring-1 ring-white/10 outline-none focus:ring-white/30" />
+                <AramaliSelect v-model="montajYiliModel" :options="MONTAJ_YILLARI" placeholder="Yıl seçiniz" />
               </label>
               <label class="block space-y-0.5">
                 <span class="text-xs font-medium text-ink-muted">AB Uyg. Beyanı Tarihi</span>
