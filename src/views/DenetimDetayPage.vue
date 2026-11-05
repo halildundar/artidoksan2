@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { IonPage, IonContent, IonHeader, onIonViewWillEnter } from '@ionic/vue';
-import { computed, ref } from 'vue';
+import { computed, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import {
   getDenetim, updateDenetim,
@@ -11,6 +11,8 @@ import { getAksamBelgeleri, getAksamBelgesi, type AksamBelgesi } from '@/service
 import { uploadDosya, getDosyaUrl, getDosyaIndirUrl, createDosyaLinkleri, type BelgeSlot } from '@/services/dosyaService';
 import { getFirma } from '@/services/firmaService';
 import FotoCekModal from '@/components/FotoCekModal.vue';
+import AramaliSelect from '@/components/AramaliSelect.vue';
+import { getDenetciler, MUHENDIS_ETIKETLERI, type Denetci } from '@/services/denetciService';
 import { getAsansor } from '@/services/asansorService';
 import { useFileViewer, fileViewerTypeFromMime } from '@/composables/useFileViewer';
 import { blurActive } from '@/utils/blurActive';
@@ -106,6 +108,49 @@ function tarihInput(iso: string | null | undefined) {
 function tarihKaydet(alan: 'abUygunlukBeyaniTarihi' | 'sonKontrolTarihi', event: Event) {
   guncelle({ [alan]: (event.target as HTMLInputElement).value || null });
 }
+
+// ---- Modül G: denetçi (Ayarlar > Denetçiler) — bilgileri ve imza-kaşesi gösterilir,
+// değiştirilebilir; yazdırılan belgelere ad soyad ve imza-kaşe olarak basılır ----
+const modulG = computed(() => denetim.value?.modul === 'Modul G');
+const denetciler = ref<Denetci[]>([]);
+const denetciOzeti = computed(() => {
+  const d = denetim.value?.denetciId;
+  return d && typeof d === 'object' ? d : null;
+});
+const denetciModel = computed<string | number | null>({
+  get: () => {
+    const d = denetim.value?.denetciId;
+    return (d && typeof d === 'object' ? d._id : d) || null;
+  },
+  set: (v) => { guncelle({ denetciId: typeof v === 'string' ? v : null }); },
+});
+const denetciSecenekleri = computed(() =>
+  denetciler.value.map((d) => ({
+    label: [d.adSoyad, d.muhendisTuru ? MUHENDIS_ETIKETLERI[d.muhendisTuru] : ''].filter(Boolean).join(' — '),
+    value: d._id,
+  }))
+);
+const denetciImzaUrl = ref('');
+
+watch(
+  () => denetciOzeti.value?.imzaKase?.dosyaAnahtari,
+  async (anahtar) => {
+    denetciImzaUrl.value = '';
+    if (!anahtar) return;
+    try {
+      denetciImzaUrl.value = await getDosyaUrl(anahtar);
+    } catch {
+      /* önizleme alınamazsa yalnız ad gösterilir */
+    }
+  },
+  { immediate: true }
+);
+
+watch(modulG, (g) => {
+  if (g && !denetciler.value.length) {
+    getDenetciler().then((l) => (denetciler.value = l)).catch(() => { /* seçenek listesi boş kalır */ });
+  }
+}, { immediate: true });
 
 // ---- Uygulama projesi (PDF veya ZIP) ----
 const ekProjeYukleniyor = ref(false);
@@ -569,6 +614,25 @@ async function ekProjeAc(slot: BelgeSlot) {
               <path d="m9 18 6-6-6-6" />
             </svg>
           </button>
+
+          <!-- Modül G: denetçi bilgileri + imza-kaşe; seçimle değiştirilir -->
+          <section v-if="modulG" class="space-y-2 bg-surface-800 p-3 ring-1 ring-white/5">
+            <h2 class="text-xs font-bold uppercase tracking-wide text-ink">Denetçi</h2>
+            <AramaliSelect v-model="denetciModel" :options="denetciSecenekleri"
+              :placeholder="denetciler.length ? 'Denetçi seçiniz' : 'Önce Ayarlar > Denetçiler\'den ekleyin'" />
+            <div v-if="denetciOzeti" class="flex items-center gap-2.5 bg-surface-900/60 p-2 ring-1 ring-white/5">
+              <span class="grid h-14 w-14 shrink-0 place-items-center overflow-hidden bg-surface-900 ring-1 ring-white/5">
+                <img v-if="denetciImzaUrl" :src="denetciImzaUrl" alt="İmza kaşe" class="h-full w-full object-contain p-0.5" />
+                <span v-else class="text-[9px] text-ink-muted/50">{{ denetciOzeti.imzaKase ? '…' : 'Yok' }}</span>
+              </span>
+              <span class="min-w-0 flex-1">
+                <span class="block truncate text-xs font-semibold text-ink">{{ denetciOzeti.adSoyad }}</span>
+                <span class="block truncate text-[11px] text-ink-muted">
+                  {{ [denetciOzeti.muhendisTuru ? MUHENDIS_ETIKETLERI[denetciOzeti.muhendisTuru] : '', denetciOzeti.imzaKase ? 'İmza-kaşe yüklü' : 'İmza-kaşe yok'].filter(Boolean).join(' • ') }}
+                </span>
+              </span>
+            </div>
+          </section>
 
           <!-- Uygulama projesi: PDF görüntülenir, ZIP indirilir -->
           <section class="space-y-1.5 bg-surface-800 p-3 ring-1 ring-white/5">
@@ -1034,6 +1098,6 @@ async function ekProjeAc(slot: BelgeSlot) {
       goruntule-tip="pdf" :goruntule-ad="pdfDosyaAdi || 'Denetim Raporu.pdf'" />
 
     <!-- Yazdır popup'ı — içeriği henüz boş, kullanıcı tarifiyle doldurulacak -->
-    <YazdirPopup v-model:acik="yazdirAcik" />
+    <YazdirPopup v-model:acik="yazdirAcik" :denetim-id="denetim?._id ?? null" />
   </ion-page>
 </template>

@@ -74,6 +74,14 @@ const routes: Array<RouteRecordRaw> = [
     component: () => import('@/views/DanismanFormPage.vue')
   },
   {
+    path: '/ayarlar/denetciler/yeni',
+    component: () => import('@/views/DenetciFormPage.vue')
+  },
+  {
+    path: '/ayarlar/denetciler/:id/duzenle',
+    component: () => import('@/views/DenetciFormPage.vue')
+  },
+  {
     path: '/',
     component: TabsPage,
     children: [
@@ -120,6 +128,10 @@ const routes: Array<RouteRecordRaw> = [
       {
         path: 'ayarlar/danismanlar',
         component: () => import('@/views/DanismanlarPage.vue')
+      },
+      {
+        path: 'ayarlar/denetciler',
+        component: () => import('@/views/DenetcilerPage.vue')
       },
       {
         // CE belge kataloğu içeriği Güvenlik Aksamlar'a taşındı (kullanıcı

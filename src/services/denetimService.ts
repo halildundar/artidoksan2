@@ -31,10 +31,19 @@ export interface DenetimAksam {
   sertifikaNo: string;
 }
 
+// Modül G denetçisi (Ayarlar > Denetçiler) — populate edilmiş özet
+export interface DenetimDenetciOzet {
+  _id: string;
+  adSoyad: string;
+  muhendisTuru: 'elektrik' | 'makine' | '';
+  imzaKase?: BelgeSlot | null;
+}
+
 export interface Denetim {
   _id: string;
   firmaId: string | DenetimFirmaOzet | null;
   asansorId: string | DenetimAsansorOzet | null;
+  denetciId?: string | DenetimDenetciOzet | null;
   modul: string;
   denetimTarihi: string;
   // Modul G detayı
@@ -56,6 +65,7 @@ export interface YeniDenetim {
   asansorId: string;
   modul: string;
   denetimTarihi: string;
+  denetciId?: string | null;
 }
 
 // Kısmi güncelleme — yalnızca gönderilen alanlar değişir

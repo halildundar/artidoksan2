@@ -26,7 +26,7 @@ import { isBaslat, aktifTopluIs, tescildeAktifIsVar, isIptal, tescilIsleri } fro
 
 const execFileAsync = promisify(execFile);
 const KLASOR = path.dirname(fileURLToPath(import.meta.url));
-const TEMPLATES_DIR = process.env.TEMPLATES_DIR || path.join(KLASOR, '..', 'templates');
+export const TEMPLATES_DIR = process.env.TEMPLATES_DIR || path.join(KLASOR, '..', 'templates');
 const LIBREOFFICE_PATH = process.env.LIBREOFFICE_PATH || 'soffice';
 
 // ---- Kalem listesi: Tescil Yazdır ekranındaki 36 satır (sıra = numara) ----
@@ -77,7 +77,7 @@ export const KALEMLER = [
 ];
 
 // ---- Yardımcılar (artidoksan1 templateData.js'ten port) ----
-function bos(v) {
+export function bos(v) {
   return v === undefined || v === null ? '' : String(v);
 }
 
@@ -93,7 +93,7 @@ function adresSatiri(kayit) {
   return [parca(kayit?.mahalle), kayit?.adres, ilceIl].filter(Boolean).join(' ');
 }
 
-function tarihStr(value) {
+export function tarihStr(value) {
   if (!value) return '';
   const d = value instanceof Date ? value : new Date(value);
   if (Number.isNaN(d.getTime())) return bos(value);
@@ -120,10 +120,10 @@ function halatCapMM(halatTipi) {
 
 const TAHRIK_ETIKET = { elektrikli: 'Elektrikli', hidrolik: 'Hidrolik' };
 const SINIF_ETIKET = { insan_ve_yuk: 'İnsan ve Yük', yuk: 'Yük' };
-const MAKINA_KONUMU_ETIKET = { MR: 'Makine Daireli', MRL: 'Makine Dairesiz' };
+export const MAKINA_KONUMU_ETIKET = { MR: 'Makine Daireli', MRL: 'Makine Dairesiz' };
 
 // Asansör Yönetmeliği (2014/33/AB) modüllerinin AB Uygunluk Beyanı metinleri
-const MODUL_METIN = {
+export const MODUL_METIN = {
   B: { annex: 'Annex IX', name: 'AB Tip İncelemesi', nameEn: 'EU-Type Examination' },
   E: { annex: 'Annex X', name: 'Ürün Kalite Güvencesi', nameEn: 'Product Quality Assurance' },
   G: { annex: 'Annex VIII', name: 'Birim Doğrulaması', nameEn: 'Unit Verification' },
@@ -131,7 +131,7 @@ const MODUL_METIN = {
 };
 
 // CeBelgesi.modul serbest metindir ("Modul G", "Modül H1"...) — kod ayıklanır
-function ceModulKodu(modul) {
+export function ceModulKodu(modul) {
   const m = /H1|H|B|E|G/i.exec(bos(modul).toLocaleUpperCase('tr-TR'));
   if (!m) return '';
   return m[0] === 'H' ? 'H1' : m[0];
@@ -157,7 +157,7 @@ function secilenCeler(tescil, firma) {
 
 // guvenlikAksamlari satırlarından slot grubu: marka/tip ilk satırdan,
 // seri numaraları virgülle birleştirilir (uygulamadaki panellerle aynı kural)
-function aksamGrubu(asansor, slotlar) {
+export function aksamGrubu(asansor, slotlar) {
   const satirlar = (asansor?.guvenlikAksamlari ?? []).filter((s) => slotlar.includes(s.slot));
   if (!satirlar.length) return null;
   const ilk = satirlar[0];
@@ -206,7 +206,7 @@ async function onayliKurumBul(unvan) {
   return kurumlar.find((k) => kurumAnahtari(k.unvan) === anahtar) ?? null;
 }
 
-async function sablonVerisi({ tescil, firma, asansor }) {
+export async function sablonVerisi({ tescil, firma, asansor }) {
   const kapasiteKg = asansor?.beyanYuku != null && asansor?.beyanYuku !== '' ? `${asansor.beyanYuku}` : '';
   const celer = secilenCeler(tescil, firma);
   // Ana CE: asansörün kendi modülü (B dışındaki ilk seçim; yoksa ilk seçim)
@@ -362,7 +362,7 @@ function abBeyaniSablonu(tescil, firma) {
 }
 
 // ---- DOCX doldurma + PDF çevirme ----
-async function convertDocxToPdf(docxBuffer, slot = 0) {
+export async function convertDocxToPdf(docxBuffer, slot = 0) {
   const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'yazdir-'));
   const docxPath = path.join(tmpDir, 'belge.docx');
   // Her kuyruk slotunun KENDİ kalıcı LibreOffice profili vardır: slotlar
@@ -405,6 +405,9 @@ const GORSEL_TAG_KAYNAKLARI = {
   firma_logo: 'logo',
   imza_kase: 'imzaKase',
   firma_imza_kase: 'imzaKase',
+  // Denetim belgeleri: denetçinin imza-kaşesi (denetimYazdir.js firma.belgeler'e ekler)
+  denetci_imza: 'denetciImza',
+  denetci_imza_kase: 'denetciImza',
 };
 
 function createImageModule(gorselKutuBoyutlari = {}) {
@@ -517,7 +520,7 @@ function gorselluAlternatifleriSadelestir(xml, gorselTagleri) {
 // Görsel tag'leri gövdede VEYA üstbilgi/altbilgide olabilir — hepsi taranır
 const GORSEL_PARCA_DESENI = /^word\/(document|header\d*|footer\d*)\.xml$/;
 
-async function sablonDoldur(sablonYolu, veri, firma) {
+export async function sablonDoldur(sablonYolu, veri, firma) {
   const zip = new PizZip(await fs.readFile(sablonYolu));
   const parcalar = Object.keys(zip.files).filter((n) => GORSEL_PARCA_DESENI.test(n));
 
@@ -538,7 +541,9 @@ async function sablonDoldur(sablonYolu, veri, firma) {
     if (!anahtar) {
       const etiket = alan === 'logo' ? 'logo' : 'imza-kaşe';
       const hata = new Error(
-        `Bu firma için ${etiket} yüklenmemiş — Firmalar > Genel Bilgiler'den yükleyin (şablon {%${tag}} istiyor).`
+        alan === 'denetciImza'
+          ? `Bu denetim için denetçi seçilmemiş ya da denetçinin imza-kaşesi yüklenmemiş — Ayarlar > Denetçiler'den yükleyin (şablon {%${tag}} istiyor).`
+          : `Bu firma için ${etiket} yüklenmemiş — Firmalar > Genel Bilgiler'den yükleyin (şablon {%${tag}} istiyor).`
       );
       hata.status = 400;
       throw hata;
@@ -641,18 +646,19 @@ function sablonYolu(tescil, firma, kalem) {
   return path.join(TEMPLATES_DIR, set, kalem.dosya ?? abBeyaniSablonu(tescil, firma));
 }
 
-async function kaynakOzeti(yol, veri, firma) {
+export async function kaynakOzeti(yol, veri, firma) {
   const girdi = JSON.stringify([
     URETIM_SURUMU,
     await sablonHash(yol),
     Object.entries(veri).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)),
     firma?.belgeler?.logo?.dosyaAnahtari ?? '',
     firma?.belgeler?.imzaKase?.dosyaAnahtari ?? '',
+    firma?.belgeler?.denetciImza?.dosyaAnahtari ?? '',
   ]);
   return createHash('sha1').update(girdi).digest('hex');
 }
 
-function slotOlustur(key, dosyaAdi, mimeType, boyut) {
+export function slotOlustur(key, dosyaAdi, mimeType, boyut) {
   return { dosyaAdi, dosyaAnahtari: key, mimeType, boyut, yuklenmeTarihi: new Date() };
 }
 
@@ -778,7 +784,7 @@ async function belgeKaydet(tescilId, kalem, ozet, docxBuffer, pdfBuffer) {
   await anahtarlariSil([eski?.docx?.dosyaAnahtari, eski?.pdf?.dosyaAnahtari]);
 }
 
-const DOCX_MIME = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+export const DOCX_MIME = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
 
 // Tek bir şablon belgesini üretir (kuyruk görevi). Girdiler değişmediyse ve
 // zorla istenmediyse mevcut çıktı korunur, çevirme yapılmaz.
@@ -814,7 +820,7 @@ async function kalemUret(tescilId, kod, slot, { zorla, ctx }) {
 // (açılış maliyeti bir kez ödenir). LibreOffice dosyaları verilen sırayla
 // işler: i. PDF, (i+1). PDF göründüğünde tamamlanmıştır; ilerleme(i) bu
 // anda çağrılır. Çevrilemeyen belge için null döner (çağıran tek tek dener).
-async function topluPdfCevir(docxBufferlari, slot, ilerleme) {
+export async function topluPdfCevir(docxBufferlari, slot, ilerleme) {
   const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'yazdir-toplu-'));
   const cikti = path.join(tmpDir, 'cikti');
   const ad = (i) => String(i).padStart(3, '0');
@@ -1004,7 +1010,7 @@ router.delete('/:id/yazdir/isler/:isId', (req, res) => {
 });
 
 // R2 silme hatası kullanıcı akışını bozmasın: en iyi çaba, kaç tanesi silindi döner
-async function anahtarlariSil(anahtarlar) {
+export async function anahtarlariSil(anahtarlar) {
   let silinen = 0;
   for (const a of anahtarlar.filter(Boolean)) {
     try {

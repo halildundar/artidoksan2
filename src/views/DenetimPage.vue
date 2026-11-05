@@ -7,6 +7,7 @@ import {
 } from '@/services/denetimService';
 import { getFirmalar, type Firma } from '@/services/firmaService';
 import { getAsansorler, type Asansor } from '@/services/asansorService';
+import { getDenetciler, MUHENDIS_ETIKETLERI, type Denetci } from '@/services/denetciService';
 import AramaliSelect from '@/components/AramaliSelect.vue';
 import SilmeOnayi from '@/components/SilmeOnayi.vue';
 import { blurActive } from '@/utils/blurActive';
@@ -63,8 +64,10 @@ const MODULLER = ['Modul B', 'Modul E', 'Modul G', 'Modul F', 'Modul H1', 'Tasar
 
 const ekleAcik = ref(false);
 const kaydediliyor = ref(false);
-const form = ref<{ modul: string; firmaId: string | null; asansorId: string | null; denetimTarihi: string }>({
-  modul: 'Modul B', firmaId: null, asansorId: null, denetimTarihi: '',
+const form = ref<{
+  modul: string; firmaId: string | null; asansorId: string | null; denetimTarihi: string; denetciId: string | null;
+}>({
+  modul: 'Modul B', firmaId: null, asansorId: null, denetimTarihi: '', denetciId: null,
 });
 
 const firmalar = ref<Firma[]>([]);
@@ -79,14 +82,24 @@ const asansorSecenekleri = computed(() =>
   })
 );
 
+// Modül G: denetçi seçimi (Ayarlar > Denetçiler)
+const denetciler = ref<Denetci[]>([]);
+const denetciSecenekleri = computed(() =>
+  denetciler.value.map((d) => ({
+    label: [d.adSoyad, d.muhendisTuru ? MUHENDIS_ETIKETLERI[d.muhendisTuru] : ''].filter(Boolean).join(' — '),
+    value: d._id,
+  }))
+);
+
 function ekleAc() {
   blurActive();
   const bugun = new Date();
   // Yerel tarihi yyyy-MM-dd olarak kur (toISOString UTC kaymasına uğrar)
   const gun = `${bugun.getFullYear()}-${String(bugun.getMonth() + 1).padStart(2, '0')}-${String(bugun.getDate()).padStart(2, '0')}`;
-  form.value = { modul: 'Modul B', firmaId: null, asansorId: null, denetimTarihi: gun };
+  form.value = { modul: 'Modul B', firmaId: null, asansorId: null, denetimTarihi: gun, denetciId: null };
   asansorler.value = [];
   ekleAcik.value = true;
+  getDenetciler().then((l) => (denetciler.value = l)).catch(() => { /* liste alınamazsa seçenek boş kalır */ });
   if (!firmalar.value.length) {
     getFirmalar()
       .then((liste) => (firmalar.value = liste))
@@ -123,6 +136,8 @@ async function kaydet() {
       firmaId: form.value.firmaId!,
       asansorId: form.value.asansorId!,
       denetimTarihi: form.value.denetimTarihi,
+      // Denetçi yalnız Modül G'de seçilir
+      denetciId: form.value.modul === 'Modul G' ? form.value.denetciId : null,
     });
     ekleAcik.value = false;
     await yukle();
@@ -245,6 +260,13 @@ async function silOnayla() {
                 </button>
               </div>
             </div>
+
+            <!-- Modül G: denetimi yapan denetçi -->
+            <label v-if="form.modul === 'Modul G'" class="block space-y-0.5">
+              <span class="text-xs font-medium text-ink-muted">Denetçi</span>
+              <AramaliSelect v-model="form.denetciId" :options="denetciSecenekleri"
+                :placeholder="denetciler.length ? 'Denetçi seçiniz' : 'Önce Ayarlar > Denetçiler\'den ekleyin'" />
+            </label>
 
             <!-- Önce firma, ardından o firmanın asansörü seçilir -->
             <label class="block space-y-0.5">

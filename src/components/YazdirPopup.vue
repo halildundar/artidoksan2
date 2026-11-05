@@ -10,6 +10,7 @@ import {
   updateTescil,
   type YazdirIs,
   type YazdirKalemi,
+  type YazdirKaynak,
 } from '@/services/tescilService';
 import { getDosyaUrl, getDosyaIndirUrl, createZipLink, type BelgeSlot } from '@/services/dosyaService';
 import { useFileViewer, fileViewerTypeFromMime } from '@/composables/useFileViewer';
@@ -21,7 +22,10 @@ import SilmeOnayi from '@/components/SilmeOnayi.vue';
 // görüntülenir+indirilir, doldurulan DOCX'ler yalnız indirilir. Tümünü Yazdır
 // tüm şablonları sırayla üretir; Tümünü İndir her şeyi numaralı adlarla tek
 // ZIP'te toplar. tescilId verilmezse (denetim sayfası) içerik boş kalır.
-const props = defineProps<{ tescilId?: string | null }>();
+const props = defineProps<{ tescilId?: string | null; denetimId?: string | null }>();
+// Yazdırma tescile ya da denetime bağlı olabilir; aynı ekran ikisini de kullanır
+const kaynak = computed<YazdirKaynak>(() => (props.denetimId ? 'denetimler' : 'tesciller'));
+const kayitId = computed(() => props.denetimId ?? props.tescilId ?? null);
 const acik = defineModel<boolean>('acik', { default: false });
 
 // Şablon seti seçenekleri — ileride yeni set klasörleri eklendikçe genişler
@@ -31,15 +35,17 @@ const kalemler = ref<YazdirKalemi[]>([]);
 const sablonSeti = ref('tescil-temp1');
 const yukleniyor = ref(false);
 const hata = ref('');
+const listeMesaji = ref('');
 
 async function yukle(sessiz = false) {
-  if (!props.tescilId) return;
+  if (!kayitId.value) return;
   if (!sessiz) yukleniyor.value = true;
   hata.value = '';
   try {
-    const liste = await getTescilYazdir(props.tescilId);
+    const liste = await getTescilYazdir(kayitId.value!, kaynak.value);
     kalemler.value = liste.kalemler;
     sablonSeti.value = liste.sablonSeti;
+    listeMesaji.value = liste.mesaj ?? '';
   } catch (e) {
     hata.value = e instanceof Error ? e.message : 'Liste yüklenemedi';
   } finally {
@@ -59,11 +65,11 @@ watch(acik, (a) => {
 onBeforeUnmount(anketiDurdur);
 
 async function setKaydet(event: Event) {
-  if (!props.tescilId) return;
+  if (!kayitId.value) return;
   const deger = (event.target as HTMLSelectElement).value;
   sablonSeti.value = deger;
   try {
-    await updateTescil(props.tescilId, { sablonSeti: deger });
+    await updateTescil(props.tescilId!, { sablonSeti: deger });
   } catch (e) {
     hata.value = e instanceof Error ? e.message : 'Kaydedilemedi';
   }
@@ -87,9 +93,9 @@ function anketiDurdur() {
 
 async function isleriYenile() {
   anketiDurdur();
-  if (!props.tescilId || !acik.value) return;
+  if (!kayitId.value || !acik.value) return;
   try {
-    const r = await getTescilYazdirIsleri(props.tescilId);
+    const r = await getTescilYazdirIsleri(kayitId.value!, kaynak.value);
     isler.value = r.isler;
     genelBekleyen.value = r.genelBekleyen;
     const aktifler = new Set(r.isler.filter((i) => i.durum === 'calisiyor').map((i) => i.id));
@@ -156,11 +162,11 @@ function kalemDurumu(kod: string): 'uretiliyor' | 'bekliyor' | null {
 
 async function uret(kalem: YazdirKalemi) {
   // Devam eden bir yazdırma varken (hangi belgeye ait olursa olsun) yeni yazdırma başlatılmaz
-  if (!props.tescilId || aktifIsler.value.length || sifirlaniyor.value) return;
+  if (!kayitId.value || aktifIsler.value.length || sifirlaniyor.value) return;
   hata.value = '';
   try {
     // Daha önce üretilmişse "Yeniden Yazdır": girdi değişmese de yeniden üretilir
-    await baslatTescilYazdir(props.tescilId, kalem.kod, !!kalem.uretilen);
+    await baslatTescilYazdir(kayitId.value!, kalem.kod, !!kalem.uretilen, kaynak.value);
     await isleriYenile();
   } catch (e) {
     hata.value = e instanceof Error ? e.message : `${kalem.ad} sıraya alınamadı`;
@@ -169,10 +175,10 @@ async function uret(kalem: YazdirKalemi) {
 
 // Tümünü Yazdır: değişmemiş belgeler atlanır, kalanlar kuyrukta üretilir
 async function tumunuYazdir() {
-  if (!props.tescilId || aktifIsler.value.length || sifirlaniyor.value) return;
+  if (!kayitId.value || aktifIsler.value.length || sifirlaniyor.value) return;
   hata.value = '';
   try {
-    await baslatTopluTescilYazdir(props.tescilId);
+    await baslatTopluTescilYazdir(kayitId.value!, kaynak.value);
     await isleriYenile();
   } catch (e) {
     hata.value = e instanceof Error ? e.message : 'Toplu yazdırma başlatılamadı';
@@ -180,9 +186,9 @@ async function tumunuYazdir() {
 }
 
 async function isiIptalEt(is: YazdirIs) {
-  if (!props.tescilId) return;
+  if (!kayitId.value) return;
   try {
-    await iptalTescilYazdirIsi(props.tescilId, is.id);
+    await iptalTescilYazdirIsi(kayitId.value!, is.id, kaynak.value);
     await isleriYenile();
   } catch (e) {
     hata.value = e instanceof Error ? e.message : 'İptal edilemedi';
@@ -195,7 +201,7 @@ const uretilmisVar = computed(() => kalemler.value.some((k) => k.tip === 'sablon
 const hepsiTamam = computed(
   () =>
     kalemler.value.length > 0 &&
-    kalemler.value.every((k) => (k.tip === 'sablon' ? !!k.uretilen && !k.eskimis : !!k.dosyalar?.length))
+    kalemler.value.every((k) => (k.hazirDegil ? true : k.tip === 'sablon' ? !!k.uretilen && !k.eskimis : !!k.dosyalar?.length))
 );
 const sifirlaOnayAcik = ref(false);
 const sifirlaniyor = ref(false);
@@ -204,11 +210,11 @@ const yazdirmaMesgul = computed(() => aktifIsler.value.length > 0 || sifirlaniyo
 
 async function sifirla() {
   sifirlaOnayAcik.value = false;
-  if (!props.tescilId) return;
+  if (!kayitId.value) return;
   sifirlaniyor.value = true;
   hata.value = '';
   try {
-    await sifirlaTescilYazdir(props.tescilId);
+    await sifirlaTescilYazdir(kayitId.value!, kaynak.value);
     for (const k of kalemler.value) if (k.tip === 'sablon') k.uretilen = undefined;
   } catch (e) {
     hata.value = e instanceof Error ? e.message : 'Sıfırlanamadı';
@@ -256,7 +262,10 @@ function uzanti(slot: BelgeSlot) {
 
 function kalemDosyaAdi(kalem: YazdirKalemi, slot: BelgeSlot, sira?: number) {
   const ek = sira !== undefined ? ` (${sira + 1})` : '';
-  return `${String(kalem.no).padStart(2, '0')}-${kalem.ad}${ek}${uzanti(slot)}`;
+  // Tescilde "01-Ad", denetimde "1.Ad" / "12.1.Ad" biçimi
+  const sayi = typeof kalem.no === 'number';
+  const numara = sayi ? String(kalem.no).padStart(2, '0') : String(kalem.no);
+  return `${numara}${sayi ? '-' : '.'}${kalem.ad}${ek}${uzanti(slot)}`;
 }
 
 // ---- Tümünü İndir: tüm kalem dosyaları + üretilen PDF/DOCX'ler tek ZIP ----
@@ -322,7 +331,7 @@ async function tumunuIndir() {
       </div>
 
       <!-- Yazdırma süreçleri: sayfa kaydırılsa da başlığın altında sabit durur -->
-      <div v-if="tescilId && gorunenIsler.length"
+      <div v-if="kayitId && gorunenIsler.length"
         class="shrink-0 space-y-1.5 border-b border-white/5 bg-surface-900 px-4 py-2">
         <div v-for="is in gorunenIsler" :key="is.id" class="mx-auto max-w-lg space-y-1 bg-surface-800 p-2 ring-1 ring-white/10">
           <div class="flex items-center justify-between gap-2">
@@ -376,14 +385,17 @@ async function tumunuIndir() {
 
       <div class="min-h-0 flex-1 overflow-auto">
         <div class="mx-auto max-w-lg space-y-2 p-4">
-          <template v-if="tescilId">
+          <template v-if="kayitId">
             <p v-if="hata" class="bg-red-950/60 px-3 py-2 text-xs text-red-300 ring-1 ring-red-500/20">
               {{ hata }}
             </p>
 
             <!-- Şablon seti + toplu işlemler -->
             <div class="space-y-1.5 bg-surface-800 p-3 ring-1 ring-white/5">
-              <label class="block space-y-0.5">
+              <p v-if="kaynak === 'denetimler'" class="text-xs font-semibold text-ink">
+                {{ sablonSeti || 'Denetim' }} <span class="font-normal text-ink-muted">— denetim dosyası</span>
+              </p>
+              <label v-else class="block space-y-0.5">
                 <span class="text-xs font-medium text-ink-muted">Şablon Seti</span>
                 <select :value="sablonSeti" @change="setKaydet"
                   class="w-full bg-surface-900 px-2.5 py-1.5 text-xs text-ink ring-1 ring-white/10 outline-none focus:ring-white/30">
@@ -425,6 +437,10 @@ async function tumunuIndir() {
             </div>
 
             <p v-if="yukleniyor" class="py-8 text-center text-sm text-ink-muted">Yükleniyor…</p>
+            <p v-else-if="!kalemler.length && listeMesaji"
+              class="bg-surface-800 px-3 py-4 text-center text-xs text-ink-muted ring-1 ring-white/5">
+              {{ listeMesaji }}
+            </p>
 
             <!-- Kalem listesi -->
             <div v-for="kalem in kalemler" :key="kalem.kod"
@@ -432,7 +448,7 @@ async function tumunuIndir() {
               <div class="flex items-center gap-2">
                 <span class="min-w-0 flex-1">
                   <span class="block truncate text-xs font-semibold text-ink">
-                    {{ kalem.no }}-{{ kalem.ad }}
+                    {{ kalem.no }}{{ kaynak === 'denetimler' ? '.' : '-' }}{{ kalem.ad }}
                   </span>
                   <span v-if="kalem.altBilgi" class="mt-0.5 block truncate text-[11px] text-ink-muted/80">
                     {{ kalem.altBilgi }}
@@ -440,7 +456,11 @@ async function tumunuIndir() {
                 </span>
 
                 <!-- Şablon kalemi: üret / görüntüle / indir -->
-                <template v-if="kalem.tip === 'sablon'">
+                <span v-if="kalem.hazirDegil"
+                  class="shrink-0 bg-surface-900 px-2 py-0.5 text-[10px] font-semibold text-ink-muted/60 ring-1 ring-white/10">
+                  yakında
+                </span>
+                <template v-else-if="kalem.tip === 'sablon'">
                   <span v-if="kalem.uretilen && kalem.eskimis"
                     class="shrink-0 bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-amber-300 ring-1 ring-amber-500/30">
                     Güncel değil

@@ -31,6 +31,8 @@ const denetimSchema = new mongoose.Schema(
   {
     firmaId: { type: mongoose.Schema.Types.ObjectId, ref: 'Firma', required: true },
     asansorId: { type: mongoose.Schema.Types.ObjectId, ref: 'Asansor', required: true },
+    // Modül G: denetimi yapan denetçi (Ayarlar > Denetçiler)
+    denetciId: { type: mongoose.Schema.Types.ObjectId, ref: 'Denetci', default: null },
     modul: { type: String, trim: true, default: '' },
     denetimTarihi: { type: Date, required: true },
     ekProje: { type: dosyaSlotSchema, default: null },
@@ -41,6 +43,23 @@ const denetimSchema = new mongoose.Schema(
     // Modul E: montaj sözleşmesi ve malzeme faturası dosya/fotoğrafları
     montajSozlesmeleri: { type: [dosyaSlotSchema], default: [] },
     malzemeFaturalari: { type: [dosyaSlotSchema], default: [] },
+    // Yazdır: şablondan üretilen DOCX+PDF çiftleri (denetimYazdir.js yönetir)
+    uretilenBelgeler: {
+      type: [
+        new mongoose.Schema(
+          {
+            sablonKodu: { type: String, required: true },
+            sablonAdi: { type: String, default: '' },
+            docx: { type: dosyaSlotSchema, default: null },
+            pdf: { type: dosyaSlotSchema, default: null },
+            uretimTarihi: { type: Date, default: null },
+            kaynakOzeti: { type: String, default: '' },
+          },
+          { _id: false }
+        ),
+      ],
+      default: [],
+    },
   },
   { timestamps: true, collection: 'denetimler' }
 );
@@ -50,6 +69,7 @@ export const Denetim = mongoose.model('Denetim', denetimSchema);
 const POPULATE = [
   { path: 'firmaId', select: 'ad unvan telefon il ilce' },
   { path: 'asansorId', select: 'seriNo yapiRuhsatNo il ilce' },
+  { path: 'denetciId', select: 'adSoyad muhendisTuru imzaKase' },
 ];
 
 const router = express.Router();
@@ -78,14 +98,14 @@ router.get('/:id', async (req, res) => {
 
 router.post('/', async (req, res) => {
   try {
-    const { firmaId, asansorId, modul, denetimTarihi } = req.body ?? {};
+    const { firmaId, asansorId, modul, denetimTarihi, denetciId } = req.body ?? {};
     if (!firmaId || !asansorId) {
       return res.status(400).json({ message: 'Firma ve asansör seçimi zorunludur' });
     }
     if (!denetimTarihi) {
       return res.status(400).json({ message: 'Denetim tarihi zorunludur' });
     }
-    const denetim = await Denetim.create({ firmaId, asansorId, modul, denetimTarihi });
+    const denetim = await Denetim.create({ firmaId, asansorId, modul, denetimTarihi, denetciId: denetciId || null });
     res.status(201).json(await denetim.populate(POPULATE));
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -95,7 +115,7 @@ router.post('/', async (req, res) => {
 router.put('/:id', async (req, res) => {
   try {
     const {
-      firmaId, asansorId, modul, denetimTarihi,
+      firmaId, asansorId, modul, denetimTarihi, denetciId,
       ekProje, abUygunlukBeyaniTarihi, sonKontrolTarihi,
       tipProjeler, guvenlikAksamlari, montajSozlesmeleri, malzemeFaturalari,
     } = req.body ?? {};
@@ -103,7 +123,7 @@ router.put('/:id', async (req, res) => {
     const denetim = await Denetim.findByIdAndUpdate(
       req.params.id,
       {
-        firmaId, asansorId, modul, denetimTarihi,
+        firmaId, asansorId, modul, denetimTarihi, denetciId,
         ekProje, abUygunlukBeyaniTarihi, sonKontrolTarihi,
         tipProjeler, guvenlikAksamlari, montajSozlesmeleri, malzemeFaturalari,
       },

@@ -38,7 +38,7 @@ export interface UretilenBelge {
 
 // Yazdır listesi satırı — api/yazdir.js kalemListesi çıktısı
 export interface YazdirKalemi {
-  no: number;
+  no: number | string;
   kod: string;
   ad: string;
   tip: 'dosya' | 'sablon' | 'ce' | 'aksam';
@@ -46,12 +46,15 @@ export interface YazdirKalemi {
   uretilen?: UretilenBelge | null;
   // Üretilmiş belgenin girdileri (veri/şablon) sonradan değişti
   eskimis?: boolean;
+  // Şablonun alan eşlemesi henüz hazır değil (listede görünür, yazdırılamaz)
+  hazirDegil?: boolean;
   altBilgi?: string;
 }
 
 export interface YazdirListesi {
   sablonSeti: string;
   kalemler: YazdirKalemi[];
+  mesaj?: string;
 }
 
 export interface YeniTescil {
@@ -99,8 +102,11 @@ export function deleteTescil(id: string): Promise<{ ok: boolean }> {
 }
 
 // Yazdır ekranı: kalem listesi (dosyalar + üretilmiş şablonlar)
-export function getTescilYazdir(id: string): Promise<YazdirListesi> {
-  return request<YazdirListesi>(`/tesciller/${id}/yazdir`);
+// kaynak: yazdırmanın bağlı olduğu kayıt türü (tescil ya da denetim) — aynı arayüz
+export type YazdirKaynak = 'tesciller' | 'denetimler';
+
+export function getTescilYazdir(id: string, kaynak: YazdirKaynak = 'tesciller'): Promise<YazdirListesi> {
+  return request<YazdirListesi>(`/${kaynak}/${id}/yazdir`);
 }
 
 // ---- Yazdırma işleri: sunucuda kuyruğa alınır, ilerleme sorgulanır ----
@@ -122,7 +128,7 @@ export interface YazdirIs {
   atlanan: number;
   hatali: number;
   hatalar: { ad: string; mesaj: string }[];
-  calisan: { kod: string; no: number; ad: string }[];
+  calisan: { kod: string; no: number | string; ad: string }[];
   kalemler: {
     kod: string;
     durum: 'bekliyor' | 'uretiliyor' | 'hazir' | 'cevrildi' | 'tamam' | 'guncel' | 'hata' | 'iptal';
@@ -142,27 +148,35 @@ export interface YazdirIsleri {
 }
 
 // Tek şablon belgesini kuyruğa alır (zorla: girdi değişmese de yeniden üretir)
-export function baslatTescilYazdir(id: string, sablonKodu: string, zorla = false): Promise<{ isId: string }> {
-  return request<{ isId: string }>(`/tesciller/${id}/yazdir/${sablonKodu}`, {
+export function baslatTescilYazdir(
+  id: string, sablonKodu: string, zorla = false, kaynak: YazdirKaynak = 'tesciller'
+): Promise<{ isId: string }> {
+  return request<{ isId: string }>(`/${kaynak}/${id}/yazdir/${sablonKodu}`, {
     method: 'POST',
     body: JSON.stringify({ zorla }),
   });
 }
 
 // Tüm şablon belgelerini kuyruğa alır; güncel olanlar atlanır
-export function baslatTopluTescilYazdir(id: string): Promise<{ isId: string; mevcut: boolean }> {
-  return request<{ isId: string; mevcut: boolean }>(`/tesciller/${id}/yazdir-toplu`, { method: 'POST' });
+export function baslatTopluTescilYazdir(
+  id: string, kaynak: YazdirKaynak = 'tesciller'
+): Promise<{ isId: string; mevcut: boolean }> {
+  return request<{ isId: string; mevcut: boolean }>(`/${kaynak}/${id}/yazdir-toplu`, { method: 'POST' });
 }
 
-export function getTescilYazdirIsleri(id: string): Promise<YazdirIsleri> {
-  return request<YazdirIsleri>(`/tesciller/${id}/yazdir/isler`);
+export function getTescilYazdirIsleri(id: string, kaynak: YazdirKaynak = 'tesciller'): Promise<YazdirIsleri> {
+  return request<YazdirIsleri>(`/${kaynak}/${id}/yazdir/isler`);
 }
 
-export function iptalTescilYazdirIsi(id: string, isId: string): Promise<{ iptal: boolean }> {
-  return request<{ iptal: boolean }>(`/tesciller/${id}/yazdir/isler/${isId}`, { method: 'DELETE' });
+export function iptalTescilYazdirIsi(
+  id: string, isId: string, kaynak: YazdirKaynak = 'tesciller'
+): Promise<{ iptal: boolean }> {
+  return request<{ iptal: boolean }>(`/${kaynak}/${id}/yazdir/isler/${isId}`, { method: 'DELETE' });
 }
 
 // Üretilmiş tüm DOCX/PDF çıktılarını kayıttan ve depodan siler
-export function sifirlaTescilYazdir(id: string): Promise<{ silinen: number; depodanSilinen: number }> {
-  return request<{ silinen: number; depodanSilinen: number }>(`/tesciller/${id}/yazdir`, { method: 'DELETE' });
+export function sifirlaTescilYazdir(
+  id: string, kaynak: YazdirKaynak = 'tesciller'
+): Promise<{ silinen: number; depodanSilinen: number }> {
+  return request<{ silinen: number; depodanSilinen: number }>(`/${kaynak}/${id}/yazdir`, { method: 'DELETE' });
 }

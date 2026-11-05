@@ -14,6 +14,8 @@ import riskMaddeleriRouter from './riskMaddeleri.js';
 import katalogRouter from './katalog.js';
 import asansorRouter from './asansor.js';
 import denetimRouter from './denetim.js';
+import denetimYazdirRouter from './denetimYazdir.js';
+import denetciRouter from './denetciler.js';
 import tescilRouter from './tescil.js';
 import yazdirRouter from './yazdir.js';
 import smmFirmalariRouter from './smmFirmalari.js';
@@ -340,6 +342,8 @@ app.use('/api/adres-kayitlari', adresKayitlariRouter);
 app.use('/api/risk-maddeleri', riskMaddeleriRouter);
 app.use('/api', katalogRouter);
 app.use('/api/asansorler', asansorRouter);
+app.use('/api/denetciler', denetciRouter);
+app.use('/api/denetimler', denetimYazdirRouter); // /:id/yazdir rotaları (önce eşleşmeli)
 app.use('/api/denetimler', denetimRouter);
 app.use('/api/tesciller', yazdirRouter); // /:id/yazdir rotaları (önce eşleşmeli)
 app.use('/api/tesciller', tescilRouter);
