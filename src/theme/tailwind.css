@@ -86,6 +86,13 @@ html.acik-tema .text-\[\#6fcf97\] { color: #1e6b3d; }
 /* Seçili sekme / vurgulu satır zeminleri */
 html.acik-tema .bg-\[\#223c2d\] { background-color: #c8e0d0; }
 html.acik-tema .bg-\[\#1d3a28\] { background-color: #d3e6da; }
+/* Risk analizi standart maddeleri (mavi): açık temada şeffaf mavi zemin */
+html.acik-tema .bg-\[\#1d3557\] { background-color: rgb(59 130 246 / 0.22); }
+html.acik-tema .bg-\[\#16263d\]\/70 { background-color: rgb(59 130 246 / 0.10); }
+html.acik-tema .active\:bg-\[\#1d3557\]:active { background-color: rgb(59 130 246 / 0.22); }
+html.acik-tema .active\:bg-\[\#25457a\]:active { background-color: rgb(59 130 246 / 0.30); }
+html.acik-tema .bg-\[\#2f5d9b\] { background-color: #2f5d9b; color: #f2f6fc; }
+html.acik-tema .text-\[\#9cc4ff\] { color: #1d4e89; }
 /* Birincil (yeşil) butonlar: zemin korunur, üzerindeki koyu ink yerine
    açık metin zorlanır (alt öğeler kalıtımla alır) */
 html.acik-tema .bg-\[\#2b5c3d\] { background-color: #2e6242; color: #f2f7f3; }

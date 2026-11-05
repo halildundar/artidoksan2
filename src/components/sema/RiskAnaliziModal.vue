@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue';
+import { computed, ref, watch } from 'vue';
 import SemaModal from '@/components/SemaModal.vue';
 import SilmeOnayi from '@/components/SilmeOnayi.vue';
 import {
@@ -57,6 +57,9 @@ async function yukle() {
   }
 }
 
+const standartMaddeler = computed(() => maddeler.value.filter((m) => m.standart));
+const digerMaddeler = computed(() => maddeler.value.filter((m) => !m.standart));
+
 function seciliMi(madde: RiskMaddesi) {
   return secilen.value.some((s) => s.maddeId === madde._id);
 }
@@ -100,12 +103,14 @@ async function resimAc(resim: BelgeSlot | null | undefined) {
 // ---- Madde formu (yeni ekleme / düzenleme) ----
 const yeniMetin = ref('');
 const yeniResim = ref<BelgeSlot | null>(null);
+const yeniStandart = ref(false);
 const duzenlenenId = ref<string | null>(null);
 const resimYukleniyor = ref(false);
 const kaydediliyor = ref(false);
 
-function formAc() {
+function formAc(standart = false) {
   duzenlenenId.value = null;
+  yeniStandart.value = standart;
   yeniMetin.value = '';
   yeniResim.value = null;
   hata.value = '';
@@ -115,6 +120,7 @@ function formAc() {
 // Katalogdaki maddeyi forma doldurarak düzenleme modunda açar
 function duzenle(madde: RiskMaddesi) {
   duzenlenenId.value = madde._id;
+  yeniStandart.value = !!madde.standart;
   yeniMetin.value = madde.metin;
   yeniResim.value = madde.resim ?? null;
   if (yeniResim.value) resimUrlGetir(yeniResim.value);
@@ -151,6 +157,7 @@ async function maddeKaydet() {
       const madde = await updateRiskMaddesi(duzenlenenId.value, {
         metin: yeniMetin.value.trim(),
         resim: yeniResim.value,
+        standart: yeniStandart.value,
       });
       const i = maddeler.value.findIndex((m) => m._id === madde._id);
       if (i >= 0) maddeler.value[i] = madde;
@@ -163,6 +170,7 @@ async function maddeKaydet() {
         grup: props.grup,
         metin: yeniMetin.value.trim(),
         resim: yeniResim.value,
+        standart: yeniStandart.value,
       });
       maddeler.value.push(madde);
       if (madde.resim) resimUrlGetir(madde.resim);
@@ -208,19 +216,28 @@ async function silOnayla() {
           Maddeler
           <span v-if="secilen.length" class="text-[#6fcf97]">({{ secilen.length }} seçili)</span>
         </span>
-        <button type="button" @click="formAc"
-          class="shrink-0 bg-surface-900 px-2.5 py-1.5 text-[11px] font-semibold text-ink ring-1 ring-white/10 active:bg-[#1a2a20]">
-          + Madde Ekle
-        </button>
+        <div class="flex shrink-0 gap-1.5">
+          <button type="button" @click="formAc(true)"
+            class="bg-[#1d3557] px-2.5 py-1.5 text-[11px] font-semibold text-[#9cc4ff] ring-1 ring-[#2f5d9b] active:bg-[#25457a]">
+            + Standart Madde
+          </button>
+          <button type="button" @click="formAc(false)"
+            class="bg-surface-900 px-2.5 py-1.5 text-[11px] font-semibold text-ink ring-1 ring-white/10 active:bg-[#1a2a20]">
+            + Çözüm Ekle
+          </button>
+        </div>
       </div>
 
       <!-- Yeni madde formu -->
       <div v-if="formAcik" class="space-y-2 bg-surface-900/60 p-2.5 ring-1 ring-white/5">
-        <h4 class="text-xs font-bold text-ink">{{ duzenlenenId ? 'Maddeyi Düzenle' : 'Yeni Madde' }}</h4>
+        <h4 class="text-xs font-bold text-ink">{{ duzenlenenId ? 'Maddeyi Düzenle' : yeniStandart ? 'Yeni Standart Madde' : 'Yeni Çözüm' }}</h4>
         <label class="block space-y-0.5">
           <span class="text-xs font-medium text-ink-muted">Madde Metni</span>
           <textarea v-model="yeniMetin" rows="3" placeholder="Madde metni..."
             class="w-full resize-none bg-surface-900 px-2.5 py-1.5 text-xs text-ink ring-1 ring-white/10 outline-none placeholder:text-ink-muted/40 focus:ring-white/30"></textarea>
+        </label>
+        <label class="flex items-center gap-1.5 text-xs font-medium text-[#9cc4ff]">
+          <input type="checkbox" v-model="yeniStandart" /> Standart madde (aksi halde uygulanan çözüm)
         </label>
         <div class="block space-y-0.5">
           <span class="text-xs font-medium text-ink-muted">Resim</span>
@@ -257,18 +274,22 @@ async function silOnayla() {
       <!-- Madde listesi — dokununca seçilir/çıkarılır (çoktan seçmeli) -->
       <p v-if="yukleniyor" class="text-xs text-ink-muted">Yükleniyor…</p>
       <p v-else-if="!maddeler.length && !formAcik" class="text-xs text-ink-muted">
-        Henüz madde yok — "+ Madde Ekle" ile ekleyin.
+        Henüz madde yok — "+ Standart Madde" veya "+ Çözüm Ekle" ile ekleyin.
       </p>
-      <div v-else class="space-y-1.5">
-        <div v-for="madde in maddeler" :key="madde._id" role="button" tabindex="0"
+      <template v-else>
+      <div v-for="grup in [{ t: standartMaddeler, mavi: true }, { t: digerMaddeler, mavi: false }]" :key="String(grup.mavi)"
+        v-show="grup.t.length" class="space-y-1.5">
+        <p v-if="grup.mavi" class="pt-1 text-[11px] font-semibold text-[#9cc4ff]">Standart Maddeleri</p>
+        <p v-else-if="standartMaddeler.length" class="pt-1 text-[11px] font-semibold text-ink-muted">Uygulanan Çözümler</p>
+        <div v-for="madde in grup.t" :key="madde._id" role="button" tabindex="0"
           @click="sec(madde)" @keydown.enter="sec(madde)"
           class="flex w-full cursor-pointer items-center gap-2 p-2.5 text-left ring-1"
           :class="seciliMi(madde)
-            ? 'bg-[#1d3a28] ring-[#2b5c3d]'
-            : 'bg-surface-900/60 ring-white/5 active:bg-[#1a2a20]'">
+            ? (grup.mavi ? 'bg-[#1d3557] ring-[#2f5d9b]' : 'bg-[#1d3a28] ring-[#2b5c3d]')
+            : (grup.mavi ? 'bg-[#16263d]/70 ring-[#2f5d9b]/40 active:bg-[#1d3557]' : 'bg-surface-900/60 ring-white/5 active:bg-[#1a2a20]')">
           <!-- Seçim işareti -->
           <span class="grid h-4 w-4 shrink-0 place-items-center text-[11px] leading-none ring-1"
-            :class="seciliMi(madde) ? 'bg-[#2b5c3d] text-ink ring-white/10' : 'bg-surface-900 ring-white/15'">
+            :class="seciliMi(madde) ? (grup.mavi ? 'bg-[#2f5d9b] text-ink ring-white/10' : 'bg-[#2b5c3d] text-ink ring-white/10') : 'bg-surface-900 ring-white/15'">
             {{ seciliMi(madde) ? '✓' : '' }}
           </span>
           <!-- Resim önizleme (dokununca tam ekran, seçimi tetiklemez) -->
@@ -297,6 +318,7 @@ async function silOnayla() {
           </span>
         </div>
       </div>
+      </template>
     </div>
 
     <!-- Silme onayı (kullanıcı kuralı: window.confirm yerine) -->

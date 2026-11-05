@@ -9,6 +9,7 @@ export interface RiskMaddesi {
   grup: string;
   metin: string;
   resim?: BelgeSlot | null;
+  standart?: boolean;
 }
 
 // Asansöre kaydedilen seçim: katalog id'si + metin/resim snapshot'ı +
@@ -30,7 +31,7 @@ export function createRiskMaddesi(veri: Omit<RiskMaddesi, '_id'>): Promise<RiskM
 
 export function updateRiskMaddesi(
   id: string,
-  veri: Pick<RiskMaddesi, 'metin' | 'resim'>
+  veri: Pick<RiskMaddesi, 'metin' | 'resim' | 'standart'>
 ): Promise<RiskMaddesi> {
   return request<RiskMaddesi>(`/risk-maddeleri/${id}`, { method: 'PUT', body: JSON.stringify(veri) });
 }

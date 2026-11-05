@@ -21,6 +21,8 @@ const riskMaddesiSchema = new mongoose.Schema(
     grup: { type: String, required: true, trim: true, index: true },
     metin: { type: String, required: true, trim: true },
     resim: { type: dosyaSlotSchema, default: undefined },
+    // Standart madde: listede ayrı (mavi) bölümde gösterilir
+    standart: { type: Boolean, default: false },
   },
   { timestamps: true, collection: 'riskMaddeleri' }
 );
@@ -43,11 +45,11 @@ router.get('/', async (req, res) => {
 
 router.post('/', async (req, res) => {
   try {
-    const { grup, metin, resim } = req.body ?? {};
+    const { grup, metin, resim, standart } = req.body ?? {};
     if (!grup || !metin || !String(metin).trim()) {
       return res.status(400).json({ message: 'Grup ve madde metni zorunludur' });
     }
-    const madde = await RiskMaddesi.create({ grup, metin, resim: resim ?? undefined });
+    const madde = await RiskMaddesi.create({ grup, metin, resim: resim ?? undefined, standart: !!standart });
     res.status(201).json(madde);
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -56,13 +58,13 @@ router.post('/', async (req, res) => {
 
 router.put('/:id', async (req, res) => {
   try {
-    const { metin, resim } = req.body ?? {};
+    const { metin, resim, standart } = req.body ?? {};
     if (!metin || !String(metin).trim()) {
       return res.status(400).json({ message: 'Madde metni zorunludur' });
     }
     const madde = await RiskMaddesi.findByIdAndUpdate(
       req.params.id,
-      { metin, resim: resim ?? null },
+      { metin, resim: resim ?? null, ...(standart === undefined ? {} : { standart: !!standart }) },
       { new: true, runValidators: true }
     );
     if (!madde) return res.status(404).json({ message: 'Madde bulunamadı' });
