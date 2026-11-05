@@ -407,6 +407,7 @@ const GORSEL_TAG_KAYNAKLARI = {
   firma_imza_kase: 'imzaKase',
   // Denetim belgeleri: denetçinin imza-kaşesi (denetimYazdir.js firma.belgeler'e ekler)
   denetci_imza: 'denetciImza',
+  denci_imza_kase: 'denetciImza', // 3.CHECKLIST şablonundaki yazım
   denetci_imza_kase: 'denetciImza',
 };
 
@@ -589,6 +590,10 @@ export async function sablonDoldur(sablonYolu, veri, firma, secenek = {}) {
   const zip = new PizZip(await fs.readFile(sablonYolu));
   {
     let xml = zip.file('word/document.xml').asText();
+    // Metin içindeki sıradan "{" (ör. "{ 1 m/s") etiket sanılıp "unclosed tag" hatası
+    // vermesin: etiketler boşluk/rakamla başlamaz, bu parantezler HTML koduyla yazılır
+    xml = xml.replace(/(<w:t(?: [^>]*)?>)([^<]*)(<\/w:t>)/g, (_m, ac, t, ka) => ac + t.replace(/\{(?=\s|\d)/g, '&#123;') + ka);
+    if (secenek.xmlYama) xml = secenek.xmlYama(xml);
     if (secenek.checkboxTagleri) xml = checkboxlariIsaretle(xml, secenek.checkboxTagleri);
     zip.file('word/document.xml', checkboxFontunuSabitle(xml));
   }
@@ -699,7 +704,7 @@ export async function sablonDoldur(sablonYolu, veri, firma, secenek = {}) {
 // ---- Kaynak özeti: belgeyi üreten girdilerin (şablon dosyası + doldurulan
 // veri + logo/imza görselleri) parmak izi. Aynıysa belge yeniden çevrilmez;
 // URETIM_SURUMU üretim mantığı değişince artırılır ve eski çıktıları geçersiz kılar ----
-const URETIM_SURUMU = 1;
+const URETIM_SURUMU = 17;
 const sablonHashOnbellek = new Map();
 
 async function sablonHash(yol) {

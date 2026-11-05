@@ -12,7 +12,7 @@ import adresRouter from './adres.js';
 import adresKayitlariRouter from './adresKayitlari.js';
 import riskMaddeleriRouter from './riskMaddeleri.js';
 import katalogRouter from './katalog.js';
-import asansorRouter from './asansor.js';
+import asansorRouter, { varsayilanlariTamamla } from './asansor.js';
 import denetimRouter from './denetim.js';
 import denetimYazdirRouter from './denetimYazdir.js';
 import denetciRouter from './denetciler.js';
@@ -592,6 +592,9 @@ mongoose
   .connect(MONGODB_URI)
   .then(() => {
     console.log(`MongoDB bağlandı: ${MONGODB_URI}`);
+    varsayilanlariTamamla()
+      .then((n) => n && console.log(`${n} asansör kaydına varsayılan ölçüler yazıldı`))
+      .catch((e) => console.error('Varsayılan ölçüler yazılamadı:', e.message));
     app.listen(PORT, () => console.log(`API hazır: http://localhost:${PORT}`));
   })
   .catch((err) => {

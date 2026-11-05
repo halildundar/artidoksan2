@@ -48,6 +48,8 @@ export interface Denetim {
   asansorId: string | DenetimAsansorOzet | null;
   denetciId?: string | DenetimDenetciOzet | null;
   ceBelgeIdleri?: string[];
+  teknikDosyaSeti?: string;
+  tuvFormsSeti?: string;
   modul: string;
   denetimTarihi: string;
   // Modul G detayı
@@ -75,6 +77,8 @@ export interface YeniDenetim {
 // Kısmi güncelleme — yalnızca gönderilen alanlar değişir
 export type DenetimGuncelleme = Partial<YeniDenetim> & {
   ceBelgeIdleri?: string[];
+  teknikDosyaSeti?: string;
+  tuvFormsSeti?: string;
   ekProje?: BelgeSlot | null;
   abUygunlukBeyaniTarihi?: string | null;
   sonKontrolTarihi?: string | null;

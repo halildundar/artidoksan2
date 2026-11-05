@@ -115,6 +115,12 @@ const frenBelgeleri = computed(() =>
 const hizRegulatoruBelgeleri = computed(() =>
   katalogBelgeler.value.filter((b) => b.bilesenTipiKodu === 'hiz_regulatoru')
 );
+const halatBelgeleri = computed(() =>
+  katalogBelgeler.value.filter((b) => b.bilesenTipiKodu === 'halat')
+);
+const rayBelgeleri = computed(() =>
+  katalogBelgeler.value.filter((b) => b.bilesenTipiKodu === 'ray')
+);
 const kontrolKartiBelgeleri = computed(() =>
   katalogBelgeler.value.filter((b) => b.bilesenTipiKodu === 'kontrol_karti')
 );
@@ -266,6 +272,8 @@ const altBolumler: Bolum[] = [
   { key: 'kontrol-karti', label: 'Kontrol Kartı', icon: '🎛️' },
   { key: 'motor', label: 'Motor', icon: '⚡' },
   { key: 'ucm-acop', label: 'UCM/ACOP', icon: '🛡️' },
+  { key: 'halatlar', label: 'Halatlar', icon: '🔗' },
+  { key: 'raylar', label: 'Raylar', icon: '📏' },
 ];
 
 const aktifAltBolum = ref<Bolum | null>(null);
@@ -304,6 +312,14 @@ function altBolumAc(bolum: Bolum) {
   }
   if (bolum.key === 'ucm-acop') {
     ucmAc();
+    return;
+  }
+  if (bolum.key === 'halatlar') {
+    halatAc();
+    return;
+  }
+  if (bolum.key === 'raylar') {
+    rayAc();
     return;
   }
   aktifAltBolum.value = bolum;
@@ -499,6 +515,63 @@ watch(kontrolKartiAcik, (acik, onceki) => {
   guncelle({
     guvenlikAksamlari: row ? [...digerleri, row] : digerleri,
     kontrolKartiFotolari: kontrolKartiBolum.value.fotolar,
+  });
+});
+
+// ---- Halatlar / Raylar (tek satırlı aksam bölümleri) ----
+const halatAksamAcik = ref(false);
+const halatBolum = ref<AksamBolum>({ marka: null, tip: null, seriNo: '', fotolar: [] });
+
+function halatAc() {
+  const a = asansor.value;
+  if (!a) return;
+  halatBolum.value = aksamBolumKur('halat', a.halatAksamFotolari);
+  // Kayıtlı satır yoksa halat markası/tipi asansör kaydından önerilir
+  if (!halatBolum.value.marka && a.halatMarka) halatBolum.value.marka = a.halatMarka;
+  if (!halatBolum.value.tip && a.halatTipi) halatBolum.value.tip = a.halatTipi;
+  halatAksamAcik.value = true;
+}
+
+watch(halatAksamAcik, (acik, onceki) => {
+  if (acik || !onceki) return;
+  if (iptalEdildi.value) {
+    iptalEdildi.value = false;
+    return;
+  }
+  const row = aksamSatiri(halatBelgeleri.value, 'halat', halatBolum.value);
+  const digerleri = (asansor.value?.guvenlikAksamlari ?? []).filter((r) => r.slot !== 'halat');
+  guncelle({
+    guvenlikAksamlari: row ? [...digerleri, row] : digerleri,
+    halatAksamFotolari: halatBolum.value.fotolar,
+    // Yazdırma (Modül B halat sertifikası) marka/tipten belge seçer
+    halatMarka: halatBolum.value.marka ?? '',
+    halatTipi: halatBolum.value.tip ?? asansor.value?.halatTipi ?? '',
+  });
+});
+
+const rayAksamAcik = ref(false);
+const rayBolum = ref<AksamBolum>({ marka: null, tip: null, seriNo: '', fotolar: [] });
+
+function rayAc() {
+  const a = asansor.value;
+  if (!a) return;
+  rayBolum.value = aksamBolumKur('ray', a.rayAksamFotolari);
+  if (!rayBolum.value.marka && a.rayMarka) rayBolum.value.marka = a.rayMarka;
+  rayAksamAcik.value = true;
+}
+
+watch(rayAksamAcik, (acik, onceki) => {
+  if (acik || !onceki) return;
+  if (iptalEdildi.value) {
+    iptalEdildi.value = false;
+    return;
+  }
+  const row = aksamSatiri(rayBelgeleri.value, 'ray', rayBolum.value);
+  const digerleri = (asansor.value?.guvenlikAksamlari ?? []).filter((r) => r.slot !== 'ray');
+  guncelle({
+    guvenlikAksamlari: row ? [...digerleri, row] : digerleri,
+    rayAksamFotolari: rayBolum.value.fotolar,
+    rayMarka: rayBolum.value.marka ?? '',
   });
 });
 
@@ -1280,6 +1353,8 @@ const GUVENLIK_SLOT_ETIKETLERI: Record<string, string> = {
   hiz_regulatoru: 'Hız Regülatörü',
   kontrol_karti: 'Kontrol Kartı',
   ucm_acop: 'UCM/ACOP',
+  halat: 'Halat',
+  ray: 'Ray',
 };
 
 function katalogBelge(belgeId: string | null | undefined) {
@@ -2144,6 +2219,15 @@ const onBilgi = computed(() => {
     <AksamModal v-model:open="kontrolKartiAcik" @iptal="iptalEdildi = true"
       v-model:bolum="kontrolKartiBolum"
       baslik="Kontrol Kartı" kod="kontrol_karti" :belgeler="kontrolKartiBelgeleri" />
+
+    <!-- Halatlar / Raylar — marka/tip/seri + fotoğraflar; kapanınca güvenlik
+    aksamlarına kaydedilir -->
+    <AksamModal v-model:open="halatAksamAcik" @iptal="iptalEdildi = true"
+      v-model:bolum="halatBolum"
+      baslik="Halatlar" kod="halat" :belgeler="halatBelgeleri" />
+    <AksamModal v-model:open="rayAksamAcik" @iptal="iptalEdildi = true"
+      v-model:bolum="rayBolum"
+      baslik="Raylar" kod="ray" :belgeler="rayBelgeleri" />
 
     <!-- Motor — dişlisiz/dişlili; marka/tip/seri + güç/rpm (+ ratio) +
     fotoğraflar; kapanınca motor alanlarına kaydedilir -->

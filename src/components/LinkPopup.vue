@@ -45,6 +45,11 @@ async function kopyala() {
 }
 
 function paylas() {
+  // Tarayıcı paylaşım menüsünü desteklemiyorsa (masaüstü) link kopyalanır
+  if (!paylasilabilir) {
+    kopyala();
+    return;
+  }
   navigator.share({ url: props.url }).catch(() => {
     /* kullanıcı paylaşımı iptal ederse sessiz geç */
   });
@@ -82,7 +87,7 @@ function paylas() {
               class="flex-1 bg-[#2b5c3d] px-3 py-2.5 text-xs font-semibold text-ink ring-1 ring-white/10 active:bg-[#346e4a]">
               {{ kopyalandi ? 'Kopyalandı ✓' : 'Kopyala' }}
             </button>
-            <button v-if="paylasilabilir" type="button" @click="paylas"
+            <button type="button" @click="paylas"
               class="flex-1 bg-surface-800 px-3 py-2.5 text-xs font-semibold text-ink ring-1 ring-white/10 active:bg-[#1a2a20]">
               Paylaş
             </button>

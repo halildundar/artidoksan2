@@ -12,6 +12,7 @@ import {
   type YazdirKalemi,
   type YazdirKaynak,
 } from '@/services/tescilService';
+import { updateDenetim } from '@/services/denetimService';
 import { getDosyaUrl, getDosyaIndirUrl, createZipLink, type BelgeSlot } from '@/services/dosyaService';
 import { useFileViewer, fileViewerTypeFromMime } from '@/composables/useFileViewer';
 import LinkPopup from '@/components/LinkPopup.vue';
@@ -33,6 +34,13 @@ const SABLON_SETLERI = [{ deger: 'tescil-temp1', etiket: 'Template 1' }];
 
 const kalemler = ref<YazdirKalemi[]>([]);
 const sablonSeti = ref('tescil-temp1');
+// Denetim: şablon klasörü seçimleri (varsayılan ikisi de seçili)
+const DENETIM_SETLERI = {
+  teknikDosyaSeti: [{ deger: 'ce-td-temp1', etiket: 'Teknik Dosya 1' }],
+  tuvFormsSeti: [{ deger: 'tuv-temp1', etiket: 'Tüv Forms 1' }],
+};
+const teknikDosyaSeti = ref('ce-td-temp1');
+const tuvFormsSeti = ref('tuv-temp1');
 const yukleniyor = ref(false);
 const hata = ref('');
 const listeMesaji = ref('');
@@ -45,6 +53,8 @@ async function yukle(sessiz = false) {
     const liste = await getTescilYazdir(kayitId.value!, kaynak.value);
     kalemler.value = liste.kalemler;
     sablonSeti.value = liste.sablonSeti;
+    teknikDosyaSeti.value = liste.teknikDosyaSeti ?? 'ce-td-temp1';
+    tuvFormsSeti.value = liste.tuvFormsSeti ?? 'tuv-temp1';
     listeMesaji.value = liste.mesaj ?? '';
   } catch (e) {
     hata.value = e instanceof Error ? e.message : 'Liste yüklenemedi';
@@ -70,6 +80,18 @@ async function setKaydet(event: Event) {
   sablonSeti.value = deger;
   try {
     await updateTescil(props.tescilId!, { sablonSeti: deger });
+  } catch (e) {
+    hata.value = e instanceof Error ? e.message : 'Kaydedilemedi';
+  }
+}
+
+async function denetimSetiKaydet(alan: 'teknikDosyaSeti' | 'tuvFormsSeti', event: Event) {
+  if (!props.denetimId) return;
+  const deger = (event.target as HTMLSelectElement).value;
+  (alan === 'teknikDosyaSeti' ? teknikDosyaSeti : tuvFormsSeti).value = deger;
+  try {
+    await updateDenetim(props.denetimId, { [alan]: deger });
+    yukle(true);
   } catch (e) {
     hata.value = e instanceof Error ? e.message : 'Kaydedilemedi';
   }
@@ -197,12 +219,10 @@ async function isiIptalEt(is: YazdirIs) {
 
 // ---- Sıfırla: üretilmiş çıktıları kayıttan + depodan siler ----
 const uretilmisVar = computed(() => kalemler.value.some((k) => k.tip === 'sablon' && k.uretilen));
-// Tümünü İndir yalnız her kalemin çıktısı/dosyası tamamsa gösterilir
-const hepsiTamam = computed(
-  () =>
-    kalemler.value.length > 0 &&
-    kalemler.value.every((k) => (k.hazirDegil ? true : k.tip === 'sablon' ? !!k.uretilen && !k.eskimis : !!k.dosyalar?.length))
-);
+// Eksik dosya sayısı: üretilmemiş/eskimiş şablonlar + dosyası olmayan kalemler
+const kalemEksik = (k: YazdirKalemi) =>
+  !k.hazirDegil && (k.tip === 'sablon' ? !k.uretilen || !!k.eskimis : !k.dosyalar?.length);
+const eksikSayisi = computed(() => kalemler.value.filter(kalemEksik).length);
 const sifirlaOnayAcik = ref(false);
 const sifirlaniyor = ref(false);
 // Yazdırma/sıfırlama sürerken yazdırma düğmeleri ve üretilmiş belge işlemleri pasif
@@ -310,7 +330,7 @@ async function tumunuIndir() {
   zipUrl.value = '';
   zipHata.value = '';
   try {
-    const sonuc = await createZipLink('Tescil Dosyası', zipIcerigi.value);
+    const sonuc = await createZipLink(kaynak.value === 'denetimler' ? 'Denetim Dosyası' : 'Tescil Dosyası', zipIcerigi.value);
     zipUrl.value = sonuc.url;
   } catch (e) {
     zipHata.value = e instanceof Error ? e.message : 'ZIP oluşturulamadı';
@@ -392,9 +412,22 @@ async function tumunuIndir() {
 
             <!-- Şablon seti + toplu işlemler -->
             <div class="space-y-1.5 bg-surface-800 p-3 ring-1 ring-white/5">
-              <p v-if="kaynak === 'denetimler'" class="text-xs font-semibold text-ink">
-                {{ sablonSeti || 'Denetim' }} <span class="font-normal text-ink-muted">— denetim dosyası</span>
-              </p>
+              <div v-if="kaynak === 'denetimler'" class="grid grid-cols-2 gap-1.5">
+                <label class="block space-y-0.5">
+                  <span class="text-xs font-medium text-ink-muted">Teknik Dosya</span>
+                  <select :value="teknikDosyaSeti" :disabled="yazdirmaMesgul" @change="denetimSetiKaydet('teknikDosyaSeti', $event)"
+                    class="w-full bg-surface-900 px-2.5 py-1.5 text-xs text-ink ring-1 ring-white/10 outline-none focus:ring-white/30 disabled:opacity-60">
+                    <option v-for="s in DENETIM_SETLERI.teknikDosyaSeti" :key="s.deger" :value="s.deger">{{ s.etiket }}</option>
+                  </select>
+                </label>
+                <label class="block space-y-0.5">
+                  <span class="text-xs font-medium text-ink-muted">Tüv Forms</span>
+                  <select :value="tuvFormsSeti" :disabled="yazdirmaMesgul" @change="denetimSetiKaydet('tuvFormsSeti', $event)"
+                    class="w-full bg-surface-900 px-2.5 py-1.5 text-xs text-ink ring-1 ring-white/10 outline-none focus:ring-white/30 disabled:opacity-60">
+                    <option v-for="s in DENETIM_SETLERI.tuvFormsSeti" :key="s.deger" :value="s.deger">{{ s.etiket }}</option>
+                  </select>
+                </label>
+              </div>
               <label v-else class="block space-y-0.5">
                 <span class="text-xs font-medium text-ink-muted">Şablon Seti</span>
                 <select :value="sablonSeti" @change="setKaydet"
@@ -413,6 +446,16 @@ async function tumunuIndir() {
                   </svg>
                   {{ topluAktif ? `Yazdırılıyor ${topluAktif.tamamlanan}/${topluAktif.toplam}…` : 'Tümünü Yazdır' }}
                 </button>
+                <button v-if="zipIcerigi.length" type="button" @click="tumunuIndir" :disabled="yazdirmaMesgul"
+                  class="flex items-center justify-center gap-1.5 bg-surface-900 px-3 py-2.5 text-xs font-semibold text-ink ring-1 ring-white/10 active:bg-[#1a2a20] disabled:opacity-60">
+                  <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                    stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M12 3v12" />
+                    <path d="m8 11 4 4 4-4" />
+                    <path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2" />
+                  </svg>
+                  Tümünü İndir
+                </button>
                 <button v-if="uretilmisVar" type="button" @click="sifirlaOnayAcik = true"
                   :disabled="yazdirmaMesgul"
                   class="flex items-center justify-center gap-1.5 bg-surface-900 px-3 py-2.5 text-xs font-semibold text-red-300/90 ring-1 ring-red-500/25 active:bg-[#1a2a20] disabled:opacity-60">
@@ -423,17 +466,11 @@ async function tumunuIndir() {
                   </svg>
                   {{ sifirlaniyor ? 'Siliniyor…' : 'Sıfırla' }}
                 </button>
-                <button v-if="hepsiTamam" type="button" @click="tumunuIndir"
-                  class="flex flex-1 items-center justify-center gap-1.5 bg-surface-900 px-3 py-2.5 text-xs font-semibold text-ink ring-1 ring-white/10 active:bg-[#1a2a20]">
-                  <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                    stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M12 3v12" />
-                    <path d="m8 11 4 4 4-4" />
-                    <path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2" />
-                  </svg>
-                  Tümünü İndir (ZIP)
-                </button>
               </div>
+              <p v-if="kalemler.length && !yukleniyor" class="text-[10px] font-semibold"
+                :class="eksikSayisi ? 'text-red-400' : 'text-emerald-400'">
+                {{ eksikSayisi ? `${eksikSayisi} dosya eksik` : 'Tüm dosyalar tam' }}
+              </p>
             </div>
 
             <p v-if="yukleniyor" class="py-8 text-center text-sm text-ink-muted">Yükleniyor…</p>
@@ -444,10 +481,12 @@ async function tumunuIndir() {
 
             <!-- Kalem listesi -->
             <div v-for="kalem in kalemler" :key="kalem.kod"
-              class="space-y-1.5 bg-surface-800 p-2.5 ring-1 ring-white/5">
+              class="space-y-1.5 bg-surface-800 p-2.5 ring-1"
+              :class="kalemEksik(kalem) ? 'ring-red-500/40' : 'ring-white/5'">
               <div class="flex items-center gap-2">
                 <span class="min-w-0 flex-1">
-                  <span class="block truncate text-xs font-semibold text-ink">
+                  <span class="block truncate text-xs font-semibold"
+                    :class="kalemEksik(kalem) ? 'text-red-400' : 'text-ink'">
                     {{ kalem.no }}{{ kaynak === 'denetimler' ? '.' : '-' }}{{ kalem.ad }}
                   </span>
                   <span v-if="kalem.altBilgi" class="mt-0.5 block truncate text-[11px] text-ink-muted/80">
@@ -461,7 +500,11 @@ async function tumunuIndir() {
                   yakında
                 </span>
                 <template v-else-if="kalem.tip === 'sablon'">
-                  <span v-if="kalem.uretilen && kalem.eskimis"
+                  <span v-if="!kalem.uretilen"
+                    class="shrink-0 bg-red-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-red-400 ring-1 ring-red-500/30">
+                    eksik
+                  </span>
+                  <span v-else-if="kalem.uretilen && kalem.eskimis"
                     class="shrink-0 bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-amber-300 ring-1 ring-amber-500/30">
                     Güncel değil
                   </span>
@@ -476,7 +519,7 @@ async function tumunuIndir() {
                 <!-- Dosya/CE/aksam kalemi: durum rozeti -->
                 <template v-else>
                   <span v-if="!kalem.dosyalar?.length"
-                    class="shrink-0 bg-surface-900 px-2 py-0.5 text-[10px] font-semibold text-ink-muted/60 ring-1 ring-white/10">
+                    class="shrink-0 bg-red-500/15 px-2 py-0.5 text-[10px] font-semibold text-red-400 ring-1 ring-red-500/30">
                     eksik
                   </span>
                   <span v-else
@@ -540,7 +583,7 @@ async function tumunuIndir() {
 
     <!-- Tümünü İndir ZIP linki -->
     <LinkPopup v-model:acik="zipAcik" :url="zipUrl" :hata="zipHata"
-      bekleme-metni="Tescil dosyası ZIP'i oluşturuluyor…"
-      aciklama="Tüm tescil dosyası belgeleri numaralı adlarla tek ZIP'te toplandı." />
+      bekleme-metni="ZIP oluşturuluyor…"
+      aciklama="Tüm dosyalar numaralı adlarla tek ZIP'te toplandı." />
   </Teleport>
 </template>

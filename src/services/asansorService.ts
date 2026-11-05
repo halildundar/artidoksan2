@@ -221,6 +221,9 @@ export interface Asansor {
   hizRegulatoruFotolari: BelgeSlot[];
   // Kontrol kartı montaj fotoğrafları
   kontrolKartiFotolari: BelgeSlot[];
+  // Halat ve ray aksam bölümlerinin montaj fotoğrafları
+  halatAksamFotolari: BelgeSlot[];
+  rayAksamFotolari: BelgeSlot[];
   // UCM/ACOP: çözüm türü + montaj fotoğrafları
   ucmAcopTuru: 'kart-motor-fren' | 'kart-reg-fren' | null;
   ucmAcopFotolari: BelgeSlot[];

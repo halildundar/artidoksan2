@@ -53,6 +53,8 @@ export interface YazdirKalemi {
 
 export interface YazdirListesi {
   sablonSeti: string;
+  teknikDosyaSeti?: string;
+  tuvFormsSeti?: string;
   kalemler: YazdirKalemi[];
   mesaj?: string;
 }

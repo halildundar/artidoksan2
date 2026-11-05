@@ -53,6 +53,8 @@ export const AKSAM_SLOT_ETIKETLERI: Record<string, string> = {
   kontrol_karti: 'Kontrol Kartı',
   hiz_regulatoru: 'Hız Regülatörü',
   ucm_acop: 'UCM/ACOP',
+  halat: 'Halat',
+  ray: 'Ray',
 };
 
 export function etiket(harita: Record<string, string>, deger: string | null | undefined) {
@@ -88,6 +90,8 @@ export const AKSAM_FOTO_ALANLARI: Record<string, keyof Asansor> = {
   kontrol_karti: 'kontrolKartiFotolari',
   hiz_regulatoru: 'hizRegulatoruFotolari',
   ucm_acop: 'ucmAcopFotolari',
+  halat: 'halatAksamFotolari',
+  ray: 'rayAksamFotolari',
 };
 
 export function asansorAksamGruplari(a: Asansor): AksamGrubu[] {
@@ -349,6 +353,8 @@ export function asansorFotoGruplari(a: Asansor): { baslik: string; fotolar: Belg
     { baslik: 'Karşı Ağırlık Freni', fotolar: a.karsiAgirlikFrenFotolari },
     { baslik: 'Hız Regülatörü', fotolar: a.hizRegulatoruFotolari },
     { baslik: 'Kontrol Kartı', fotolar: a.kontrolKartiFotolari },
+    { baslik: 'Halat', fotolar: a.halatAksamFotolari },
+    { baslik: 'Ray', fotolar: a.rayAksamFotolari },
     { baslik: 'Motor', fotolar: a.motorFotolari },
     { baslik: 'UCM/ACOP', fotolar: a.ucmAcopFotolari },
     { baslik: 'Duraklar', fotolar: a.duraklarFotolari },

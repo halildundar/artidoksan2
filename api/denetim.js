@@ -35,6 +35,9 @@ const denetimSchema = new mongoose.Schema(
     denetciId: { type: mongoose.Schema.Types.ObjectId, ref: 'Denetci', default: null },
     // Onaylı kurum: firmanın seçilen CE belgeleri (boşsa modüle uyanlar otomatik)
     ceBelgeIdleri: { type: [String], default: [] },
+    // Yazdır: şablon klasörü seçimleri (Teknik Dosya 1 = ce-td-temp1, Tüv Forms 1 = tuv-temp1)
+    teknikDosyaSeti: { type: String, trim: true, default: 'ce-td-temp1' },
+    tuvFormsSeti: { type: String, trim: true, default: 'tuv-temp1' },
     modul: { type: String, trim: true, default: '' },
     denetimTarihi: { type: Date, required: true },
     ekProje: { type: dosyaSlotSchema, default: null },
@@ -117,7 +120,7 @@ router.post('/', async (req, res) => {
 router.put('/:id', async (req, res) => {
   try {
     const {
-      firmaId, asansorId, modul, denetimTarihi, denetciId, ceBelgeIdleri,
+      firmaId, asansorId, modul, denetimTarihi, denetciId, ceBelgeIdleri, teknikDosyaSeti, tuvFormsSeti,
       ekProje, abUygunlukBeyaniTarihi, sonKontrolTarihi,
       tipProjeler, guvenlikAksamlari, montajSozlesmeleri, malzemeFaturalari,
     } = req.body ?? {};
@@ -125,7 +128,7 @@ router.put('/:id', async (req, res) => {
     const denetim = await Denetim.findByIdAndUpdate(
       req.params.id,
       {
-        firmaId, asansorId, modul, denetimTarihi, denetciId, ceBelgeIdleri,
+        firmaId, asansorId, modul, denetimTarihi, denetciId, ceBelgeIdleri, teknikDosyaSeti, tuvFormsSeti,
         ekProje, abUygunlukBeyaniTarihi, sonKontrolTarihi,
         tipProjeler, guvenlikAksamlari, montajSozlesmeleri, malzemeFaturalari,
       },

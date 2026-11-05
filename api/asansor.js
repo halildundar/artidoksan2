@@ -49,6 +49,8 @@ const guvenlikAksamSchema = new mongoose.Schema(
         'durak_kapi_kilidi_2', 'kabin_kapi_kilidi_2',
         'sarkac_test_raporu', 'yangin_sizdirmazlik_raporu', 'fren', 'karsi_agirlik_freni',
         'kontrol_karti', 'hiz_regulatoru', 'ucm_acop',
+        // Halat ve ray: katalogdaki asansör bileşeni belgeleri (marka/tip/seri + fotoğraf)
+        'halat', 'ray',
       ],
     },
     aksamBelgesiId: { type: mongoose.Schema.Types.ObjectId, ref: 'AksamBelgesi', required: true },
@@ -254,6 +256,9 @@ const asansorSchema = new mongoose.Schema(
     hizRegulatoruFotolari: { type: [dosyaSlotSchema], default: [] },
     // Kontrol kartı montaj fotoğrafları
     kontrolKartiFotolari: { type: [dosyaSlotSchema], default: [] },
+    // Halat ve ray aksam bölümlerinin montaj fotoğrafları
+    halatAksamFotolari: { type: [dosyaSlotSchema], default: [] },
+    rayAksamFotolari: { type: [dosyaSlotSchema], default: [] },
     // UCM/ACOP: çözüm türü (kart + motor freni / kart + hız regülatörü + fren)
     // + montaj fotoğrafları
     ucmAcopTuru: { type: String, enum: ['kart-motor-fren', 'kart-reg-fren', null], default: null },
@@ -290,6 +295,67 @@ const asansorSchema = new mongoose.Schema(
 );
 
 export const Asansor = mongoose.model('Asansor', asansorSchema);
+
+// Arayüzdeki ölçü/şekil pencerelerinde varsayılan olarak GÖRÜNEN değerler kayıtta da
+// bulunsun: kullanıcı değiştirmemişse (alan boşsa) bu değerler veritabanına yazılır.
+// Dönen nesne yalnız eksik alanları içerir ($set için).
+const bosMu = (v) => v === null || v === undefined || v === '';
+export function varsayilanEksikleri(a) {
+  const d = {};
+  const yoksa = (alan, deger) => { if (bosMu(a[alan])) d[alan] = deger; };
+  const giris2 = a.kabinGirisTipi === 'cift';
+  // Kabin
+  yoksa('kabinGenislik', 1350);
+  yoksa('kabinDerinlik', 1350);
+  yoksa('kabinGirisTipi', 'tek');
+  yoksa('kabinPanelMalzemesi', 'paslanmaz');
+  // Kapılar: 2 panel teleskopik sol, paslanmaz
+  yoksa('giris1PanelSayisi', 2); yoksa('giris1KapiYonu', 'sol'); yoksa('giris1PanelMalzemesi', 'paslanmaz');
+  if (giris2) { yoksa('giris2PanelSayisi', 2); yoksa('giris2KapiYonu', 'sol'); yoksa('giris2PanelMalzemesi', 'paslanmaz'); }
+  // Halat ve kasnaklar (askı tipine göre)
+  // (askı tipi seçilmeden yazılmaz: varsayılanlar askı tipine bağlı)
+  const birBir = a.askiTipi === '1:1';
+  if (a.askiTipi) {
+    yoksa('tahrikKasnakCapi', birBir ? 480 : 240);
+    yoksa('halatSapturmaKasnagiCapi', 400);
+    yoksa('halatPalanga1Capi', 240); yoksa('halatPalanga2Capi', 240); yoksa('halatPalanga3Capi', 240);
+    yoksa('askiHalatArasiMesafe', 700);
+    yoksa('kasnaklarArasiDikeyMesafe', 900);
+  }
+  const halat = d.askiHalatArasiMesafe ?? a.askiHalatArasiMesafe;
+  const d1 = d.tahrikKasnakCapi ?? a.tahrikKasnakCapi;
+  const d2 = d.halatSapturmaKasnagiCapi ?? a.halatSapturmaKasnagiCapi;
+  const yatay = halat && d1 && d2 ? Math.round((halat - d1 / 2 - d2 / 2) * 10) / 10 : null;
+  if (a.askiTipi && bosMu(a.kasnaklarArasiYatayMesafe) && yatay !== null) d.kasnaklarArasiYatayMesafe = yatay;
+  if (a.askiTipi && bosMu(a.sarimAcisi)) {
+    const dikey = d.kasnaklarArasiDikeyMesafe ?? a.kasnaklarArasiDikeyMesafe;
+    if (!birBir) d.sarimAcisi = 180;
+    else if (yatay > 0 && dikey > 0) d.sarimAcisi = Math.round((90 + (Math.atan(dikey / yatay) * 180) / Math.PI) * 10) / 10;
+  }
+  // Raylar
+  if (a.karsiAgirlikKonumu === 'sag' || a.karsiAgirlikKonumu === 'sol') yoksa('rayRR', 280);
+  // Kuyu dibi
+  yoksa('kuyuDipYukseklik', 1500); yoksa('kuyuDipKabinEnAltNokta', 1350); yoksa('kuyuDipEtekSaciTabanMesafe', 350);
+  yoksa('kuyuDipIvOlcusu', 300); yoksa('kuyuDipBosluk', 150); yoksa('kuyuDipTamponStroke', 100);
+  yoksa('kuyuDipDurmaAlani', '50x70x100'); yoksa('kuyuDipKarsiBosluk', 100); yoksa('kuyuDipKarsiStroke', 100);
+  // Kuyu üstü
+  yoksa('kuyuUstKorkulukMesafe', 600); yoksa('kuyuUstKorkulukYuksekligi', 1100); yoksa('kuyuUstSuspansiyonMesafe', 800);
+  yoksa('kuyuUstKabinUstDurma', 1250); yoksa('kuyuUstSonKat', 4250); yoksa('kuyuUstDurmaAlani', '50x70x100');
+  // Hız regülatörü devreye girme hızı
+  yoksa('regulatorDevreyeGirmeHizi', 1.3);
+  return d;
+}
+
+// Mevcut kayıtlardaki eksik varsayılanları bir kez tamamlar (API açılışında)
+export async function varsayilanlariTamamla() {
+  const kayitlar = await Asansor.find().lean();
+  const islemler = kayitlar
+    .map((a) => ({ id: a._id, d: varsayilanEksikleri(a) }))
+    .filter((x) => Object.keys(x.d).length)
+    .map((x) => ({ updateOne: { filter: { _id: x.id }, update: { $set: x.d } } }));
+  if (islemler.length) await Asansor.bulkWrite(islemler);
+  return islemler.length;
+}
 
 // İstemciden gelen gövdeden model dışı anahtarları ayıklar (strict şema
 // zaten bilinmeyenleri atar; _id/timestamps elle temizlenir).
@@ -328,6 +394,12 @@ router.get('/:id', async (req, res) => {
   try {
     const asansor = await Asansor.findById(req.params.id).lean();
     if (!asansor) return res.status(404).json({ message: 'Asansör bulunamadı' });
+    // Eksik varsayılanlar (ör. alan/askı tipi sonradan girildiğinde) kayda da yazılır
+    const eksik = varsayilanEksikleri(asansor);
+    if (Object.keys(eksik).length) {
+      await Asansor.updateOne({ _id: asansor._id }, { $set: eksik });
+      Object.assign(asansor, eksik);
+    }
     res.json(asansor);
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -342,7 +414,7 @@ router.post('/', async (req, res) => {
     if (!veri.seriNo || !String(veri.seriNo).trim()) {
       return res.status(400).json({ message: 'Asansör seri no zorunludur' });
     }
-    const asansor = await Asansor.create(veri);
+    const asansor = await Asansor.create({ ...veri, ...varsayilanEksikleri(veri) });
     res.status(201).json(asansor);
   } catch (err) {
     res.status(500).json({ message: err.message });
