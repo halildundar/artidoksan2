@@ -588,6 +588,12 @@ function checkboxFontunuSabitle(xml) {
 
 export async function sablonDoldur(sablonYolu, veri, firma, secenek = {}) {
   const zip = new PizZip(await fs.readFile(sablonYolu));
+  // Sunucuda/Word'de bulunmayan marka yazı tipleri (TÜV'ün "TNG Pro"su) LibreOffice'te rastgele
+  // bir yazı tipine (kalın görünen) düşüyor; Word'ün de kullandığı Calibri'ye (Carlito) sabitlenir
+  for (const parca of Object.keys(zip.files).filter((n) => /^word\/(document|header\d*|footer\d*)\.xml$/.test(n))) {
+    const metin = zip.file(parca).asText();
+    if (metin.includes('TNG Pro')) zip.file(parca, metin.replace(/TNG Pro/g, 'Calibri'));
+  }
   {
     let xml = zip.file('word/document.xml').asText();
     // Metin içindeki sıradan "{" (ör. "{ 1 m/s") etiket sanılıp "unclosed tag" hatası
@@ -704,7 +710,7 @@ export async function sablonDoldur(sablonYolu, veri, firma, secenek = {}) {
 // ---- Kaynak özeti: belgeyi üreten girdilerin (şablon dosyası + doldurulan
 // veri + logo/imza görselleri) parmak izi. Aynıysa belge yeniden çevrilmez;
 // URETIM_SURUMU üretim mantığı değişince artırılır ve eski çıktıları geçersiz kılar ----
-const URETIM_SURUMU = 17;
+const URETIM_SURUMU = 20;
 const sablonHashOnbellek = new Map();
 
 async function sablonHash(yol) {

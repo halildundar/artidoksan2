@@ -446,7 +446,7 @@ async function tumunuIndir() {
                   </svg>
                   {{ topluAktif ? `Yazdırılıyor ${topluAktif.tamamlanan}/${topluAktif.toplam}…` : 'Tümünü Yazdır' }}
                 </button>
-                <button v-if="zipIcerigi.length" type="button" @click="tumunuIndir" :disabled="yazdirmaMesgul"
+                <button v-if="zipIcerigi.length && !eksikSayisi" type="button" @click="tumunuIndir" :disabled="yazdirmaMesgul"
                   class="flex items-center justify-center gap-1.5 bg-surface-900 px-3 py-2.5 text-xs font-semibold text-ink ring-1 ring-white/10 active:bg-[#1a2a20] disabled:opacity-60">
                   <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                     stroke-width="2" stroke-linecap="round" stroke-linejoin="round">

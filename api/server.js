@@ -464,7 +464,9 @@ app.post('/api/zip-link', async (req, res) => {
       return res.status(400).json({ message: 'Ziplenecek dosya bulunamadı' });
     }
     const zipBuffer = await zipOlustur(girdiler);
-    const zipAdi = String(ad || 'dosyalar.zip');
+    // İndirilen dosya adı her zaman .zip ile biter
+    const zipTaban = String(ad || 'dosyalar').trim() || 'dosyalar';
+    const zipAdi = /\.zip$/i.test(zipTaban) ? zipTaban : `${zipTaban}.zip`;
     const key = buildObjectKey('zipler', zipAdi);
     await putObject(key, zipBuffer, 'application/zip');
     const url = await createDownloadUrl(key, zipAdi, ZIP_URL_TTL_SECONDS);

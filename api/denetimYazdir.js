@@ -60,6 +60,8 @@ export const DENETIM_G_KALEMLERI = [
   { no: '12.8', kod: 'sc-car-lock', ad: 'Safety Comp. CAR Door LOCKING DEVICE', tip: 'aksam', slotlar: ['kabin_kapi_kilidi', 'kabin_kapi_kilidi_2'] },
   { no: '12.11', kod: 'sc-ucm', ad: 'Safety Comp. ASCENDING OVERSPEED PROTECTION', tip: 'aksam', slotlar: ['ucm_acop'] },
   { no: '13', kod: 'sample-table', ad: 'SAMPLE TABLE. NEEDED DETAILS FOR CERTIFICATION', tip: 'sablon', klasor: CE, dosya: '13.Sample Table,Needed Details For Certification.docx' },
+  // Sarı vurgulu sabit metinlere (sertifika/proje no, tarihler) dokunulmaz — etiket içermezler
+  { no: '14', kod: 'module-g-certificate', ad: 'MODULE G CERTIFICATE', tip: 'sablon', klasor: TUV, dosya: 'MODULE G xxxxxx CERTIFICATE.docx' },
 ];
 
 const taban = (k) => `${String(k.no).includes('.') ? k.no : String(k.no).padStart(2, '0')}-${k.ad}`;
@@ -146,6 +148,9 @@ function durakListesi(asansor) {
 function kalemVerisi(veri, kalem, baglam) {
   const { asansor, denetim, denetci } = baglam;
   if (kalem.kod === 'checklist') return { ...veri, ...checklistVerisi(asansor, String(denetim._id)) };
+  if (kalem.kod === 'module-g-certificate') {
+    return { ...veri, ...teknikVerisi(asansor, denetim, denetci), ...ornekTabloVerisi(asansor), 'kişi_sayisi': bos(asansor?.kisiSayisi) };
+  }
   if (kalem.kod === 'sample-table') return { ...veri, ...teknikVerisi(asansor, denetim, denetci), ...ornekTabloVerisi(asansor) };
   if (kalem.kod === 'technical-descriptions') return { ...veri, ...teknikVerisi(asansor, denetim, denetci) };
   return veri;
@@ -320,9 +325,12 @@ async function denetimVerisi({ denetim, firma, asansor, denetci }) {
 const MUHENDIS_ETIKET = { elektrik: 'Elektrik Mühendisi', makine: 'Makine Mühendisi' };
 
 // Beyan formundaki modül onay kutuları denetimin modülüne göre işaretlenir
-const doldurmaSecenegi = ({ denetim }) => ({
+const doldurmaSecenegi = ({ denetim }, kalem) => ({
   checkboxTagleri: isaretlenecekCheckboxTagleri(ceModulKodu(denetim.modul)),
-  xmlYama: (xml) => icindekilerSayfaKirilimi(wordSayfaKirilimlari(hucreIciKonumlariDuzelt(birlesikSatirlariTekle(bosDolguTablolariniKaldir(checklistYamasi(xml)))))),
+  xmlYama: (xml) => {
+    const yamali = icindekilerSayfaKirilimi(wordSayfaKirilimlari(hucreIciKonumlariDuzelt(birlesikSatirlariTekle(bosDolguTablolariniKaldir(checklistYamasi(xml))))));
+    return kalem?.kod === 'module-g-certificate' ? bosParagraflariKucult(yamali) : yamali;
+  },
 });
 
 // 3.CHECKLIST: şablondaki sabit metinler etiketli satırlarla değiştirilir
@@ -400,6 +408,27 @@ function bosDolguTablolariniKaldir(xml) {
       return t.slice(0, t.lastIndexOf(son)) + '</w:tbl>';
     }
   );
+}
+
+// Tablo dışındaki boş paragraflar (yalnız boşluk bırakan) 2 pt'ye indirilir: LibreOffice
+// satır yüksekliklerini biraz büyük hesapladığı için tek sayfalık belgeler ikinci sayfaya taşıyor.
+function bosParagraflariKucult(xml) {
+  const tablolar = [];
+  let derinlik = 0;
+  let bas = 0;
+  for (const m of xml.matchAll(/<w:tbl>|<\/w:tbl>/g)) {
+    if (m[0] === '<w:tbl>') { if (derinlik === 0) bas = m.index; derinlik += 1; }
+    else { derinlik -= 1; if (derinlik === 0) tablolar.push([bas, m.index]); }
+  }
+  const tabloIcinde = (i) => tablolar.some(([b, e]) => b < i && i < e);
+  return xml.replace(/<w:p[ >](?:(?!<\/w:p>)[\s\S])*?<\/w:p>/g, (p, i) => {
+    if (/<w:t[ >]|<w:drawing>|<w:pict>|<w:br|<w:sectPr|<w:object/.test(p) || tabloIcinde(i)) return p;
+    const kucuk = '<w:rPr><w:sz w:val="4"/><w:szCs w:val="4"/></w:rPr>';
+    if (/<w:pPr>/.test(p)) {
+      return p.includes('<w:rPr>') ? p.replace(/<w:rPr>[\s\S]*?<\/w:rPr>(?=<\/w:pPr>)/, kucuk) : p.replace('</w:pPr>', `${kucuk}</w:pPr>`);
+    }
+    return p.replace(/^(<w:p[^>]*>)/, `$1<w:pPr>${kucuk}</w:pPr>`);
+  });
 }
 
 // Word, sayfanın başladığı yere <w:lastRenderedPageBreak/> yazar. LibreOffice satır
@@ -572,7 +601,7 @@ async function kalemUret(denetimId, kod, slot, { zorla, ctx }) {
     return { durum: 'guncel' };
   }
   ctx.faz('hazirlaniyor');
-  const docxBuffer = await sablonDoldur(yol, kVeri, baglam.firma, doldurmaSecenegi(baglam));
+  const docxBuffer = await sablonDoldur(yol, kVeri, baglam.firma, doldurmaSecenegi(baglam, kalem));
   ctx.faz('cevriliyor');
   const pdfBuffer = await convertDocxToPdf(docxBuffer, slot);
   ctx.faz('kaydediliyor');
@@ -602,7 +631,7 @@ async function topluUret(denetimId, slot, { ctx }) {
         ctx.durum(kalem.kod, 'guncel');
         continue;
       }
-      hazirlar.push({ kalem, ozet, docxBuffer: await sablonDoldur(yol, { ...kVeri }, baglam.firma, doldurmaSecenegi(baglam)) });
+      hazirlar.push({ kalem, ozet, docxBuffer: await sablonDoldur(yol, { ...kVeri }, baglam.firma, doldurmaSecenegi(baglam, kalem)) });
       ctx.durum(kalem.kod, 'hazir');
     } catch (err) {
       ctx.durum(kalem.kod, 'hata', err.message);
