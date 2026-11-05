@@ -33,6 +33,8 @@ const denetimSchema = new mongoose.Schema(
     asansorId: { type: mongoose.Schema.Types.ObjectId, ref: 'Asansor', required: true },
     // Modül G: denetimi yapan denetçi (Ayarlar > Denetçiler)
     denetciId: { type: mongoose.Schema.Types.ObjectId, ref: 'Denetci', default: null },
+    // Onaylı kurum: firmanın seçilen CE belgeleri (boşsa modüle uyanlar otomatik)
+    ceBelgeIdleri: { type: [String], default: [] },
     modul: { type: String, trim: true, default: '' },
     denetimTarihi: { type: Date, required: true },
     ekProje: { type: dosyaSlotSchema, default: null },
@@ -69,7 +71,7 @@ export const Denetim = mongoose.model('Denetim', denetimSchema);
 const POPULATE = [
   { path: 'firmaId', select: 'ad unvan telefon il ilce' },
   { path: 'asansorId', select: 'seriNo yapiRuhsatNo il ilce' },
-  { path: 'denetciId', select: 'adSoyad muhendisTuru imzaKase' },
+  { path: 'denetciId', select: 'adSoyad muhendisTuru imzaKase onayliKurumNobo onayliKurumUnvan onayliKurumAdres' },
 ];
 
 const router = express.Router();
@@ -115,7 +117,7 @@ router.post('/', async (req, res) => {
 router.put('/:id', async (req, res) => {
   try {
     const {
-      firmaId, asansorId, modul, denetimTarihi, denetciId,
+      firmaId, asansorId, modul, denetimTarihi, denetciId, ceBelgeIdleri,
       ekProje, abUygunlukBeyaniTarihi, sonKontrolTarihi,
       tipProjeler, guvenlikAksamlari, montajSozlesmeleri, malzemeFaturalari,
     } = req.body ?? {};
@@ -123,7 +125,7 @@ router.put('/:id', async (req, res) => {
     const denetim = await Denetim.findByIdAndUpdate(
       req.params.id,
       {
-        firmaId, asansorId, modul, denetimTarihi, denetciId,
+        firmaId, asansorId, modul, denetimTarihi, denetciId, ceBelgeIdleri,
         ekProje, abUygunlukBeyaniTarihi, sonKontrolTarihi,
         tipProjeler, guvenlikAksamlari, montajSozlesmeleri, malzemeFaturalari,
       },

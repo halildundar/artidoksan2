@@ -113,7 +113,7 @@ onIonViewWillEnter(yukle);
             <span class="min-w-0 flex-1">
               <span class="block truncate text-sm font-semibold text-ink">{{ denetci.adSoyad }}</span>
               <span class="block truncate text-xs text-ink-muted">
-                {{ [denetci.muhendisTuru ? MUHENDIS_ETIKETLERI[denetci.muhendisTuru] : '', denetci.imzaKase ? 'İmza-kaşe var' : 'İmza-kaşe yok'].filter(Boolean).join(' • ') }}
+                {{ [denetci.muhendisTuru ? MUHENDIS_ETIKETLERI[denetci.muhendisTuru] : '', denetci.imzaKase ? 'İmza-kaşe var' : 'İmza-kaşe yok', denetci.onayliKurumUnvan].filter(Boolean).join(' • ') }}
               </span>
             </span>
             <button type="button" @click="git(`/ayarlar/denetciler/${denetci._id}/duzenle`)"

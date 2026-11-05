@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { IonPage, IonContent, IonHeader, IonFooter } from '@ionic/vue';
 import { computed, onMounted, ref } from 'vue';
+import AramaliSelect from '@/components/AramaliSelect.vue';
+import { getOnayliKurumSecenekleri, type OnayliKurumSecenek } from '@/services/onayliKurumService';
 import { useRoute, useRouter } from 'vue-router';
 import {
   createDenetci, getDenetci, updateDenetci, MUHENDIS_ETIKETLERI, type MuhendisTuru,
@@ -22,6 +24,16 @@ const baslik = computed(() => (duzenlenenId.value ? 'Denetçiyi Düzenle' : 'Yen
 const adSoyad = ref('');
 const muhendisTuru = ref<MuhendisTuru>('');
 const imzaKase = ref<BelgeSlot | null>(null);
+// Bağlı onaylı kuruluş (NoBo) — denetimlerde ve yazdırmada otomatik kullanılır
+const onayliKurumId = ref('');
+const kurumlar = ref<OnayliKurumSecenek[]>([]);
+const kurumSecenekleri = computed(() =>
+  kurumlar.value.map((k) => ({ label: `${k.nobo} — ${k.unvan}`, value: k._id }))
+);
+const kurumModel = computed<string | number | null>({
+  get: () => onayliKurumId.value || null,
+  set(v) { onayliKurumId.value = typeof v === 'string' ? v : ''; },
+});
 const onizleme = ref('');
 
 const yukleniyor = ref(false);
@@ -49,6 +61,7 @@ async function onizlemeYukle() {
 }
 
 onMounted(async () => {
+  getOnayliKurumSecenekleri().then((l) => (kurumlar.value = l)).catch(() => { /* liste alınamazsa seçim boş kalır */ });
   if (!duzenlenenId.value) return;
   yukleniyor.value = true;
   try {
@@ -56,6 +69,7 @@ onMounted(async () => {
     adSoyad.value = d.adSoyad;
     muhendisTuru.value = d.muhendisTuru ?? '';
     imzaKase.value = d.imzaKase ?? null;
+    onayliKurumId.value = d.onayliKurumId ?? '';
     onizlemeYukle();
   } catch (e) {
     hata.value = e instanceof Error ? e.message : 'Kayıt yüklenemedi';
@@ -127,7 +141,7 @@ async function kaydet() {
   kaydediliyor.value = true;
   hata.value = '';
   try {
-    const veri = { adSoyad: adSoyad.value.trim(), muhendisTuru: muhendisTuru.value, imzaKase: imzaKase.value };
+    const veri = { adSoyad: adSoyad.value.trim(), muhendisTuru: muhendisTuru.value, imzaKase: imzaKase.value, onayliKurumId: onayliKurumId.value || null };
     if (duzenlenenId.value) await updateDenetci(duzenlenenId.value, veri);
     else await createDenetci(veri);
     blurActive();
@@ -187,6 +201,12 @@ const TURLER = Object.entries(MUHENDIS_ETIKETLERI) as ['elektrik' | 'makine', st
               </button>
             </div>
           </div>
+
+          <!-- Bağlı onaylı kuruluş -->
+          <label class="block space-y-0.5">
+            <span class="text-xs font-medium text-ink-muted">Bağlı Olduğu Onaylı Kuruluş (NoBo)</span>
+            <AramaliSelect v-model="kurumModel" :options="kurumSecenekleri" placeholder="Onaylı kuruluş seçiniz" />
+          </label>
 
           <!-- İmza-kaşe: tek resim — yükle / fotoğraf çek / görüntüle / kaldır -->
           <div class="block space-y-0.5">

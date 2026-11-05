@@ -9,7 +9,7 @@ import {
 } from '@/services/denetimService';
 import { getAksamBelgeleri, getAksamBelgesi, type AksamBelgesi } from '@/services/aksamBelgesiService';
 import { uploadDosya, getDosyaUrl, getDosyaIndirUrl, createDosyaLinkleri, type BelgeSlot } from '@/services/dosyaService';
-import { getFirma } from '@/services/firmaService';
+import { getFirma, type CeBelgesi } from '@/services/firmaService';
 import FotoCekModal from '@/components/FotoCekModal.vue';
 import AramaliSelect from '@/components/AramaliSelect.vue';
 import { getDenetciler, MUHENDIS_ETIKETLERI, type Denetci } from '@/services/denetciService';
@@ -43,6 +43,16 @@ async function yukle() {
     denetim.value = await getDenetim(id.value);
     // Modul B: komponent butonları için katalog baştan yüklenir
     if (denetim.value?.modul === 'Modul B') katalogYukle();
+    // Modül G: onaylı kurum seçimi için firmanın CE belgeleri
+    if (denetim.value?.modul === 'Modul G') {
+      const f = denetim.value.firmaId;
+      const firmaIdDeger = f && typeof f === 'object' ? f._id : f;
+      if (firmaIdDeger) {
+        getFirma(firmaIdDeger)
+          .then((tam) => (firmaCeler.value = tam.ceBelgeleri ?? []))
+          .catch(() => { /* alınamazsa onaylı kurum listesi boş görünür */ });
+      }
+    }
     // Modul E / H1: firmanın kalibrasyon (Cihazlar sekmesi) dosyaları çekilir
     if (MONTAJLI_MODULLER.includes(denetim.value?.modul ?? '')) {
       const f = denetim.value.firmaId;
@@ -131,6 +141,18 @@ const denetciSecenekleri = computed(() =>
   }))
 );
 const denetciImzaUrl = ref('');
+
+// Onaylı kurum: firmanın CE belgelerinden işaretlenir (hiçbiri seçili değilse
+// yazdırmada modüle uyan belgeler otomatik kullanılır)
+const firmaCeler = ref<CeBelgesi[]>([]);
+const seciliCeIdleri = computed(() => denetim.value?.ceBelgeIdleri ?? []);
+function ceToggle(ceId: string | undefined) {
+  if (!ceId) return;
+  const mevcut = seciliCeIdleri.value;
+  guncelle({
+    ceBelgeIdleri: mevcut.includes(ceId) ? mevcut.filter((x) => x !== ceId) : [...mevcut, ceId],
+  });
+}
 
 watch(
   () => denetciOzeti.value?.imzaKase?.dosyaAnahtari,
@@ -630,8 +652,36 @@ async function ekProjeAc(slot: BelgeSlot) {
                 <span class="block truncate text-[11px] text-ink-muted">
                   {{ [denetciOzeti.muhendisTuru ? MUHENDIS_ETIKETLERI[denetciOzeti.muhendisTuru] : '', denetciOzeti.imzaKase ? 'İmza-kaşe yüklü' : 'İmza-kaşe yok'].filter(Boolean).join(' • ') }}
                 </span>
+                <span class="block truncate text-[11px] text-ink-muted">
+                  Onaylı Kuruluş: {{ denetciOzeti.onayliKurumUnvan ? `${denetciOzeti.onayliKurumNobo} — ${denetciOzeti.onayliKurumUnvan}` : 'Seçilmemiş (Ayarlar > Denetçiler)' }}
+                </span>
               </span>
             </div>
+          </section>
+
+          <!-- Modül G: onaylı kurum — firmanın CE belgelerinden işaretlenir -->
+          <section v-if="modulG" class="space-y-2 bg-surface-800 p-3 ring-1 ring-white/5">
+            <h2 class="text-xs font-bold uppercase tracking-wide text-ink">Onaylı Kurum (CE Belgesi)</h2>
+            <p v-if="!firmaCeler.length" class="text-[11px] text-ink-muted">
+              Firmada kayıtlı CE belgesi yok. Firmalar &gt; CE Belgeleri bölümünden ekleyin.
+            </p>
+            <button v-for="ce in firmaCeler" :key="ce._id" type="button" @click="ceToggle(ce._id)"
+              class="flex w-full items-center gap-2.5 bg-surface-900/60 p-2 text-left ring-1 ring-white/5">
+              <span class="grid h-5 w-5 shrink-0 place-items-center ring-1"
+                :class="ce._id && seciliCeIdleri.includes(ce._id) ? 'bg-[#2b5c3d] ring-white/20' : 'bg-surface-900 ring-white/15'">
+                <svg v-if="ce._id && seciliCeIdleri.includes(ce._id)" class="h-3.5 w-3.5 text-ink" viewBox="0 0 24 24"
+                  fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="m5 12 5 5L20 7" />
+                </svg>
+              </span>
+              <span class="min-w-0 flex-1">
+                <span class="block truncate text-xs font-semibold text-ink">{{ ce.modul || 'CE belgesi' }} — {{ ce.kurum || '—' }}</span>
+                <span class="block truncate text-[11px] text-ink-muted">Belge No: {{ ce.belgeNo || '—' }}</span>
+              </span>
+            </button>
+            <p v-if="firmaCeler.length && !seciliCeIdleri.length" class="text-[11px] text-ink-muted">
+              Seçim yapılmazsa yazdırmada denetim modülüne uyan belgeler otomatik kullanılır.
+            </p>
           </section>
 
           <!-- Uygulama projesi: PDF görüntülenir, ZIP indirilir -->
@@ -958,6 +1008,19 @@ async function ekProjeAc(slot: BelgeSlot) {
                 @change="tarihKaydet('sonKontrolTarihi', $event)"
                 class="w-full bg-surface-900 px-2.5 py-1.5 text-xs text-ink ring-1 ring-white/10 outline-none focus:ring-white/30" />
             </label>
+          </section>
+
+          <!-- Onaylı kuruluş bilgileri (denetçiden) — metin olarak -->
+          <section v-if="modulG" class="space-y-1 bg-surface-800 p-3 ring-1 ring-white/5">
+            <h2 class="text-xs font-bold uppercase tracking-wide text-ink">Onaylı Kuruluş</h2>
+            <template v-if="denetciOzeti?.onayliKurumUnvan">
+              <p class="text-xs text-ink"><span class="text-ink-muted">Ünvan: </span>{{ denetciOzeti.onayliKurumUnvan }}</p>
+              <p class="text-xs text-ink"><span class="text-ink-muted">NoBo: </span>{{ denetciOzeti.onayliKurumNobo || '—' }}</p>
+              <p class="text-xs text-ink"><span class="text-ink-muted">Adres: </span>{{ denetciOzeti.onayliKurumAdres || '—' }}</p>
+            </template>
+            <p v-else class="text-[11px] text-ink-muted">
+              Denetçi seçilmedi ya da denetçinin onaylı kuruluşu yok (Ayarlar &gt; Denetçiler).
+            </p>
           </section>
         </template>
       </div>

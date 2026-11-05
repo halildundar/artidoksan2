@@ -23,6 +23,11 @@ const denetciSchema = new mongoose.Schema(
     adSoyad: { type: String, required: true, trim: true },
     muhendisTuru: { type: String, enum: [...MUHENDIS_TURLERI, ''], default: '' },
     imzaKase: { type: dosyaSlotSchema, default: null },
+    // Bağlı olduğu onaylı kuruluş (NoBo): seçim anında bilgileri kopyalanır
+    onayliKurumId: { type: mongoose.Schema.Types.ObjectId, ref: 'OnayliKurum', default: null },
+    onayliKurumNobo: { type: String, trim: true, default: '' },
+    onayliKurumUnvan: { type: String, trim: true, default: '' },
+    onayliKurumAdres: { type: String, trim: true, default: '' },
   },
   { timestamps: true, collection: 'denetciler' }
 );
@@ -31,9 +36,22 @@ export const Denetci = mongoose.models.Denetci || mongoose.model('Denetci', dene
 
 const router = express.Router();
 
-function temizle(body) {
-  const { adSoyad, muhendisTuru, imzaKase } = body ?? {};
-  return { adSoyad: String(adSoyad ?? '').trim(), muhendisTuru: muhendisTuru ?? '', imzaKase: imzaKase ?? null };
+async function temizle(body) {
+  const { adSoyad, muhendisTuru, imzaKase, onayliKurumId } = body ?? {};
+  // Onaylı kuruluş bilgileri (NoBo, ünvan, adres) koleksiyondan okunup kaydedilir
+  const kurum = onayliKurumId && mongoose.isValidObjectId(onayliKurumId)
+    ? await mongoose.connection.db.collection('onaylikurumlar')
+        .findOne({ _id: new mongoose.Types.ObjectId(onayliKurumId) })
+    : null;
+  return {
+    adSoyad: String(adSoyad ?? '').trim(),
+    muhendisTuru: muhendisTuru ?? '',
+    imzaKase: imzaKase ?? null,
+    onayliKurumId: kurum?._id ?? null,
+    onayliKurumNobo: kurum?.nobo ?? '',
+    onayliKurumUnvan: kurum?.unvan ?? '',
+    onayliKurumAdres: kurum?.adres ?? '',
+  };
 }
 
 router.get('/', async (_req, res) => {
@@ -58,7 +76,7 @@ router.get('/:id', async (req, res) => {
 
 router.post('/', async (req, res) => {
   try {
-    const veri = temizle(req.body);
+    const veri = await temizle(req.body);
     if (!veri.adSoyad) return res.status(400).json({ message: 'Ad soyad zorunludur' });
     res.status(201).json(await Denetci.create(veri));
   } catch (err) {
@@ -68,7 +86,7 @@ router.post('/', async (req, res) => {
 
 router.put('/:id', async (req, res) => {
   try {
-    const veri = temizle(req.body);
+    const veri = await temizle(req.body);
     if (!veri.adSoyad) return res.status(400).json({ message: 'Ad soyad zorunludur' });
     const onceki = await Denetci.findById(req.params.id).lean();
     if (!onceki) return res.status(404).json({ message: 'Denetçi bulunamadı' });

@@ -12,7 +12,7 @@ import {
 import {
   sablonDoldur, convertDocxToPdf, topluPdfCevir, kaynakOzeti, sablonVerisi, anahtarlariSil,
   slotOlustur, aksamGrubu, bos, tarihStr, ceModulKodu, MODUL_METIN, MAKINA_KONUMU_ETIKET,
-  TEMPLATES_DIR, DOCX_MIME,
+  TEMPLATES_DIR, DOCX_MIME, isaretlenecekCheckboxTagleri,
 } from './yazdir.js';
 
 // Denetim > Yazdır: Modül G dosya listesi. Tescil Yazdır'ın altyapısı
@@ -24,13 +24,20 @@ import {
 const TUV = 'tuv-temp1';
 const CE = 'ce-td-temp1';
 
+// Beyan şablonu denetimin modülüne göre seçilir (tescildeki abBeyaniSablonu ile aynı kural)
+function abBeyaniDosyasi({ denetim }) {
+  const kod = ceModulKodu(denetim.modul);
+  return kod === 'G' || kod === 'H1' ? '7.1-AB UYGUNLUK BEYANI G VE H.docx' : '7-AB UYGUNLUK BEYANI B VE E.docx';
+}
+
 export const DENETIM_G_KALEMLERI = [
   { no: '1', kod: 'application-form', ad: 'Application Form', tip: 'sablon', klasor: TUV, dosya: '1.APPLICATION FROM.docx' },
   { no: '2', kod: 'building-permit', ad: 'Building Permit', tip: 'dosya' },
   { no: '3', kod: 'checklist', ad: 'Checklist', tip: 'sablon', klasor: TUV, dosya: '3.CHECKLIST.docx', hazir: false },
   { no: '4', kod: 'inspection-report', ad: 'Elevator Inspectation Report', tip: 'sablon', klasor: TUV, dosya: '4.ELEVATOR INSPECTION REPORT.docx' },
   { no: '5', kod: 'calculations', ad: 'Calculations and Constructions', tip: 'dosya' },
-  { no: '6', kod: 'declaration', ad: 'Declaration of Confirmity', tip: 'sablon', klasor: CE, dosya: '6.Declaration of Confirmity.docx' },
+  // Tescildeki AB Uygunluk Beyanı ile aynı şablon/doldurma: G ve H1 için 7.1, diğerleri için 7
+  { no: '6', kod: 'declaration', ad: 'Declaration of Confirmity', tip: 'sablon', klasor: 'tescil-temp1', dosyaFn: abBeyaniDosyasi },
   { no: '7', kod: 'photo', ad: 'Photo', tip: 'sablon', klasor: CE, dosya: '7.Photo.docx' },
   { no: '8', kod: 'technical-descriptions', ad: 'Technical Descriptions and Manuals', tip: 'sablon', klasor: CE, dosya: '8.Technical Descriptions and Manuals.docx', hazir: false },
   { no: '9.1', kod: 'project-service-contract', ad: 'Project Service Contract', tip: 'dosya', altBilgi: 'SMM firması belgeleri' },
@@ -73,11 +80,23 @@ const gKodu = (denetim) => ceModulKodu(denetim.modul) === 'G';
 
 // ---- Şablon verisi: tescildeki firma/asansör verisi + bu şablonlardaki
 // (artidoksan1 kökenli) etiket adları ----
+const ceUygunModuller = (modul) => {
+  const kod = ceModulKodu(modul);
+  return kod === 'E' ? ['E', 'B'] : kod ? [kod] : [];
+};
+
 async function denetimVerisi({ denetim, firma, asansor, denetci }) {
   const sahteTescil = {
     abUygunlukBeyaniTarihi: denetim.abUygunlukBeyaniTarihi,
     sonKontrolTarihi: denetim.sonKontrolTarihi,
-    ceBelgeIdleri: [],
+    // Tescildeki gibi CE bilgisi (onaylı kurum, NoBo, belge no): firmanın bu modüle
+    // ait CE belgeleri otomatik seçili sayılır (E beyanı B tip incelemesine de dayanır)
+    // Denetimde elle seçilen onaylı kurum/CE belgeleri varsa onlar kullanılır
+    ceBelgeIdleri: (denetim.ceBelgeIdleri ?? []).length
+      ? denetim.ceBelgeIdleri.map(String)
+      : (firma?.ceBelgeleri ?? [])
+        .filter((ce) => ce._id && ceUygunModuller(denetim.modul).includes(ceModulKodu(ce.modul)))
+        .map((ce) => String(ce._id)),
     uretilenBelgeler: [],
   };
   const t = await sablonVerisi({ tescil: sahteTescil, firma, asansor });
@@ -102,6 +121,16 @@ async function denetimVerisi({ denetim, firma, asansor, denetci }) {
     // Denetçi (Ayarlar > Denetçiler): ad soyad, mühendis türü
     denetci_adi: bos(denetci?.adSoyad),
     denetci: bos(denetci?.adSoyad),
+    // Denetçinin bağlı olduğu onaylı kuruluş: varsa CE belgesinden gelen kurum
+    // bilgilerinin yerine geçer (Ayarlar > Denetçiler'de kayıtlı)
+    ...(denetci?.onayliKurumUnvan ? {
+      ce_kurum: denetci.onayliKurumUnvan,
+      ce_nobo: bos(denetci.onayliKurumNobo),
+      ce_adres: bos(denetci.onayliKurumAdres),
+    } : {}),
+    ok_unvan: bos(denetci?.onayliKurumUnvan),
+    ok_nobo: bos(denetci?.onayliKurumNobo),
+    ok_adres: bos(denetci?.onayliKurumAdres),
     denetci_turu: denetci?.muhendisTuru ? (MUHENDIS_ETIKET[denetci.muhendisTuru] ?? '') : '',
     as_firma_muhendis: bos(firma?.personel?.montajSorumlusu),
     as_firma_sahibi: t.sirket_muduru,
@@ -120,7 +149,11 @@ async function denetimVerisi({ denetim, firma, asansor, denetci }) {
 
 const MUHENDIS_ETIKET = { elektrik: 'Elektrik Mühendisi', makine: 'Makine Mühendisi' };
 
-const sablonYolu = (kalem) => path.join(TEMPLATES_DIR, kalem.klasor, kalem.dosya);
+// Beyan formundaki modül onay kutuları denetimin modülüne göre işaretlenir
+const doldurmaSecenegi = ({ denetim }) => ({ checkboxTagleri: isaretlenecekCheckboxTagleri(ceModulKodu(denetim.modul)) });
+
+const sablonDosyasi = (kalem, baglam) => (kalem.dosyaFn ? kalem.dosyaFn(baglam) : kalem.dosya);
+const sablonYolu = (kalem, baglam) => path.join(TEMPLATES_DIR, kalem.klasor, sablonDosyasi(kalem, baglam));
 
 // ---- Dosya kalemleri (liste ucu) ----
 async function aksamBelgeleri(asansor, kalem) {
@@ -150,8 +183,8 @@ function dosyaKalemi(kalem, { denetim, firma, asansor }) {
     case 'building-permit': return tekil(asansor?.yapiRuhsatiDosya);
     case 'calculations': return tekil(denetim.ekProje);
     case 'type-projects': return denetim.tipProjeler ?? [];
-    // 9.1: asansörün SMM firması alanından yüklenen proje firması belgesi (büro tescil)
-    case 'project-service-contract': return tekil(asansor?.smmBuroTescilBelgesi || firma?.smmBuroTescilBelgesi);
+    // 9.1: firmanın SMM bilgilerinde yüklü sözleşme (yoksa "eksik")
+    case 'project-service-contract': return tekil(firma?.smmSozlesme);
     // 9.2: SMM firmasındaki mühendislerin SMM belgeleri + imza sirküleri
     case 'engineers-competency':
       return ['smmMakMuhSmmBelgesi', 'smmMakMuhImzaSirkusu', 'smmElkMuhSmmBelgesi', 'smmElkMuhImzaSirkusu']
@@ -167,7 +200,7 @@ async function kalemListesi(baglam) {
   try {
     const veri = await denetimVerisi(baglam);
     for (const k of DENETIM_G_KALEMLERI.filter((x) => x.tip === 'sablon' && x.hazir !== false && uretilenler.has(x.kod))) {
-      ozetler.set(k.kod, await kaynakOzeti(sablonYolu(k), veri, baglam.firma));
+      ozetler.set(k.kod, await kaynakOzeti(sablonYolu(k, baglam), veri, baglam.firma));
     }
   } catch { /* özet hesaplanamazsa güncellik bilgisi verilmez */ }
 
@@ -229,8 +262,8 @@ async function kalemUret(denetimId, kod, slot, { zorla, ctx }) {
   const baglam = await denetimYukle(denetimId);
   if (!baglam) throw new Error('Denetim bulunamadı');
   if (!gKodu(baglam.denetim)) throw new Error('Yazdırma listesi şimdilik yalnız Modül G için hazır');
-  const yol = sablonYolu(kalem);
-  await fs.access(yol).catch(() => { throw new Error(`Şablon dosyası bulunamadı: ${kalem.klasor}/${kalem.dosya}`); });
+  const yol = sablonYolu(kalem, baglam);
+  await fs.access(yol).catch(() => { throw new Error(`Şablon dosyası bulunamadı: ${kalem.klasor}/${sablonDosyasi(kalem, baglam)}`); });
   const veri = await denetimVerisi(baglam);
   const ozet = await kaynakOzeti(yol, veri, baglam.firma);
   const mevcut = (baglam.denetim.uretilenBelgeler ?? []).find((u) => u.sablonKodu === kod);
@@ -238,7 +271,7 @@ async function kalemUret(denetimId, kod, slot, { zorla, ctx }) {
     return { durum: 'guncel' };
   }
   ctx.faz('hazirlaniyor');
-  const docxBuffer = await sablonDoldur(yol, veri, baglam.firma);
+  const docxBuffer = await sablonDoldur(yol, veri, baglam.firma, doldurmaSecenegi(baglam));
   ctx.faz('cevriliyor');
   const pdfBuffer = await convertDocxToPdf(docxBuffer, slot);
   ctx.faz('kaydediliyor');
@@ -259,15 +292,15 @@ async function topluUret(denetimId, slot, { ctx }) {
     if (ctx.iptalMi()) return ctx.iptalEt();
     ctx.durum(kalem.kod, 'uretiliyor');
     try {
-      const yol = sablonYolu(kalem);
-      await fs.access(yol).catch(() => { throw new Error(`Şablon dosyası bulunamadı: ${kalem.klasor}/${kalem.dosya}`); });
+      const yol = sablonYolu(kalem, baglam);
+      await fs.access(yol).catch(() => { throw new Error(`Şablon dosyası bulunamadı: ${kalem.klasor}/${sablonDosyasi(kalem, baglam)}`); });
       const ozet = await kaynakOzeti(yol, veri, baglam.firma);
       const mevcut = mevcutlar.get(kalem.kod);
       if (mevcut?.kaynakOzeti === ozet && mevcut.docx?.dosyaAnahtari && mevcut.pdf?.dosyaAnahtari) {
         ctx.durum(kalem.kod, 'guncel');
         continue;
       }
-      hazirlar.push({ kalem, ozet, docxBuffer: await sablonDoldur(yol, { ...veri }, baglam.firma) });
+      hazirlar.push({ kalem, ozet, docxBuffer: await sablonDoldur(yol, { ...veri }, baglam.firma, doldurmaSecenegi(baglam)) });
       ctx.durum(kalem.kod, 'hazir');
     } catch (err) {
       ctx.durum(kalem.kod, 'hata', err.message);

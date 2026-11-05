@@ -13,6 +13,10 @@ export interface Denetci {
   adSoyad: string;
   muhendisTuru: MuhendisTuru;
   imzaKase: BelgeSlot | null;
+  onayliKurumId?: string | null;
+  onayliKurumNobo?: string;
+  onayliKurumUnvan?: string;
+  onayliKurumAdres?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -21,6 +25,7 @@ export interface YeniDenetci {
   adSoyad: string;
   muhendisTuru: MuhendisTuru;
   imzaKase: BelgeSlot | null;
+  onayliKurumId?: string | null;
 }
 
 export function getDenetciler(): Promise<Denetci[]> {

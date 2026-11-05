@@ -7,7 +7,7 @@ FROM node:22-slim
 # muadili) + fonts-crosextra-carlito (Calibri muadili): şablon fontları
 # Word'dekiyle aynı metriklerde render edilsin
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    libreoffice-writer fonts-liberation fonts-crosextra-carlito fontconfig \
+    libreoffice-writer fonts-liberation fonts-crosextra-carlito fonts-dejavu-core fontconfig \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app/api

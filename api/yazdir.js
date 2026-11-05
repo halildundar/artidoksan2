@@ -517,11 +517,81 @@ function gorselluAlternatifleriSadelestir(xml, gorselTagleri) {
   });
 }
 
+// Görsel metin kutusu, paragrafa göre konumlanır. Hücre dikey ortalıysa
+// (özellikle birleşik hücrelerde) LibreOffice paragrafı hücrenin ortasına
+// indirir ve kutu logo alanından aşağı kayar; Word'de kayma olmaz. Bu yüzden
+// kutu içeren hücreler üste hizalanır.
+function gorselHucreleriniUsteHizala(xml) {
+  return xml.replace(/<w:tc>(?:(?!<w:tc>)[\s\S])*?<\/w:tc>/g, (hucre) =>
+    hucre.includes('<wp:anchor') && /\{%/.test(hucre.replace(/<[^>]+>/g, ''))
+      ? hucre.replace('<w:vAlign w:val="center"/>', '<w:vAlign w:val="top"/>')
+      : hucre
+  );
+}
+
 // Görsel tag'leri gövdede VEYA üstbilgi/altbilgide olabilir — hepsi taranır
 const GORSEL_PARCA_DESENI = /^word\/(document|header\d*|footer\d*)\.xml$/;
 
-export async function sablonDoldur(sablonYolu, veri, firma) {
+// ---- Word onay kutuları (w14:checkbox content control): docxtemplater bunların
+// durumunu bilmez; render öncesi document.xml doğrudan düzenlenir. Şablonun
+// kendi tanımındaki glyph'ler: ☐ (işaretsiz) → ☒ (işaretli); LibreOffice PDF'e
+// çevirirken w14:checked bayrağını değil görünen glyph'i basar, ikisi de değişir ----
+const MODUL_CHECKBOX_TAG_ADI = {
+  B: 'modul_b_bool', F: 'modul_f_bool', G: 'modul_g_bool', E: 'modul_e_bool', H1: 'modul_h1_bool', D: 'modul_d_bool',
+};
+
+// Modül E beyanı alttaki Modül B tip incelemesine dayandığından E için B de işaretlenir
+export function isaretlenecekCheckboxTagleri(modulKodu) {
+  const kendi = MODUL_CHECKBOX_TAG_ADI[modulKodu];
+  if (!kendi) return [];
+  return modulKodu === 'E' ? [kendi, MODUL_CHECKBOX_TAG_ADI.B] : [kendi];
+}
+
+// Bir onay kutusu content control'ünü (SDT) işaretler/işaretsiz yapar; yalnız o
+// SDT'nin sınırları içinde çalışır
+function checkboxDurumu(xml, tagAdi, isaretli) {
+  const tagIdx = xml.indexOf(`w:tag w:val="{${tagAdi}}"`);
+  if (tagIdx === -1) return xml;
+  const sdtSon = xml.indexOf('</w:sdt>', tagIdx);
+  let parca = xml.slice(tagIdx, sdtSon === -1 ? undefined : sdtSon);
+  const [eskiBayrak, yeniBayrak] = isaretli ? ['w14:val="0"', 'w14:val="1"'] : ['w14:val="1"', 'w14:val="0"'];
+  parca = parca.replace(`w14:checked ${eskiBayrak}`, `w14:checked ${yeniBayrak}`);
+  parca = isaretli ? parca.replace('>☐<', '>☒<') : parca.replace('>☒<', '>☐<');
+  return xml.slice(0, tagIdx) + parca + (sdtSon === -1 ? '' : xml.slice(sdtSon));
+}
+
+// Tüm modül kutuları önce işaretsiz yapılır, sonra yalnız istenenler işaretlenir
+// (şablon dosyasında hangileri işaretli kalmış olursa olsun sonuç denetimin
+// modülüne göre doğru çıkar)
+function checkboxlariIsaretle(xml, tagAdlari) {
+  let sonuc = xml;
+  for (const tag of Object.values(MODUL_CHECKBOX_TAG_ADI)) sonuc = checkboxDurumu(sonuc, tag, false);
+  for (const tag of tagAdlari) sonuc = checkboxDurumu(sonuc, tag, true);
+  return sonuc;
+}
+
+// Onay kutusu glyph'leri (☐ ☒) şablonda belirli bir yazı tipine bağlı değildir;
+// sunucuda (Docker) yedek yazı tipi bu karakterlerden birini içermezse PDF'te
+// "?" kutusu çıkıyor. Tüm onay kutusu run'ları DejaVu Sans'a sabitlenir (Docker
+// imajında fonts-dejavu-core var; yerelde yoksa LibreOffice kendi yedeğini seçer).
+function checkboxFontunuSabitle(xml) {
+  const font = '<w:rFonts w:ascii="DejaVu Sans" w:hAnsi="DejaVu Sans" w:eastAsia="DejaVu Sans" w:cs="DejaVu Sans"/>';
+  return xml.replace(/<w:sdt>[\s\S]*?<\/w:sdt>/g, (sdt) => {
+    if (!sdt.includes('w14:checkbox')) return sdt;
+    return sdt.replace(/(<w:sdtContent>[\s\S]*?)<w:r( [^>]*)?>(<w:rPr>[\s\S]*?<\/w:rPr>)?<w:t>/g, (_m, once, oznitelik, rpr) => {
+      const ek = rpr ? rpr.replace('<w:rPr>', `<w:rPr>${font}`) : `<w:rPr>${font}</w:rPr>`;
+      return `${once}<w:r${oznitelik ?? ''}>${ek}<w:t>`;
+    });
+  });
+}
+
+export async function sablonDoldur(sablonYolu, veri, firma, secenek = {}) {
   const zip = new PizZip(await fs.readFile(sablonYolu));
+  {
+    let xml = zip.file('word/document.xml').asText();
+    if (secenek.checkboxTagleri) xml = checkboxlariIsaretle(xml, secenek.checkboxTagleri);
+    zip.file('word/document.xml', checkboxFontunuSabitle(xml));
+  }
   const parcalar = Object.keys(zip.files).filter((n) => GORSEL_PARCA_DESENI.test(n));
 
   // Şablonda geçen görsel tag'leri bul (tüm parçalarda), firma görsellerini
@@ -555,7 +625,9 @@ export async function sablonDoldur(sablonYolu, veri, firma) {
   const boyutlar = {};
   const parcaDonduruler = {};
   for (const parca of parcalar) {
-    const sadeXml = gorselluAlternatifleriSadelestir(zip.file(parca).asText(), gorselTagleri);
+    const sadeXml = gorselHucreleriniUsteHizala(
+      gorselluAlternatifleriSadelestir(zip.file(parca).asText(), gorselTagleri)
+    );
     const sonuc = sablonGorselYerlesimHazirla(sadeXml, gorselTagleri);
     zip.file(parca, sonuc.xml);
     Object.assign(boyutlar, sonuc.boyutlar);

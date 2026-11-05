@@ -37,6 +37,9 @@ export interface DenetimDenetciOzet {
   adSoyad: string;
   muhendisTuru: 'elektrik' | 'makine' | '';
   imzaKase?: BelgeSlot | null;
+  onayliKurumNobo?: string;
+  onayliKurumUnvan?: string;
+  onayliKurumAdres?: string;
 }
 
 export interface Denetim {
@@ -44,6 +47,7 @@ export interface Denetim {
   firmaId: string | DenetimFirmaOzet | null;
   asansorId: string | DenetimAsansorOzet | null;
   denetciId?: string | DenetimDenetciOzet | null;
+  ceBelgeIdleri?: string[];
   modul: string;
   denetimTarihi: string;
   // Modul G detayı
@@ -70,6 +74,7 @@ export interface YeniDenetim {
 
 // Kısmi güncelleme — yalnızca gönderilen alanlar değişir
 export type DenetimGuncelleme = Partial<YeniDenetim> & {
+  ceBelgeIdleri?: string[];
   ekProje?: BelgeSlot | null;
   abUygunlukBeyaniTarihi?: string | null;
   sonKontrolTarihi?: string | null;
