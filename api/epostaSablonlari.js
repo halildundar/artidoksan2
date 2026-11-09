@@ -1,7 +1,17 @@
 // Şık e-posta şablonları: tablo tabanlı + inline CSS (Gmail/Outlook/mobil uyumlu), düz metin yedeği.
 // Bağlantılar UYGULAMA_URL ortam değişkeninden üretilir (yerelde http://localhost:8100, production'da ana adres).
 
-export const uygulamaUrl = () => (process.env.UYGULAMA_URL || 'http://localhost:8100').replace(/\/+$/, '');
+export class YapilandirmaHatasi extends Error {}
+
+// Üretimde (Render) UYGULAMA_URL tanımsızsa veya localhost ise e-posta gönderilmez: butonlar yanlış adrese gitmesin
+export function uygulamaUrl() {
+  const url = (process.env.UYGULAMA_URL || '').trim().replace(/\/+$/, '');
+  const uretim = process.env.NODE_ENV === 'production' || !!process.env.RENDER;
+  if (uretim && (!url || /localhost|127\.0\.0\.1/.test(url))) {
+    throw new YapilandirmaHatasi('E-posta bağlantı adresi (UYGULAMA_URL) tanımlı değil. Yöneticinin sunucu ayarını yapması gerekiyor.');
+  }
+  return url || 'http://localhost:8100'; // yalnız yerel geliştirme için yedek
+}
 
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 

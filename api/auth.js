@@ -5,7 +5,7 @@ import mongoose from 'mongoose';
 import { Kullanici, oturumlariSifirla } from './kullanicilar.js';
 import { epostaGonder, konsolModu, sonKonsolEpostalari } from './eposta.js';
 import {
-  hesapDogrulamaSablonu, girisKoduSablonu, sifreSifirlamaSablonu, sifreDegistirmeSablonu, sifreDegistiBildirimiSablonu,
+  hesapDogrulamaSablonu, girisKoduSablonu, sifreSifirlamaSablonu, sifreDegistirmeSablonu, sifreDegistiBildirimiSablonu, YapilandirmaHatasi,
 } from './epostaSablonlari.js';
 
 // Giriş ve oturum sistemi: e-posta + şifre; yeni cihazda / ilk girişte e-posta doğrulama kodu.
@@ -238,6 +238,7 @@ const sar = (fn) => async (req, res) => {
     await fn(req, res);
   } catch (err) {
     if (err instanceof HataKodu) return res.status(err.durum).json({ message: err.message, ...err.ek });
+    if (err instanceof YapilandirmaHatasi) return res.status(500).json({ message: err.message });
     console.error('[auth]', err);
     res.status(500).json({ message: 'Beklenmeyen bir hata oluştu' });
   }
