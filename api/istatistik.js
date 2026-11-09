@@ -18,13 +18,23 @@ router.get('/', async (_req, res) => {
 
     const [
       firma, asansor, denetim, tescil,
-      makine, tahrik, denetimModul, aksamDagilim, yakinda,
+      makine, tahrik, denetimModul, aksamDagilim, yakinda, sonAsansorler, sonDenetimler, sonTescilKayitlari,
     ] = await Promise.all([
       say('Firma'), say('Asansor'), say('Denetim'), say('Tescil'),
       dagilim('Asansor', 'makinaKonumu'), dagilim('Asansor', 'tahrikTipi'), dagilim('Denetim', 'modul'),
       Aksam.aggregate([{ $group: { _id: { kod: '$bilesenTipiKodu', durum: '$durum' }, adet: { $sum: 1 } } }]),
       // Aktif olup 90 gün içinde geçerliliği bitecek belgeler
       Aksam.countDocuments({ durum: 'aktif', gecerlilikBitis: { $ne: null, $gte: simdi, $lte: doksanGun } }),
+      // Son eklenen 10 asansör ve 10 denetim
+      mongoose.model('Asansor').find().sort({ createdAt: -1 }).limit(10)
+        .select('seriNo yapiRuhsatNo il ilce makinaKonumu hiz beyanYuku kisiSayisi tahrikTipi askiTipi createdAt').lean(),
+      mongoose.model('Denetim').find().sort({ createdAt: -1 }).limit(10)
+        .select('modul denetimTarihi firmaId asansorId createdAt')
+        .populate('firmaId', 'ad').populate('asansorId', 'seriNo yapiRuhsatNo').lean(),
+      mongoose.model('Tescil').find().sort({ createdAt: -1 }).limit(10)
+        .select('belediyeAdi dilekceTarihi firmaId asansorId createdAt')
+        .populate('firmaId', 'ad')
+        .populate('asansorId', 'seriNo yapiRuhsatNo makinaKonumu hiz beyanYuku tahrikTipi askiTipi').lean(),
     ]);
 
     // Bileşen tipine göre aktif / pasif adetleri (tüm tipler listelenir, belgesi olmayan 0)
@@ -39,6 +49,17 @@ router.get('/', async (_req, res) => {
       firma, asansor, denetim, tescil,
       asansorDagilimi: { makine: harita(makine), tahrik: harita(tahrik) },
       denetimModulleri: harita(denetimModul),
+      sonAsansorler,
+      sonDenetimler: sonDenetimler.map((d) => ({
+        _id: d._id, modul: d.modul, tarih: d.denetimTarihi ?? d.createdAt,
+        firma: d.firmaId?.ad ?? '', asansor: d.asansorId?.seriNo || d.asansorId?.yapiRuhsatNo || '',
+      })),
+      sonTescilKayitlari: sonTescilKayitlari.map((t) => ({
+        _id: t._id, tarih: t.dilekceTarihi ?? t.createdAt, belediye: t.belediyeAdi ?? '', firma: t.firmaId?.ad ?? '',
+        asansor: t.asansorId?.seriNo || t.asansorId?.yapiRuhsatNo || '',
+        makinaKonumu: t.asansorId?.makinaKonumu ?? null, hiz: t.asansorId?.hiz ?? null, beyanYuku: t.asansorId?.beyanYuku ?? null,
+        tahrikTipi: t.asansorId?.tahrikTipi ?? null, askiTipi: t.asansorId?.askiTipi ?? null,
+      })),
       komponent: { toplam: toplam(), guvenlik: toplam('guvenlik_aksami'), bilesen: toplam('asansor_bileseni'), yakinda, tipler },
     });
   } catch (err) {

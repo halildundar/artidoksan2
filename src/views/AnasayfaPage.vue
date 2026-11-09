@@ -4,7 +4,7 @@ import { computed, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import KullaniciMenusu from '@/components/KullaniciMenusu.vue';
 import { useAuth } from '@/composables/useAuth';
-import { getIstatistik, type Istatistik, type KomponentTipSayisi } from '@/services/istatistikService';
+import { getIstatistik, type Istatistik, type KomponentTipSayisi, type SonAsansor, type SonTescil } from '@/services/istatistikService';
 import { blurActive } from '@/utils/blurActive';
 
 // Anasayfa: genel durum panelleri — firma / asansör / denetim / tescil sayıları ve
@@ -70,10 +70,18 @@ const gruplar = computed(() => [
   { baslik: 'Asansör bileşenleri', alt: veri.value?.komponent.bilesen, tipler: tipGrubu('asansor_bileseni') },
 ]);
 
-const MAKINE_ETIKET: Record<string, string> = { MR: 'Makine Daireli (MR)', MRL: 'Makine Dairesiz (MRL)' };
-const TAHRIK_ETIKET: Record<string, string> = { elektrikli: 'Elektrikli', hidrolik: 'Hidrolik' };
-const cipler = (m: Record<string, number> | undefined, etiket: Record<string, string> = {}) =>
-  Object.entries(m ?? {}).map(([k, n]) => ({ k: etiket[k] ?? k, n })).sort((a, b) => b.n - a.n);
+// Asansör satırı özellikleri (aralarında nokta): MR/MRL · hız · kapasite · tahrik · askı
+const num = (n: number) => String(n).replace('.', ',');
+function ozellikler(a: SonAsansor | SonTescil): string[] {
+  return [
+    a.makinaKonumu ?? '',
+    a.hiz ? `${num(a.hiz)} m/s` : '',
+    a.beyanYuku ? `${sayi(a.beyanYuku)} kg` : '',
+    a.tahrikTipi === 'elektrikli' ? 'Elektrikli' : a.tahrikTipi === 'hidrolik' ? 'Hidrolik' : '',
+    a.askiTipi ? `${a.askiTipi} askı` : '',
+  ].filter(Boolean);
+}
+const kisaTarih = (iso: string) => (iso ? new Date(iso).toLocaleDateString('tr-TR', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '');
 
 const AKTIF = '#3fa56d';
 const PASIF = '#8a978e';
@@ -132,6 +140,99 @@ const PASIF = '#8a978e';
               <span v-else class="inline-block h-7 w-12 animate-pulse bg-white/10 align-middle"></span>
             </span>
           </button>
+        </section>
+
+        <!-- Son asansörler ve denetimler: yan yana paneller, toplam adet + son 10 kayıt -->
+        <section class="grid grid-cols-2 items-start gap-2 sm:grid-cols-3" aria-label="Son kayıtlar">
+          <!-- Asansörler -->
+          <div class="min-w-0 space-y-2 bg-surface-800 p-3 ring-1 ring-white/5">
+            <div class="flex items-start justify-between gap-1">
+              <div class="min-w-0">
+                <h2 class="truncate text-[11px] font-bold uppercase tracking-wide text-ink">Asansörler</h2>
+                <p class="mt-1 text-2xl font-bold leading-none tabular-nums text-ink">{{ veri ? sayi(veri.asansor) : '—' }}</p>
+                <p class="mt-0.5 text-[10px] text-ink-muted">toplam · son 10</p>
+              </div>
+              <button type="button" @click="git('/asansor')" class="shrink-0 text-[10px] font-semibold text-ink-muted underline">Tümü</button>
+            </div>
+            <p v-if="veri && !veri.sonAsansorler.length" class="text-[11px] text-ink-muted/70">Henüz asansör yok.</p>
+            <ul class="divide-y divide-white/5">
+              <li v-for="a in veri?.sonAsansorler ?? []" :key="a._id">
+                <button type="button" @click="git(`/asansor/${a._id}`)" class="block w-full min-w-0 py-1.5 text-left active:opacity-70">
+                  <span class="block truncate text-xs font-semibold text-ink">{{ a.seriNo || a.yapiRuhsatNo || '—' }}</span>
+                  <span v-if="a.ilce || a.il" class="block truncate text-[10px] text-ink-muted/80">{{ [a.ilce, a.il].filter(Boolean).join('/') }}</span>
+                  <span class="mt-0.5 flex flex-wrap items-center gap-x-1 gap-y-0.5 text-[10px] leading-tight text-ink-muted">
+                    <template v-for="(o, i) in ozellikler(a)" :key="i">
+                      <span v-if="i" class="text-ink-muted/50" aria-hidden="true">·</span>
+                      <span :class="i === 0 ? 'font-semibold text-[#3fa56d]' : ''">{{ o }}</span>
+                    </template>
+                  </span>
+                </button>
+              </li>
+            </ul>
+          </div>
+
+          <!-- Denetimler -->
+          <div class="min-w-0 space-y-2 bg-surface-800 p-3 ring-1 ring-white/5">
+            <div class="flex items-start justify-between gap-1">
+              <div class="min-w-0">
+                <h2 class="truncate text-[11px] font-bold uppercase tracking-wide text-ink">Denetimler</h2>
+                <p class="mt-1 text-2xl font-bold leading-none tabular-nums text-ink">{{ veri ? sayi(veri.denetim) : '—' }}</p>
+                <p class="mt-0.5 text-[10px] text-ink-muted">toplam · son 10</p>
+              </div>
+              <button type="button" @click="git('/denetim')" class="shrink-0 text-[10px] font-semibold text-ink-muted underline">Tümü</button>
+            </div>
+            <p v-if="veri && !veri.sonDenetimler.length" class="text-[11px] text-ink-muted/70">Henüz denetim yok.</p>
+            <ul class="divide-y divide-white/5">
+              <li v-for="d in veri?.sonDenetimler ?? []" :key="d._id">
+                <button type="button" @click="git(`/denetim/${d._id}`)" class="block w-full min-w-0 py-1.5 text-left active:opacity-70">
+                  <span class="flex items-center gap-1.5">
+                    <span class="shrink-0 bg-[#1c2a21] px-1.5 py-px text-[10px] font-semibold text-[#6fcf97] ring-1 ring-white/10">{{ d.modul.replace('Modul ', 'M ') || '—' }}</span>
+                    <span class="min-w-0 flex-1 truncate text-xs font-semibold text-ink">{{ d.asansor || '—' }}</span>
+                  </span>
+                  <span class="mt-0.5 flex flex-wrap items-center gap-x-1 gap-y-0.5 text-[10px] leading-tight text-ink-muted">
+                    <span v-if="d.firma" class="min-w-0 truncate">{{ d.firma }}</span>
+                    <span v-if="d.firma && d.tarih" class="text-ink-muted/50" aria-hidden="true">·</span>
+                    <span v-if="d.tarih" class="tabular-nums">{{ kisaTarih(d.tarih) }}</span>
+                  </span>
+                </button>
+              </li>
+            </ul>
+          </div>
+
+          <!-- Tescil: küçük ekranda tam genişlik, geniş ekranda üçüncü sütun -->
+          <div class="col-span-2 min-w-0 space-y-2 bg-surface-800 p-3 ring-1 ring-white/5 sm:col-span-1">
+            <div class="flex items-start justify-between gap-1">
+              <div class="min-w-0">
+                <h2 class="truncate text-[11px] font-bold uppercase tracking-wide text-ink">Tescil</h2>
+                <p class="mt-1 text-2xl font-bold leading-none tabular-nums text-ink">{{ veri ? sayi(veri.tescil) : '—' }}</p>
+                <p class="mt-0.5 text-[10px] text-ink-muted">toplam · son 10</p>
+              </div>
+              <button type="button" @click="git('/tescil')" class="shrink-0 text-[10px] font-semibold text-ink-muted underline">Tümü</button>
+            </div>
+            <p v-if="veri && !veri.sonTescilKayitlari.length" class="text-[11px] text-ink-muted/70">Henüz tescil yok.</p>
+            <ul class="divide-y divide-white/5">
+              <li v-for="t in veri?.sonTescilKayitlari ?? []" :key="t._id">
+                <button type="button" @click="git(`/tescil/${t._id}`)" class="block w-full min-w-0 py-1.5 text-left active:opacity-70">
+                  <span class="block truncate text-xs font-semibold text-ink">{{ t.asansor || '—' }}</span>
+                  <span class="flex flex-wrap items-center gap-x-1 gap-y-0.5 text-[10px] leading-tight text-ink-muted/80">
+                    <span v-if="t.firma" class="min-w-0 truncate">{{ t.firma }}</span>
+                    <span v-if="t.firma && t.belediye" class="text-ink-muted/50" aria-hidden="true">·</span>
+                    <span v-if="t.belediye" class="min-w-0 truncate">{{ t.belediye }}</span>
+                  </span>
+                  <span class="mt-0.5 flex flex-wrap items-center gap-x-1 gap-y-0.5 text-[10px] leading-tight text-ink-muted">
+                    <template v-for="(o, i) in ozellikler(t)" :key="i">
+                      <span v-if="i" class="text-ink-muted/50" aria-hidden="true">·</span>
+                      <span :class="i === 0 ? 'font-semibold text-[#3fa56d]' : ''">{{ o }}</span>
+                    </template>
+                    <template v-if="t.tarih">
+                      <span v-if="ozellikler(t).length" class="text-ink-muted/50" aria-hidden="true">·</span>
+                      <span class="tabular-nums">{{ kisaTarih(t.tarih) }}</span>
+                    </template>
+                  </span>
+                </button>
+              </li>
+            </ul>
+          </div>
         </section>
 
         <!-- Güvenlik komponentleri: toplam, aktif/pasif -->
@@ -204,29 +305,6 @@ const PASIF = '#8a978e';
               </div>
             </li>
           </ul>
-        </section>
-
-        <!-- Asansör ve denetim dağılımları -->
-        <section v-if="veri" class="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <div v-if="cipler(veri.asansorDagilimi.makine, MAKINE_ETIKET).length || cipler(veri.asansorDagilimi.tahrik, TAHRIK_ETIKET).length"
-            class="space-y-2 bg-surface-800 p-4 ring-1 ring-white/5">
-            <h2 class="text-xs font-bold uppercase tracking-wide text-ink">Asansörler</h2>
-            <div class="flex flex-wrap gap-1.5">
-              <span v-for="c in [...cipler(veri.asansorDagilimi.makine, MAKINE_ETIKET), ...cipler(veri.asansorDagilimi.tahrik, TAHRIK_ETIKET)]" :key="c.k"
-                class="bg-surface-900 px-2.5 py-1 text-[11px] text-ink-muted ring-1 ring-white/10">
-                {{ c.k }} <b class="ml-1 tabular-nums text-ink">{{ sayi(c.n) }}</b>
-              </span>
-            </div>
-          </div>
-          <div v-if="cipler(veri.denetimModulleri).length" class="space-y-2 bg-surface-800 p-4 ring-1 ring-white/5">
-            <h2 class="text-xs font-bold uppercase tracking-wide text-ink">Denetimler (modül)</h2>
-            <div class="flex flex-wrap gap-1.5">
-              <span v-for="c in cipler(veri.denetimModulleri)" :key="c.k"
-                class="bg-surface-900 px-2.5 py-1 text-[11px] text-ink-muted ring-1 ring-white/10">
-                {{ c.k }} <b class="ml-1 tabular-nums text-ink">{{ sayi(c.n) }}</b>
-              </span>
-            </div>
-          </div>
         </section>
 
         <p v-if="yukleniyor && veri" class="text-center text-[11px] text-ink-muted/70">Güncelleniyor…</p>
