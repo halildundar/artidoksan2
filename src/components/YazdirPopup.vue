@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref, watch } from 'vue';
+import { computed, defineAsyncComponent, onBeforeUnmount, ref, watch } from 'vue';
 import {
   baslatTescilYazdir,
   baslatTopluTescilYazdir,
@@ -17,13 +17,15 @@ import { getDosyaUrl, getDosyaIndirUrl, createZipLink, type BelgeSlot } from '@/
 import { useFileViewer, fileViewerTypeFromMime } from '@/composables/useFileViewer';
 import LinkPopup from '@/components/LinkPopup.vue';
 import SilmeOnayi from '@/components/SilmeOnayi.vue';
+const KysYazdirBolumu = defineAsyncComponent(() => import('@/components/kys/KysYazdirBolumu.vue'));
 
 // Tam sayfa yazdırma görünümü — tescil dosyası kalem listesi: yüklü dosyalar,
 // CE/aksam sertifikaları ve şablondan üretilen DOCX+PDF belgeler. PDF'ler
 // görüntülenir+indirilir, doldurulan DOCX'ler yalnız indirilir. Tümünü Yazdır
 // tüm şablonları sırayla üretir; Tümünü İndir her şeyi numaralı adlarla tek
 // ZIP'te toplar. tescilId verilmezse (denetim sayfası) içerik boş kalır.
-const props = defineProps<{ tescilId?: string | null; denetimId?: string | null }>();
+// kysFirmaId: Modül E denetiminde firmanın KYS (Kalite El Kitabı) dokümanları listenin altında gösterilir
+const props = defineProps<{ tescilId?: string | null; denetimId?: string | null; kysFirmaId?: string | null }>();
 // Yazdırma tescile ya da denetime bağlı olabilir; aynı ekran ikisini de kullanır
 const kaynak = computed<YazdirKaynak>(() => (props.denetimId ? 'denetimler' : 'tesciller'));
 const kayitId = computed(() => props.denetimId ?? props.tescilId ?? null);
@@ -572,6 +574,9 @@ async function tumunuIndir() {
                 </div>
               </div>
             </div>
+
+            <!-- Modül E: firmanın KYS dokümanları + eksik bilgi uyarısı -->
+            <KysYazdirBolumu v-if="kysFirmaId && !yukleniyor" :key="kysFirmaId" :firma-id="kysFirmaId" />
           </template>
         </div>
       </div>

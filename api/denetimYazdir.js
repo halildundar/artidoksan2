@@ -34,6 +34,169 @@ function abBeyaniDosyasi({ denetim }) {
   return kod === 'G' || kod === 'H1' ? '7.1-AB UYGUNLUK BEYANI G VE H.docx' : '7-AB UYGUNLUK BEYANI B VE E.docx';
 }
 
+// Risk analizinin gerekli olup olmadığı asansör ölçülerinden hesaplanır
+// (AsansorDetayPage'deki kuyuDipRiskVar / kuyuUstRiskVar / makineDairesiRiskVar ile aynı kurallar).
+// Ölçüler değişip risk ortadan kalkarsa o analizin seçili maddeleri de rapordan çıkar.
+function riskDurumu(a) {
+  const nedenler = { dip: [], ust: [], makine: [] };
+  const sonuc = () => ({ dip: nedenler.dip.length > 0, ust: nedenler.ust.length > 0, makine: nedenler.makine.length > 0, nedenler });
+  if (!a) return sonuc();
+  const sayi = (v) => (v === null || v === undefined || v === '' ? null : Number(v));
+  const hiz = sayi(a.hiz);
+  const sonParca = (str) => { const p = String(str ?? '').split('x'); return Number(p[p.length - 1]); };
+
+  const kabinAlt = sayi(a.kuyuDipKabinEnAltNokta), b = sayi(a.kuyuDipBosluk), s = sayi(a.kuyuDipTamponStroke);
+  const durmaSonCm = sonParca(a.kuyuDipDurmaAlani);
+  if (kabinAlt !== null && b !== null && s !== null && hiz !== null && Number.isFinite(durmaSonCm) && a.kuyuDipDurmaAlani) {
+    const sonHareketMm = b + s + 0.035 * hiz * hiz * 1000;
+    const etek = sayi(a.kuyuDipEtekSaciTabanMesafe), iv = sayi(a.kuyuDipIvOlcusu);
+    if ((kabinAlt - sonHareketMm) / 10 < durmaSonCm) nedenler.dip.push('durma');
+    if (etek !== null && etek - sonHareketMm < 0) nedenler.dip.push('etek');
+    if (iv !== null && iv - sonHareketMm < 0) nedenler.dip.push('iv');
+  }
+
+  const kb = sayi(a.kuyuDipKarsiBosluk), ks = sayi(a.kuyuDipKarsiStroke);
+  if (kb !== null && ks !== null && hiz !== null) {
+    const sh = kb + ks + 0.035 * hiz * hiz * 1000;
+    const durmaSonMm = sonParca(a.kuyuUstDurmaAlani) * 10;
+    const kork = sayi(a.kuyuUstKorkulukMesafe), susp = sayi(a.kuyuUstSuspansiyonMesafe), ustDurma = sayi(a.kuyuUstKabinUstDurma);
+    if (kork !== null && kork - sh < 300) nedenler.ust.push('korkuluk');
+    if (susp !== null && susp - sh < 500) nedenler.ust.push('susp');
+    if (ustDurma !== null && Number.isFinite(durmaSonMm) && ustDurma - sh - durmaSonMm < 0) nedenler.ust.push('durma');
+  }
+
+  if (a.makinaKonumu === 'MR') {
+    const c = sayi(a.makineDairesiCalismaYuksekligi), g = sayi(a.makineDairesiGecisYuksekligi), k = sayi(a.makineDairesiKapiYuksekligi);
+    if (c !== null && c < 2100) nedenler.makine.push('calisma');
+    if (g !== null && g < 1800) nedenler.makine.push('gecis');
+    if (k !== null && k < 2000) nedenler.makine.push('kapi');
+  }
+  return sonuc();
+}
+
+// 20.Risk Analiz Formu: her risk analizi için başlık, tehlikeli durum ve olası etki metinleri
+// (Türkçe / İngilizce). Tehlikeli durum ve etki, o analizi gerektiren ölçülere göre otomatik seçilir.
+const RISK_ETKILERI = {
+  bas: ['Bakım, arıza ve kurtarma esnasında kişinin başını çarpma neticesinde ciddi yaralanması veya ölüm', 'Serious injury or death due to head impact during maintenance, breakdown and rescue'],
+  sikisma: ['Kabin altında/üstünde çalışan kişinin sıkışması veya ezilmesi neticesinde ciddi yaralanması veya ölüm', 'Serious injury or death due to a person working under/above the car being trapped or crushed'],
+  makine: ['Makine dairesinde çalışma ve hareket esnasında kişinin başını çarpması neticesinde yaralanma', 'Injury due to head impact while working and moving in the machine room'],
+};
+const RISK_METINLERI = {
+  dip: {
+    baslik: ['Kuyu dibi (kabin altı) risk analizi', 'Pit (under car) risk analysis'],
+    nedenler: {
+      durma: ['Kabin en alçak konumundayken kabin altı ile çukur tabanı arasında durma (sığınma) alanının yetersiz olması', 'Insufficient refuge space between the underside of the car and the pit floor when the car is at its lowest position'],
+      etek: ['Etek sacı ucu ile çukur tabanı arasındaki mesafenin yetersiz olması', 'Insufficient clearance between the toe guard (apron) end and the pit floor'],
+      iv: ['Çukurdaki ekipman ile kabin arasındaki serbest mesafenin yetersiz olması', 'Insufficient free clearance between the equipment in the pit and the car'],
+    },
+    etki: { durma: 'sikisma', etek: 'sikisma', iv: 'sikisma' },
+  },
+  ust: {
+    baslik: ['Kuyu üstü (kabin üstü) risk analizi', 'Well top (car roof) risk analysis'],
+    nedenler: {
+      korkuluk: ['Kabin üstü korkuluğu ile kuyu tavanı arasındaki mesafenin yetersiz olması', 'Insufficient clearance between the car roof balustrade and the well ceiling'],
+      susp: ['Süspansiyon elemanları ile kuyu tavanı arasındaki mesafenin yetersiz olması', 'Insufficient clearance between the suspension means and the well ceiling'],
+      durma: ['Kabin en üst konumundayken kabin üstünde durma (sığınma) alanının yetersiz olması', 'Insufficient refuge space on the car roof when the car is at its highest position'],
+    },
+    etki: { korkuluk: 'bas', susp: 'bas', durma: 'sikisma' },
+  },
+  makine: {
+    baslik: ['Makine dairesi risk analizi', 'Machine room risk analysis'],
+    nedenler: {
+      calisma: ["Makine dairesi çalışma alanı yüksekliğinin 2,10 m'den düşük olması", 'Working area height in the machine room is lower than 2,10 m'],
+      gecis: ["Makine dairesi geçiş (hareket) alanı yüksekliğinin 1,80 m'den düşük olması", 'Clear height for movement in the machine room is lower than 1,80 m'],
+      kapi: ["Makine dairesi giriş kapısı yüksekliğinin 2,00 m'den düşük olması", 'Machine room access door height is lower than 2,00 m'],
+    },
+    etki: { calisma: 'makine', gecis: 'makine', kapi: 'makine' },
+  },
+};
+
+// Form yayım tarihi: denetim yılının Ocak ayının ilk 10 gününden biri (denetime göre sabit, rastgele görünür)
+function riskYayimTarihi(denetim) {
+  const yil = new Date(denetim.denetimTarihi ?? Date.now()).getFullYear();
+  const gun = 1 + (parseInt(String(denetim._id).slice(-6), 16) % 10);
+  return `${String(gun).padStart(2, '0')}.01.${yil}`;
+}
+
+// 20.Risk Analiz Formu şablon alanları (denetim ve tescil yazdırması ortak kullanır)
+function riskFormAlanlari(asansor, grup, veri, yayimTarihi) {
+  const f = riskFormMetinleri(asansor, grup);
+  return {
+    ...veri,
+    risk_analiz_kabinust: f.baslikTr,
+    risk_analiz_en_kabinust: f.baslikEn,
+    'risk_analiz_içerik_tanımı': f.baslikTr,
+    risk_analiz_icerik_tanimi_ingilizce: f.baslikEn,
+    tehlikeli_durum_kabinust: f.durumTr,
+    tehlikeli_durum_en_kabinust: f.durumEn,
+    tehlikeli_durum_aciklamas: f.durumTr,
+    tehlikeli_durum_aciklamasi: f.durumTr,
+    tehlikeli_durum_aciklamasi_ingilizce: f.durumEn,
+    olasi_etki: `${f.etkiTr}\n${f.etkiEn}`,
+    uygulma_maddeleri: veri[`risk_cozum_${grup}`] ?? '',
+    yayim_tarih_kabinust: yayimTarihi,
+    yayim_tarih: yayimTarihi,
+    // Güncellik özetine girsin diye (resim eklenip çıkarılınca belge eskir)
+    risk_resim_anahtarlari: riskResimAnahtarlari(asansor, grup).join(','),
+  };
+}
+
+// Gerçekleşen nedenlere göre form metinleri (birden çok neden varsa maddeler alt alta)
+function riskFormMetinleri(asansor, grup) {
+  const m = RISK_METINLERI[grup];
+  const nedenler = riskDurumu(asansor).nedenler[grup];
+  const liste = (idx) => nedenler.map((n) => m.nedenler[n][idx]);
+  const etkiler = [...new Set(nedenler.map((n) => m.etki[n]))].map((k) => RISK_ETKILERI[k]);
+  const birlestir = (dizi) => (dizi.length > 1 ? dizi.map((t) => `- ${t}`).join('\n') : dizi.join(''));
+  return {
+    baslikTr: m.baslik[0],
+    baslikEn: m.baslik[1],
+    durumTr: birlestir(liste(0)),
+    durumEn: birlestir(liste(1)),
+    etkiTr: birlestir(etkiler.map((e) => e[0])),
+    etkiEn: birlestir(etkiler.map((e) => e[1])),
+  };
+}
+
+// Asansörde risk analizi gerekli olan gruplarının seçili maddeleri
+const riskSecimleri = (asansor, gruplar = ['dip', 'ust', 'makine']) => {
+  const r = riskDurumu(asansor);
+  const var_ = (g) => r[g] && gruplar.includes(g);
+  return [
+    ...(var_('dip') ? asansor.kuyuDibiRiskMaddeleri ?? [] : []),
+    ...(var_('ust') ? asansor.kuyuUstuRiskMaddeleri ?? [] : []),
+    ...(var_('makine') ? asansor.makineDairesiRiskMaddeleri ?? [] : []),
+  ].filter((m) => m?.metin);
+};
+
+// `kosul` tanımlı kalem yalnız koşul sağlanınca listelenir/yazdırılır
+const kalemAktif = (k, baglam) => !k.kosul || k.kosul(baglam);
+// Modul B: Tip Projeler alanında seçilen Certificate Annex formları (ce-td-temp1), seçim sırasıyla,
+// "Engineers Competency Certificates"tan sonra ek kalemler olarak listelenir
+function annexKalemleri(baglam) {
+  if (ceModulKodu(baglam.denetim.modul) !== 'B') return [];
+  const secenekler = new Map((baglam.annexler ?? []).map((a) => [a.etiket, a]));
+  return (baglam.denetim.certificateAnnexler ?? [])
+    .filter((etiket) => secenekler.has(etiket))
+    .map((etiket, i) => ({
+      no: `9.3.${i + 1}`,
+      kod: `certificate-annex-${i + 1}`,
+      ad: `Certificate Annex For Modul B (${etiket})`,
+      tip: 'sablon',
+      klasor: CE,
+      dosya: secenekler.get(etiket).dosya,
+    }));
+}
+
+const aktifKalemler = (baglam) => {
+  const sonuc = [];
+  for (const k of DENETIM_G_KALEMLERI) {
+    if (kalemAktif(k, baglam)) sonuc.push(k);
+    if (k.kod === 'engineers-competency') sonuc.push(...annexKalemleri(baglam));
+  }
+  return sonuc;
+};
+
 export const DENETIM_G_KALEMLERI = [
   { no: '1', kod: 'application-form', ad: 'Application Form', tip: 'sablon', klasor: TUV, dosya: '1.APPLICATION FROM.docx' },
   { no: '2', kod: 'building-permit', ad: 'Building Permit', tip: 'dosya' },
@@ -61,8 +224,31 @@ export const DENETIM_G_KALEMLERI = [
   { no: '12.11', kod: 'sc-ucm', ad: 'Safety Comp. ASCENDING OVERSPEED PROTECTION', tip: 'aksam', slotlar: ['ucm_acop'] },
   { no: '13', kod: 'sample-table', ad: 'SAMPLE TABLE. NEEDED DETAILS FOR CERTIFICATION', tip: 'sablon', klasor: CE, dosya: '13.Sample Table,Needed Details For Certification.docx' },
   // Sarı vurgulu sabit metinlere (sertifika/proje no, tarihler) dokunulmaz — etiket içermezler
-  { no: '14', kod: 'module-g-certificate', ad: 'MODULE G CERTIFICATE', tip: 'sablon', klasor: TUV, dosya: 'MODULE G xxxxxx CERTIFICATE.docx' },
+  { no: '14', kod: 'module-g-certificate', ad: 'MODULE G CERTIFICATE', tip: 'sablon', klasor: TUV, dosya: 'MODULE G xxxxxx CERTIFICATE.docx', kosul: ({ denetim }) => gKodu(denetim) },
+  // Standarttan sapma raporu: yalnız asansörde risk analizi (kuyu dibi/üstü/makine dairesi) varsa listelenir
+  // Risk analiz formu (kabin üstü / kuyu üstü): kuyu üstü risk analizi gerekiyorsa listelenir
+  { no: '20.1', kod: 'risk-analysis-dip', ad: 'Risk Analiz Formu - Kuyu Dibi', tip: 'sablon', klasor: CE, dosya: '20.Risk Analiz Formu.docx', riskGrup: 'dip', kosul: ({ asansor }) => riskDurumu(asansor).dip },
+  { no: '20.2', kod: 'risk-analysis-ust', ad: 'Risk Analiz Formu - Kuyu Üstü', tip: 'sablon', klasor: CE, dosya: '20.Risk Analiz Formu.docx', riskGrup: 'ust', kosul: ({ asansor }) => riskDurumu(asansor).ust },
+  { no: '20.3', kod: 'risk-analysis-makine', ad: 'Risk Analiz Formu - Makine Dairesi', tip: 'sablon', klasor: CE, dosya: '20.Risk Analiz Formu.docx', riskGrup: 'makine', kosul: ({ asansor }) => riskDurumu(asansor).makine },
+  { no: '15', kod: 'deviation-report', ad: 'DEVIATION FROM STANDARD CONTROL AND CONFIRMITY REPORT', tip: 'sablon', klasor: TUV, dosya: 'DEVIATION FROM STANDARD CONTROL AND APPROVAL REPORT.docx', kosul: ({ asansor }) => riskSecimleri(asansor).length > 0 },
 ];
+
+// ce-td-temp1 içindeki "Certificate Annex For Modul B ( 800 kg 1.6 ms 1-1 askı ).docx" şablonları:
+// parantez içi etiket seçenek olur ("800 kg 1.6 ms 1-1 askı")
+export async function annexSecenekleri() {
+  const dosyalar = await fs.readdir(path.join(TEMPLATES_DIR, CE)).catch(() => []);
+  const liste = [];
+  for (const dosya of dosyalar) {
+    const m = /^Certificate Annex For Modul B\s*\(\s*(.+?)\s*\)\.docx$/i.exec(dosya);
+    if (m) liste.push({ etiket: m[1].replace(/\s+/g, ' '), dosya });
+  }
+  const sayilar = (e) => (e.match(/\d+(?:\.\d+)?/g) ?? []).map(Number);
+  return liste.sort((x, y) => {
+    const a = sayilar(x.etiket), b = sayilar(y.etiket);
+    for (let i = 0; i < Math.max(a.length, b.length); i++) if ((a[i] ?? 0) !== (b[i] ?? 0)) return (a[i] ?? 0) - (b[i] ?? 0);
+    return x.etiket.localeCompare(y.etiket, 'tr');
+  });
+}
 
 const taban = (k) => `${String(k.no).includes('.') ? k.no : String(k.no).padStart(2, '0')}-${k.ad}`;
 
@@ -80,10 +266,16 @@ async function denetimYukle(id) {
   // görsellerinin yanına eklenir (sablonDoldur firma.belgeler'den okur)
   const firmaDuz = firma ? firma.toObject() : null;
   const firmaGorsel = firmaDuz && { ...firmaDuz, belgeler: { ...(firmaDuz.belgeler ?? {}), denetciImza: denetci?.imzaKase ?? undefined } };
-  return { denetim, firma: firmaGorsel, asansor, denetci };
+  return {
+    denetim, firma: firmaGorsel, asansor, denetci, annexler: await annexSecenekleri(),
+    bAksamlar: ceModulKodu(denetim.modul) === 'B' ? await bAksamSatirlari(denetim) : null,
+  };
 }
 
 const gKodu = (denetim) => ceModulKodu(denetim.modul) === 'G';
+// Yazdırma listesi Modül G, B, E ve H1 denetimlerinde açıktır
+const yazdirModulu = (denetim) => ['G', 'B', 'E', 'H1'].includes(ceModulKodu(denetim.modul));
+const YAZDIR_MODUL_ETIKETI = { G: 'Modül G', B: 'Modül B', E: 'Modül E', H1: 'Modül H1' };
 
 // ---- Şablon verisi: tescildeki firma/asansör verisi + bu şablonlardaki
 // (artidoksan1 kökenli) etiket adları ----
@@ -145,15 +337,114 @@ function durakListesi(asansor) {
 }
 
 // Kalemin kendine özgü etiketleri (aynı adlı etiketler kalemlerde farklı birimde olabilir)
+// Seçili komponent kodu -> şablonlardaki etiket önekleri (kilit/tampon gibi formlarda farklı adlarla geçer)
+const B_KOMPONENT_ONEKLERI = {
+  hiz_regulatoru: ['hiz_reg'],
+  fren: ['fren', 'kab_fren'],
+  kontrol_karti: ['kart'],
+  durak_kapi_kilidi: ['durak_kapi_kilit', 'd_kapi', 'kilit'],
+  kabin_kapi_kilidi: ['kabin_kapi_kilit', 'k_kapi', 'kab_kilit'],
+  ucm_acop: ['ucm_acop'],
+  motor: ['motor'],
+  tampon: ['kab_tamp', 'kar_tamp'],
+};
+
+// Denetimin seçili komponent satırları, katalog bilgileriyle (onaylı kurum, NoBo, sertifika) zenginleştirilir;
+// aynı sertifika numaralı satırlar tek kayıtta birleşir (tipler virgülle)
+async function bAksamSatirlari(denetim) {
+  const satirlar = denetim.guvenlikAksamlari ?? [];
+  const idler = [...new Set(satirlar.map((a) => a.belgeId).filter(Boolean).map(String))];
+  const katalog = idler.length ? await AksamBelgesi.find({ _id: { $in: idler } }).lean() : [];
+  const harita = new Map(katalog.map((b) => [String(b._id), b]));
+  const gruplar = {};
+  for (const a of satirlar) {
+    const belge = harita.get(String(a.belgeId));
+    const kayit = {
+      marka: bos(belge?.marka || a.marka),
+      tip: bos(a.tip),
+      sertifikaNo: bos(belge?.sertifikaNo || a.sertifikaNo),
+      kurum: bos(belge?.onayliKurumUnvan),
+      nobo: bos(belge?.onayliKurumNobo),
+    };
+    const liste = (gruplar[a.bilesenTipiKodu] ??= []);
+    const anahtar = kayit.sertifikaNo ? `sert:${kayit.sertifikaNo.toLocaleLowerCase('tr')}` : `${a.belgeId}|${kayit.tip}`;
+    const var_ = liste.find((x) => x.anahtar === anahtar);
+    if (var_) {
+      if (kayit.tip && !var_.tipler.includes(kayit.tip)) var_.tipler.push(kayit.tip);
+      if (kayit.marka && !var_.markalar.includes(kayit.marka)) var_.markalar.push(kayit.marka);
+    } else {
+      liste.push({ anahtar, markalar: kayit.marka ? [kayit.marka] : [], tipler: kayit.tip ? [kayit.tip] : [], sertifikaNo: kayit.sertifikaNo, kurum: kayit.kurum, nobo: kayit.nobo });
+    }
+  }
+  return gruplar;
+}
+
+// Her komponent için ilgili etiketler: alan başına alt alta satırlar (satır = bir sertifika kaydı);
+// *_ozet etiketi "Marka / Tip / Onaylı Kurum - NoBo / Sertifika No" biçiminde birleşik satırlardır
+function bAksamTaglari(gruplar) {
+  const sonuc = {};
+  for (const [kod, onekler] of Object.entries(B_KOMPONENT_ONEKLERI)) {
+    const liste = gruplar[kod] ?? [];
+    if (!liste.length) continue;
+    const kurumNobo = (g) => [g.kurum, g.nobo].filter(Boolean).join(' - ');
+    const satirlar = (fn) => liste.map(fn).join('\n');
+    for (const on of onekler) {
+      const marka = satirlar((g) => g.markalar.join(', '));
+      sonuc[`${on}_marka`] = marka;
+      sonuc[`${on}_ad`] = marka;
+      sonuc[`${on}_tip`] = satirlar((g) => g.tipler.join(', '));
+      sonuc[`${on}_cert_no`] = satirlar((g) => g.sertifikaNo);
+      sonuc[`${on}_nobo`] = satirlar(kurumNobo);
+      sonuc[`${on}_ozet`] = satirlar((g) => [g.markalar.join(', '), g.tipler.join(', '), kurumNobo(g), g.sertifikaNo].join(' / '));
+      // Numaralı tampon alanları (kab_tamp_1..3) asansör kaydından geliyordu; seçili komponentler
+      // zaten alt alta yazıldığından tekrar etmesin diye boşaltılır
+      if (kod === 'tampon') {
+        for (let i = 1; i <= 3; i++) {
+          for (const alan of ['marka', 'tip', 'cert_no', 'nobo', 'serino']) sonuc[`${on}_${i}_${alan}`] = '';
+        }
+      }
+    }
+  }
+  return sonuc;
+}
+
+// Modul B: denetimde "Modul B Komponentler" panelinden seçilen komponentler, formlardaki ilgili
+// komponent alanlarına (marka/tip/onaylı kurum-NoBo/sertifika) alt alta yazılır
 function kalemVerisi(veri, kalem, baglam) {
+  const sonuc = kalemVerisiTemel(veri, kalem, baglam);
+  return baglam.bAksamlar ? { ...sonuc, ...bAksamTaglari(baglam.bAksamlar) } : sonuc;
+}
+
+function kalemVerisiTemel(veri, kalem, baglam) {
   const { asansor, denetim, denetci } = baglam;
+  if (kalem.kod.startsWith('certificate-annex-')) return { ...veri, ...annexAciklamasi(asansor, kalem, veri) };
   if (kalem.kod === 'checklist') return { ...veri, ...checklistVerisi(asansor, String(denetim._id)) };
   if (kalem.kod === 'module-g-certificate') {
     return { ...veri, ...teknikVerisi(asansor, denetim, denetci), ...ornekTabloVerisi(asansor), 'kişi_sayisi': bos(asansor?.kisiSayisi) };
   }
+  if (kalem.riskGrup) return riskFormAlanlari(asansor, kalem.riskGrup, veri, riskYayimTarihi(denetim));
   if (kalem.kod === 'sample-table') return { ...veri, ...teknikVerisi(asansor, denetim, denetci), ...ornekTabloVerisi(asansor) };
   if (kalem.kod === 'technical-descriptions') return { ...veri, ...teknikVerisi(asansor, denetim, denetci) };
   return veri;
+}
+
+// Certificate Annex "1. Description of the lift": makine dairesi (MR/MRL) ve askı oranına (1:1 / 2:1) göre
+// 3 paragraf. Askı oranı seçilen annex formunun kendi etiketinden ("... 2-1 askı"), yoksa asansörden alınır
+function annexAciklamasi(asansor, kalem, veri) {
+  const ad = veri.kisa_ad || 'The lift';
+  const oran = /(\d)-(\d)\s*askı/i.exec(kalem.ad)?.slice(1, 3).join(':') || asansor?.askiTipi || '1:1';
+  const mrl = asansor?.makinaKonumu === 'MRL';
+  const makine = mrl
+    ? `The ${ad} is a machine roomless concept. The machine is installed in the well, at the top of the well. The control panel and the maintenance panel are located next to the lift entrance door at the top landing.`
+    : `The ${ad} is a machine room concept. The machine is installed in a separate machine room above of the well. The machine room contains the electric drive, the control panel and the maintenance panel.`;
+  const montaj = mrl
+    ? 'The machine is mounted on the guide rails (or on a base fixed to the well structure) inside the well.'
+    : 'The machine is mounted on a base with brackets which is fixed on concrete.';
+  return {
+    paraf1: makine,
+    paraf2: `The suspension is of the topslung type with a reefing factor ${oran}. ${montaj}`,
+    paraf3: 'The main characteristics of the layout are given in figure 1 and on the next pages. For more details we refer to the technical file. The main characteristics concerning the model description are listed on the next pages.',
+  };
 }
 
 // 13.Sample Table: kabin ve kapı ölçüleri metre; tripping hızı kayıtlı değil (boş)
@@ -259,6 +550,26 @@ function checklistVerisi(asansor, tohum) {
   };
 }
 
+// Risk analizi maddeleri: katalogdaki "standart" işaretine göre iki sütuna ayrılır
+// (standart madde numaraları / uygulanan çözümler)
+async function riskVerisi(asansor) {
+  const secimler = riskSecimleri(asansor);
+  const idler = secimler.map((m) => m.maddeId).filter(Boolean);
+  const katalog = idler.length ? await mongoose.model('RiskMaddesi').find({ _id: { $in: idler } }).select('standart').lean() : [];
+  const standartlar = new Set(katalog.filter((m) => m.standart).map((m) => String(m._id)));
+  const birlestir = (liste) => liste.map((m) => m.metin.trim()).join('\n\n');
+  const standartMi = (m) => m.maddeId && standartlar.has(String(m.maddeId));
+  // 20.Risk Analiz Formu: her analizde yalnız o analizin uygulanan çözümleri
+  const cozum = (grup) => birlestir(riskSecimleri(asansor, [grup]).filter((m) => !standartMi(m)));
+  return {
+    risk_cozum_dip: cozum('dip'),
+    risk_cozum_ust: cozum('ust'),
+    risk_cozum_makine: cozum('makine'),
+    risk_standart_maddeleri: birlestir(secimler.filter(standartMi)),
+    risk_uygulama_maddeleri: birlestir(secimler.filter((m) => !standartMi(m))),
+  };
+}
+
 async function denetimVerisi({ denetim, firma, asansor, denetci }) {
   const sahteTescil = {
     abUygunlukBeyaniTarihi: denetim.abUygunlukBeyaniTarihi,
@@ -266,7 +577,8 @@ async function denetimVerisi({ denetim, firma, asansor, denetci }) {
     // Tescildeki gibi CE bilgisi (onaylı kurum, NoBo, belge no): firmanın bu modüle
     // ait CE belgeleri otomatik seçili sayılır (E beyanı B tip incelemesine de dayanır)
     // Denetimde elle seçilen onaylı kurum/CE belgeleri varsa onlar kullanılır
-    ceBelgeIdleri: (denetim.ceBelgeIdleri ?? []).length
+    // Modül G'de onaylı kurum CE belgesinden seçilmez (denetçiden gelir): eski seçimler yok sayılır
+    ceBelgeIdleri: (denetim.ceBelgeIdleri ?? []).length && !gKodu(denetim)
       ? denetim.ceBelgeIdleri.map(String)
       : (firma?.ceBelgeleri ?? [])
         .filter((ce) => ce._id && ceUygunModuller(denetim.modul).includes(ceModulKodu(ce.modul)))
@@ -292,6 +604,8 @@ async function denetimVerisi({ denetim, firma, asansor, denetci }) {
     B: isaret('B'), E: isaret('E'), G: isaret('G'), H1: isaret('H1'),
     // Denetim raporu / teknik dosya raporu
     denetim_tarih: tarihStr(denetim.denetimTarihi),
+    denetim_tarihi: tarihStr(denetim.denetimTarihi),
+    ...(await riskVerisi(asansor)),
     // Denetçi (Ayarlar > Denetçiler): ad soyad, mühendis türü
     denetci_adi: bos(denetci?.adSoyad),
     denetci: bos(denetci?.adSoyad),
@@ -325,11 +639,53 @@ async function denetimVerisi({ denetim, firma, asansor, denetci }) {
 const MUHENDIS_ETIKET = { elektrik: 'Elektrik Mühendisi', makine: 'Makine Mühendisi' };
 
 // Beyan formundaki modül onay kutuları denetimin modülüne göre işaretlenir
-const doldurmaSecenegi = ({ denetim }, kalem) => ({
+// Risk analizinin uygulama resimleri (madde bazlı değil, analiz başına)
+const RISK_RESIM_ALANLARI = { dip: 'kuyuDibiRiskResimleri', ust: 'kuyuUstuRiskResimleri', makine: 'makineDairesiRiskResimleri' };
+const riskResimAnahtarlari = (asansor, grup) => [...new Set(
+  (asansor?.[RISK_RESIM_ALANLARI[grup]] ?? []).map((r) => r?.dosyaAnahtari).filter(Boolean)
+)];
+
+// İlk tablo (firma/asansör bilgileri) başlık tablosundan dar çıkıyor (%103 + sabit yerleşim, LibreOffice
+// sütunları farklı hesaplıyor): başlık tablosuyla aynı genişliğe (14034) ve sütunlara (3828 / kalan) çekilir
+function ilkTabloyuBaslikGenisligineGetir(xml) {
+  const bas = xml.indexOf('<w:tbl>');
+  const son = xml.indexOf('</w:tbl>', bas);
+  if (bas === -1 || son === -1) return xml;
+  let t = xml.slice(bas, son);
+  t = t.replace(/<w:tblW [^>]*\/>/, '<w:tblW w:w="14034" w:type="dxa"/>');
+  t = t.replace(/<w:tblGrid>[\s\S]*?<\/w:tblGrid>/, '<w:tblGrid><w:gridCol w:w="3828"/><w:gridCol w:w="10186"/><w:gridCol w:w="20"/></w:tblGrid>');
+  const hucreGenisligi = { 1318: 3828, 3535: 10186, 147: 20 };
+  t = t.replace(/<w:tcW w:w="(\d+)" w:type="pct"\/>/g, (m, w) => (hucreGenisligi[w] ? `<w:tcW w:w="${hucreGenisligi[w]}" w:type="dxa"/>` : m));
+  // Satır aralarındaki çok ince boş ayraç satırları çift çizgi gibi görünüyor — kaldırılır
+  t = t.replace(/<w:tr [\s\S]*?<\/w:tr>/g, (satir) => (/<w:trHeight w:val="(?:89|62)"\/>/.test(satir) && !satir.replace(/<[^>]+>/g, '').trim() ? '' : satir));
+  return xml.slice(0, bas) + t + xml.slice(son);
+}
+
+// 20.Risk Analiz Formu: render öncesi XML yamaları
+function riskXmlYama(xml) {
+  xml = ilkTabloyuBaslikGenisligineGetir(xml);
+  // Olası etki metni (şablonda sabit) gruba göre doldurulur
+  xml = xml.replace('Bakım, arıza ve kurtarma esnasında kişinin başını çarpma neticesinde ciddi yaralanması veya ölüm', '{olasi_etki}');
+  // Düzeltici faaliyet paragrafında negatif sağ girinti (-1302) metni hücrenin dışına taşırıyor
+  xml = xml.replace(/(<w:ind[^>]*?) w:right="-\d+"/g, '$1');
+  // Hücrelerdeki noWrap uzun metinlerin hücre dışına taşmasına yol açıyor — metin sarılsın
+  xml = xml.replace(/<w:noWrap\/>/g, '');
+  // LibreOffice'te 1. sayfa birkaç satır taşıyor: alt kenar boşluğu biraz daraltılır
+  xml = xml.replace(/(<w:pgMar [^>]*w:bottom=")1417(")/, '$1900$2');
+  return tablolariYeniSayfadaBaslat(ilkTablodakiBosSonSatiriKaldir(hucreIciKonumlariDuzelt(birlesikSatirlariTekle(bosDolguTablolariniKaldir(checklistYamasi(xml))))), [1, 2]);
+}
+
+const doldurmaSecenegi = ({ denetim, asansor }, kalem) => ({
   checkboxTagleri: isaretlenecekCheckboxTagleri(ceModulKodu(denetim.modul)),
+  ...(kalem?.riskGrup ? { cokluGorseller: { 'risk_analiz_resimlerİ': riskResimAnahtarlari(asansor, kalem.riskGrup) } } : {}),
   xmlYama: (xml) => {
+    // 20.Risk Analiz Formu: Word'ün tablo içine koyduğu sayfa sonları genel yamada LibreOffice'te
+    // tablo başına boş satır ekliyor — 2. ve 3. tablo "sayfa başı" paragrafıyla başlatılır
+    if (kalem?.riskGrup) return riskXmlYama(xml);
     const yamali = icindekilerSayfaKirilimi(wordSayfaKirilimlari(hucreIciKonumlariDuzelt(birlesikSatirlariTekle(bosDolguTablolariniKaldir(checklistYamasi(xml))))));
-    return kalem?.kod === 'module-g-certificate' ? bosParagraflariKucult(yamali) : yamali;
+    if (kalem?.kod === 'module-g-certificate') return bosParagraflariKucult(yamali);
+    if (kalem?.kod === 'deviation-report') return uzunSatirlariEsnet(yamali);
+    return yamali;
   },
 });
 
@@ -412,6 +768,54 @@ function bosDolguTablolariniKaldir(xml) {
 
 // Tablo dışındaki boş paragraflar (yalnız boşluk bırakan) 2 pt'ye indirilir: LibreOffice
 // satır yüksekliklerini biraz büyük hesapladığı için tek sayfalık belgeler ikinci sayfaya taşıyor.
+// İlk tablonun metinsiz son satırı LibreOffice'te sayfaya sığmayıp tek başına sonraki sayfaya
+// taşıyor (Word'de sığıyor) — görünür içeriği olmayan bu satır kaldırılır
+function ilkTablodakiBosSonSatiriKaldir(xml) {
+  const son = xml.indexOf('</w:tbl>');
+  const satirBas = xml.lastIndexOf('<w:tr ', son);
+  if (son === -1 || satirBas === -1) return xml;
+  const satir = xml.slice(satirBas, son);
+  if (!/<w:t[ >]/.test(satir)) xml = xml.slice(0, satirBas) + xml.slice(son);
+  // Yeni son satırın hücrelerindeki sondaki boş paragraflar da atılır (en az biri kalır)
+  const bit = xml.indexOf('</w:tbl>');
+  const bas = xml.lastIndexOf('<w:tr ', bit);
+  const temiz = xml.slice(bas, bit).replace(/<w:tc>[\s\S]*?<\/w:tc>/g, (hucre) => {
+    const bos = /<w:p(?: [^>]*)?(?:\/>|>(?:(?!<w:t[ >]|<w:drawing|<w:br)[\s\S])*?<\/w:p>)(?=(?:<w:p(?: [^>]*)?(?:\/>|>(?:(?!<w:t[ >]|<w:drawing|<w:br)[\s\S])*?<\/w:p>))*<\/w:tc>$)/g;
+    return hucre.replace(bos, (m, ofs) => (hucre.slice(0, ofs).includes('<w:p') && ofs > hucre.indexOf('<w:p') ? '' : m));
+  });
+  // Kaldırılan boş satırın taşıdığı alt çizgi son satıra verilir
+  const cizgili = temiz.replace(/<w:bottom w:val="nil"\/>/g, '<w:bottom w:val="single" w:sz="4" w:space="0" w:color="auto"/>');
+  return xml.slice(0, bas) + cizgili + xml.slice(bit);
+}
+
+// Verilen sıradaki (0 tabanlı) gövde tablolarından hemen önce, yeni sayfa başlatan çok küçük
+// bir paragraf eklenir; tablo içindeki lastRenderedPageBreak izleri (Word'ün eski yerleşimi)
+// kaldırılır (LibreOffice tablo içi sayfa sonunu boş satır olarak bırakıyor)
+function tablolariYeniSayfadaBaslat(xml, siralar) {
+  xml = xml.replace(/<w:lastRenderedPageBreak\/>/g, '');
+  const baslar = [];
+  for (let i = xml.indexOf('<w:tbl>'); i !== -1; i = xml.indexOf('<w:tbl>', i + 1)) baslar.push(i);
+  const kirim = '<w:p><w:pPr><w:pageBreakBefore/><w:spacing w:before="0" w:after="0" w:line="20" w:lineRule="exact"/></w:pPr></w:p>';
+  for (const sira of [...siralar].sort((a, b) => b - a)) {
+    if (baslar[sira] === undefined) continue;
+    // Tablodan hemen önceki boş paragraflar (sığmayınca fazladan boş sayfa üretirler) atılır
+    let bas = baslar[sira];
+    for (;;) {
+      const onceki = xml.slice(0, bas).match(/<w:p(?: [^>]*)?\/>$|<w:p(?: [^>]*)?>(?:(?!<w:p[ >]|<\/w:p>|<w:t[ >]|<w:drawing|<w:br|<w:sectPr)[\s\S])*<\/w:p>$/);
+      if (!onceki) break;
+      bas -= onceki[0].length;
+    }
+    xml = xml.slice(0, bas) + kirim + xml.slice(baslar[sira]);
+  }
+  return xml;
+}
+
+// Sapma raporunda madde metinleri sabit yükseklikli satıra sığmaz (kesilir):
+// yüksek (içerik) satırları "en az" yüksekliğe çevrilir, böylece metne göre uzar
+function uzunSatirlariEsnet(xml) {
+  return xml.replace(/<w:trHeight w:hRule="exact" w:val="(\d+)"\/>/g, (m, v) => (Number(v) >= 900 ? `<w:trHeight w:hRule="atLeast" w:val="${v}"/>` : m));
+}
+
 function bosParagraflariKucult(xml) {
   const tablolar = [];
   let derinlik = 0;
@@ -510,7 +914,7 @@ function dosyaKalemi(kalem, { denetim, firma, asansor }) {
   const tekil = (s) => (s ? [s] : []);
   switch (kalem.kod) {
     case 'building-permit': return tekil(asansor?.yapiRuhsatiDosya);
-    case 'calculations': return tekil(denetim.ekProje);
+    case 'calculations': return tekil(asansor?.asansorProjesiDosya ?? denetim.ekProje);
     case 'type-projects': return denetim.tipProjeler ?? [];
     // 9.1: firmanın SMM bilgilerinde yüklü sözleşme (yoksa "eksik")
     case 'project-service-contract': return tekil(firma?.smmSozlesme);
@@ -528,13 +932,13 @@ async function kalemListesi(baglam) {
   const ozetler = new Map();
   try {
     const veri = await denetimVerisi(baglam);
-    for (const k of DENETIM_G_KALEMLERI.filter((x) => x.tip === 'sablon' && x.hazir !== false && uretilenler.has(x.kod))) {
+    for (const k of aktifKalemler(baglam).filter((x) => x.tip === 'sablon' && x.hazir !== false && uretilenler.has(x.kod))) {
       ozetler.set(k.kod, await kaynakOzeti(sablonYolu(k, baglam), kalemVerisi(veri, k, baglam), baglam.firma));
     }
   } catch { /* özet hesaplanamazsa güncellik bilgisi verilmez */ }
 
   const sonuc = [];
-  for (const k of DENETIM_G_KALEMLERI) {
+  for (const k of aktifKalemler(baglam)) {
     const satir = { no: k.no, kod: k.kod, ad: k.ad, tip: k.tip };
     if (k.tip === 'sablon') {
       if (k.hazir === false) {
@@ -583,14 +987,15 @@ async function belgeKaydet(denetimId, kalem, ozet, docxBuffer, pdfBuffer) {
   await anahtarlariSil([eski?.docx?.dosyaAnahtari, eski?.pdf?.dosyaAnahtari]);
 }
 
-const uretilebilirKalem = (kod) => DENETIM_G_KALEMLERI.find((k) => k.kod === kod && k.tip === 'sablon' && k.hazir !== false);
+const uretilebilirKalem = (baglam, kod) => aktifKalemler(baglam).find((k) => k.kod === kod && k.tip === 'sablon' && k.hazir !== false);
 
 async function kalemUret(denetimId, kod, slot, { zorla, ctx }) {
-  const kalem = uretilebilirKalem(kod);
-  if (!kalem) throw new Error('Bu belge henüz yazdırılamıyor');
   const baglam = await denetimYukle(denetimId);
   if (!baglam) throw new Error('Denetim bulunamadı');
-  if (!gKodu(baglam.denetim)) throw new Error('Yazdırma listesi şimdilik yalnız Modül G için hazır');
+  const kalem = uretilebilirKalem(baglam, kod);
+  if (!kalem) throw new Error('Bu belge henüz yazdırılamıyor');
+  if (!yazdirModulu(baglam.denetim)) throw new Error('Yazdırma listesi şimdilik yalnız Modül G, B, E ve H1 için hazır');
+  if (!kalemAktif(kalem, baglam)) throw new Error('Bu belge bu denetim için gerekli değil (risk analizi yok)');
   const yol = sablonYolu(kalem, baglam);
   await fs.access(yol).catch(() => { throw new Error(`Şablon dosyası bulunamadı: ${kalem.klasor}/${sablonDosyasi(kalem, baglam)}`); });
   const veri = await denetimVerisi(baglam);
@@ -612,13 +1017,13 @@ async function kalemUret(denetimId, kod, slot, { zorla, ctx }) {
 async function topluUret(denetimId, slot, { ctx }) {
   const baglam = await denetimYukle(denetimId);
   if (!baglam) throw new Error('Denetim bulunamadı');
-  if (!gKodu(baglam.denetim)) throw new Error('Yazdırma listesi şimdilik yalnız Modül G için hazır');
+  if (!yazdirModulu(baglam.denetim)) throw new Error('Yazdırma listesi şimdilik yalnız Modül G, B, E ve H1 için hazır');
   const veri = await denetimVerisi(baglam);
   const mevcutlar = new Map((baglam.denetim.uretilenBelgeler ?? []).map((u) => [u.sablonKodu, u]));
 
   ctx.faz('hazirlaniyor');
   const hazirlar = [];
-  for (const kalem of DENETIM_G_KALEMLERI.filter((k) => k.tip === 'sablon' && k.hazir !== false)) {
+  for (const kalem of aktifKalemler(baglam).filter((k) => k.tip === 'sablon' && k.hazir !== false)) {
     if (ctx.iptalMi()) return ctx.iptalEt();
     ctx.durum(kalem.kod, 'uretiliyor');
     try {
@@ -672,15 +1077,24 @@ const calistir = (id) => (kod, slot, secenek) => (kod ? kalemUret(id, kod, slot,
 // ---- Rotalar (/api/denetimler altına, denetim router'ından ÖNCE) ----
 const router = express.Router();
 
+// Modul B: Tip Projeler alanında seçilebilen Certificate Annex formları
+router.get('/annex-secenekleri', async (_req, res) => {
+  try {
+    res.json((await annexSecenekleri()).map(({ etiket }) => ({ etiket })));
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
 router.get('/:id/yazdir', async (req, res) => {
   try {
     const baglam = await denetimYukle(req.params.id);
     if (!baglam) return res.status(404).json({ message: 'Denetim bulunamadı' });
-    if (!gKodu(baglam.denetim)) {
-      return res.json({ sablonSeti: baglam.denetim.modul || '', kalemler: [], mesaj: 'Yazdırma listesi şimdilik yalnız Modül G için hazır.' });
+    if (!yazdirModulu(baglam.denetim)) {
+      return res.json({ sablonSeti: baglam.denetim.modul || '', kalemler: [], mesaj: 'Yazdırma listesi şimdilik yalnız Modül G, B, E ve H1 için hazır.' });
     }
     res.json({
-      sablonSeti: 'Modül G',
+      sablonSeti: YAZDIR_MODUL_ETIKETI[ceModulKodu(baglam.denetim.modul)],
       teknikDosyaSeti: setSecimi(baglam.denetim.teknikDosyaSeti, TEKNIK_DOSYA_SETLERI, CE),
       tuvFormsSeti: setSecimi(baglam.denetim.tuvFormsSeti, TUV_FORMS_SETLERI, TUV),
       kalemler: await kalemListesi(baglam),
@@ -692,9 +1106,10 @@ router.get('/:id/yazdir', async (req, res) => {
 
 router.post('/:id/yazdir/:kod', async (req, res) => {
   try {
-    const kalem = uretilebilirKalem(req.params.kod);
+    const baglam = await denetimYukle(req.params.id);
+    if (!baglam) return res.status(404).json({ message: 'Denetim bulunamadı' });
+    const kalem = uretilebilirKalem(baglam, req.params.kod);
     if (!kalem) return res.status(400).json({ message: 'Bu belge henüz yazdırılamıyor' });
-    if (!(await Denetim.exists({ _id: req.params.id }))) return res.status(404).json({ message: 'Denetim bulunamadı' });
     if (aktifTopluIs(req.params.id)) return res.status(409).json({ message: 'Toplu yazdırma sürüyor — bitmesini bekleyin.' });
     const isId = isBaslat({
       tescilId: req.params.id,
@@ -718,11 +1133,12 @@ router.post('/:id/yazdir-toplu', async (req, res) => {
     if (tescildeAktifIsVar(req.params.id)) {
       return res.status(409).json({ message: 'Bu denetimde başka bir yazdırma sürüyor — bitmesini bekleyin.' });
     }
+    const baglam = await denetimYukle(req.params.id);
     const isId = isBaslat({
       tescilId: req.params.id,
       tip: 'toplu',
       ad: 'Tümünü Yazdır',
-      kalemler: DENETIM_G_KALEMLERI.filter((k) => k.tip === 'sablon' && k.hazir !== false).map(({ kod, no, ad }) => ({ kod, no, ad })),
+      kalemler: aktifKalemler(baglam).filter((k) => k.tip === 'sablon' && k.hazir !== false).map(({ kod, no, ad }) => ({ kod, no, ad })),
       zorla: false,
       calistir: calistir(req.params.id),
     });
@@ -756,3 +1172,19 @@ router.delete('/:id/yazdir', async (req, res) => {
 });
 
 export default router;
+
+// ---- Tescil Yazdır'ın kullandığı risk analiz formu arayüzü ----
+export const riskGrupAktif = (asansor, grup) => !!riskDurumu(asansor)[grup];
+
+// { yol, veri, secenek }: şablon yolu, doldurulacak veri ve sablonDoldur seçenekleri.
+// Şablon tescilin şablon setinden alınır (tescil-temp1/24.Risk Analiz Formu.docx)
+export async function riskFormHazirla({ asansor, firma, tescil }, grup) {
+  const t = await sablonVerisi({ tescil, firma, asansor });
+  const taban = { ...t, as_firma_adresi: t.adres, montaj_adresi: t.montaj_adres, ...(await riskVerisi(asansor)) };
+  const yayim = riskYayimTarihi({ _id: tescil._id, denetimTarihi: tescil.abUygunlukBeyaniTarihi ?? tescil.createdAt });
+  return {
+    yol: path.join(TEMPLATES_DIR, tescil.sablonSeti || 'tescil-temp1', '24.Risk Analiz Formu.docx'),
+    veri: riskFormAlanlari(asansor, grup, taban, yayim),
+    secenek: { cokluGorseller: { 'risk_analiz_resimlerİ': riskResimAnahtarlari(asansor, grup) }, xmlYama: riskXmlYama },
+  };
+}

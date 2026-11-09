@@ -46,6 +46,7 @@ export interface Asansor {
   yapiSahibiAdi: string;
   yapiMuteahhidi: string;
   yapiRuhsatiDosya?: BelgeSlot | null;
+  asansorProjesiDosya?: BelgeSlot | null;
   seriNo: string;
   montajYili: number | null;
   abUygunlukBeyaniTarihi: string | null;
@@ -202,6 +203,9 @@ export interface Asansor {
   agirlikFotolari?: BelgeSlot[];
   halatKasnakFotolari?: BelgeSlot[];
   makineDairesiFotolari?: BelgeSlot[];
+  kuyuDibiRiskResimleri?: BelgeSlot[];
+  kuyuUstuRiskResimleri?: BelgeSlot[];
+  makineDairesiRiskResimleri?: BelgeSlot[];
   // Durak/kabin kapı kilidi montaj fotoğrafları (1. ve 2. giriş ayrı)
   durakKilitFotolari: BelgeSlot[];
   durakKilitFotolari2: BelgeSlot[];

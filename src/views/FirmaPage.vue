@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { IonPage, IonContent, IonHeader, onIonViewWillEnter } from '@ionic/vue';
-import { computed, ref, watch } from 'vue';
+import { computed, defineAsyncComponent, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import {
   getFirmalar, updateFirma, deleteFirma,
@@ -19,6 +19,8 @@ import FotoCekModal from '@/components/FotoCekModal.vue';
 import LinkPopup from '@/components/LinkPopup.vue';
 import CeBelgeFormu from '@/components/CeBelgeFormu.vue';
 import { MUHENDIS_TUR_ETIKETLERI } from '@/utils/firmaBilgi';
+// KYS motoru büyük olduğu için yalnız açıldığında yüklenir
+const KysPanel = defineAsyncComponent(() => import('@/components/kys/KysPanel.vue'));
 
 const route = useRoute();
 const router = useRouter();
@@ -39,7 +41,11 @@ const menuler = [
   { no: 6, etiket: 'Sanayi Sicil Belgesi', icon: '🏭' },
   { no: 7, etiket: 'SMM Bilgileri', icon: '👷' },
   { no: 8, etiket: 'Personel', icon: '👥' },
+  { no: 9, etiket: 'KYS', icon: '📘' },
 ];
+
+// KYS (Modül E Kalite El Kitabı) tam sayfa paneli
+const kysAcik = ref(false);
 
 // Genel Bilgiler tablosu: etiket → kayıtlı değer
 const genelBilgiler = computed<[string, string][]>(() => {
@@ -1474,6 +1480,19 @@ onIonViewWillEnter(yukle);
               </div>
             </div>
 
+            <!-- KYS: Modül E Kalite El Kitabı — tam sayfa panelde açılır -->
+            <div v-else-if="aktifMenu === 9" class="space-y-2">
+              <p class="text-xs font-semibold text-ink">KYS — Kalite Yönetim Sistemi</p>
+              <p class="text-[11px] text-ink-muted">
+                Modül E (ve H1) denetimleri için kalite el kitabı, prosedür/talimat/form şablonları ve uygulama kayıtları.
+                Firma bilgileri bu firma kaydından otomatik gelir.
+              </p>
+              <button type="button" @click="kysAcik = true"
+                class="bg-[#2b5c3d] px-3 py-2 text-xs font-semibold text-ink ring-1 ring-white/10 active:bg-[#346e4a]">
+                KYS'yi aç
+              </button>
+            </div>
+
             <!-- Personel: sabit görev sahipleri + mühendisler + SGK dökümü -->
             <div v-else-if="aktifMenu === 8" class="space-y-3">
               <p class="text-xs font-semibold text-ink">Personel</p>
@@ -1736,6 +1755,8 @@ onIonViewWillEnter(yukle);
         ? `${RESIM_SLOTLARI.find((r) => r.anahtar === resimSilinecek)?.etiket ?? 'Resim'} silinecek. Emin misiniz?`
         : ''"
       @vazgec="resimSilinecek = null" @onayla="resimSilOnayla" />
+
+    <KysPanel v-if="kysAcik && secili" :key="secili._id" :firma="secili" @kapat="kysAcik = false" />
 
     <SilmeOnayi :acik="evrakSilinecek != null"
       :aciklama="evrakSilinecek != null

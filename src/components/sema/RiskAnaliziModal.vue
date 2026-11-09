@@ -2,6 +2,7 @@
 import { computed, ref, watch } from 'vue';
 import SemaModal from '@/components/SemaModal.vue';
 import SilmeOnayi from '@/components/SilmeOnayi.vue';
+import FotoAlani from '@/components/FotoAlani.vue';
 import {
   getRiskMaddeleri,
   createRiskMaddesi,
@@ -25,6 +26,8 @@ const props = defineProps<{
 const emit = defineEmits<{ iptal: [] }>();
 const open = defineModel<boolean>('open', { default: false });
 const secilen = defineModel<RiskMaddesiSecim[]>('secilen', { default: () => [] });
+// Uygulama resimleri: madde bazlı değil, bu risk analizi için genel liste
+const resimler = defineModel<BelgeSlot[]>('resimler', { default: () => [] });
 
 const { openFile } = useFileViewer();
 
@@ -228,48 +231,67 @@ async function silOnayla() {
         </div>
       </div>
 
-      <!-- Yeni madde formu -->
-      <div v-if="formAcik" class="space-y-2 bg-surface-900/60 p-2.5 ring-1 ring-white/5">
-        <h4 class="text-xs font-bold text-ink">{{ duzenlenenId ? 'Maddeyi Düzenle' : yeniStandart ? 'Yeni Standart Madde' : 'Yeni Çözüm' }}</h4>
-        <label class="block space-y-0.5">
-          <span class="text-xs font-medium text-ink-muted">Madde Metni</span>
-          <textarea v-model="yeniMetin" rows="3" placeholder="Madde metni..."
-            class="w-full resize-none bg-surface-900 px-2.5 py-1.5 text-xs text-ink ring-1 ring-white/10 outline-none placeholder:text-ink-muted/40 focus:ring-white/30"></textarea>
-        </label>
-        <label class="flex items-center gap-1.5 text-xs font-medium text-[#9cc4ff]">
-          <input type="checkbox" v-model="yeniStandart" /> Standart madde (aksi halde uygulanan çözüm)
-        </label>
-        <div class="block space-y-0.5">
-          <span class="text-xs font-medium text-ink-muted">Resim</span>
-          <div class="flex items-center gap-1.5">
-            <label
-              class="shrink-0 cursor-pointer border border-dashed border-white/20 px-2.5 py-1.5 text-[11px] font-semibold text-ink-muted active:border-white/40 active:text-ink">
-              <input type="file" accept="image/*" class="hidden" @change="resimSec($event)" />
-              {{ resimYukleniyor ? 'Yükleniyor…' : yeniResim ? 'Değiştir' : '+ Resim Ekle' }}
-            </label>
-            <button v-if="yeniResim" type="button" @click="resimAc(yeniResim)"
-              class="grid h-10 w-10 shrink-0 place-items-center overflow-hidden bg-surface-900 ring-1 ring-white/10">
-              <img v-if="resimUrller[yeniResim.dosyaAnahtari]" :src="resimUrller[yeniResim.dosyaAnahtari]"
-                :alt="yeniResim.dosyaAdi" class="h-full w-full object-cover" />
-              <span v-else class="px-0.5 text-center text-[8px] text-ink-muted/60">{{ yeniResim.dosyaAdi }}</span>
+      <!-- Madde formu: tam sayfa (geri / vazgeç / kaydet) -->
+      <Teleport to="body">
+        <div v-if="open && formAcik" class="fixed inset-0 z-[60] flex flex-col bg-[#101a14]">
+          <div
+            class="flex shrink-0 items-center gap-2 border-b border-white/5 bg-surface-bar px-3 py-3 pt-[max(0.75rem,env(safe-area-inset-top))]">
+            <button type="button" @click="formAcik = false" aria-label="Geri"
+              class="grid h-8 w-8 shrink-0 place-items-center bg-surface-800 text-ink ring-1 ring-white/10">
+              ←
             </button>
-            <button v-if="yeniResim" type="button" @click="yeniResim = null" aria-label="Resmi kaldır"
-              class="grid h-6 w-7 shrink-0 place-items-center bg-surface-900 text-red-300/80 ring-1 ring-red-500/20">
-              ✕
-            </button>
+            <h2 class="truncate text-sm font-bold text-ink">
+              {{ duzenlenenId ? 'Maddeyi Düzenle' : yeniStandart ? 'Yeni Standart Madde' : 'Yeni Çözüm' }}
+            </h2>
+          </div>
+          <div class="min-h-0 flex-1 overflow-auto">
+            <div class="mx-auto max-w-lg space-y-3 p-4">
+              <p v-if="hata" class="text-xs text-red-300" role="alert">{{ hata }}</p>
+          <label class="block space-y-0.5">
+            <span class="text-xs font-medium text-ink-muted">Madde Metni</span>
+            <textarea v-model="yeniMetin" rows="10" placeholder="Madde metni..."
+              class="w-full resize-none bg-surface-900 px-3 py-2 text-sm text-ink ring-1 ring-white/10 outline-none placeholder:text-ink-muted/40 focus:ring-white/30"></textarea>
+          </label>
+          <label class="flex items-center gap-1.5 text-xs font-medium text-[#9cc4ff]">
+            <input type="checkbox" v-model="yeniStandart" /> Standart madde (aksi halde uygulanan çözüm)
+          </label>
+          <div class="block space-y-0.5">
+            <span class="text-xs font-medium text-ink-muted">Resim</span>
+            <div class="flex items-center gap-1.5">
+              <label
+                class="shrink-0 cursor-pointer border border-dashed border-white/20 px-2.5 py-1.5 text-[11px] font-semibold text-ink-muted active:border-white/40 active:text-ink">
+                <input type="file" accept="image/*" class="hidden" @change="resimSec($event)" />
+                {{ resimYukleniyor ? 'Yükleniyor…' : yeniResim ? 'Değiştir' : '+ Resim Ekle' }}
+              </label>
+              <button v-if="yeniResim" type="button" @click="resimAc(yeniResim)"
+                class="grid h-10 w-10 shrink-0 place-items-center overflow-hidden bg-surface-900 ring-1 ring-white/10">
+                <img v-if="resimUrller[yeniResim.dosyaAnahtari]" :src="resimUrller[yeniResim.dosyaAnahtari]"
+                  :alt="yeniResim.dosyaAdi" class="h-full w-full object-cover" />
+                <span v-else class="px-0.5 text-center text-[8px] text-ink-muted/60">{{ yeniResim.dosyaAdi }}</span>
+              </button>
+              <button v-if="yeniResim" type="button" @click="yeniResim = null" aria-label="Resmi kaldır"
+                class="grid h-6 w-7 shrink-0 place-items-center bg-surface-900 text-red-300/80 ring-1 ring-red-500/20">
+                ✕
+              </button>
+            </div>
+          </div>
+            </div>
+          </div>
+          <div
+            class="shrink-0 border-t border-white/5 bg-surface-bar p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+            <div class="mx-auto flex max-w-lg gap-1.5">
+              <button type="button" @click="formAcik = false"
+                class="flex-1 bg-surface-800 px-4 py-3 text-xs font-semibold text-ink-muted ring-1 ring-white/10">
+                Vazgeç
+              </button>
+              <button type="button" @click="maddeKaydet" :disabled="kaydediliyor"
+                class="flex-1 bg-[#2b5c3d] px-4 py-3 text-xs font-semibold text-ink ring-1 ring-white/10 active:bg-[#346e4a] disabled:opacity-50">
+                {{ kaydediliyor ? 'Kaydediliyor…' : 'Kaydet' }}
+              </button>
+            </div>
           </div>
         </div>
-        <div class="flex gap-1.5">
-          <button type="button" @click="formAcik = false"
-            class="flex-1 bg-surface-900 px-2.5 py-2 text-xs font-semibold text-ink-muted ring-1 ring-white/10 active:bg-[#1a2a20]">
-            Vazgeç
-          </button>
-          <button type="button" @click="maddeKaydet" :disabled="kaydediliyor"
-            class="flex-1 bg-[#2b5c3d] px-2.5 py-2 text-xs font-semibold text-ink ring-1 ring-white/10 active:bg-[#346e4a] disabled:opacity-50">
-            {{ kaydediliyor ? 'Kaydediliyor…' : 'Kaydet' }}
-          </button>
-        </div>
-      </div>
+      </Teleport>
 
       <!-- Madde listesi — dokununca seçilir/çıkarılır (çoktan seçmeli) -->
       <p v-if="yukleniyor" class="text-xs text-ink-muted">Yükleniyor…</p>
@@ -319,6 +341,11 @@ async function silOnayla() {
         </div>
       </div>
       </template>
+    </div>
+
+    <!-- Uygulama resimleri: dosya seç / kamerayla çek (risk analiz formunda basılır) -->
+    <div class="mt-4">
+      <FotoAlani v-model:fotolar="resimler" baslik="Uygulama Resimleri" />
     </div>
 
     <!-- Silme onayı (kullanıcı kuralı: window.confirm yerine) -->

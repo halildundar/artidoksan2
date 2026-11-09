@@ -17,6 +17,13 @@ export interface DenetimAsansorOzet {
   yapiRuhsatNo: string;
   il: string;
   ilce: string;
+  kisiSayisi?: number | null;
+  beyanYuku?: number | null;
+  makinaKonumu?: 'MR' | 'MRL' | null;
+  askiTipi?: string | null;
+  hiz?: number | null;
+  durakSayisi?: number | null;
+  asansorProjesiDosya?: BelgeSlot | null;
 }
 
 // Modul B: güvenlik aksamı kataloğundan seçilen satır (seçim anında
@@ -58,6 +65,8 @@ export interface Denetim {
   sonKontrolTarihi: string | null;
   // Modul B detayı: tip projeleri (ZIP) + seçilen güvenlik aksamları
   tipProjeler?: BelgeSlot[];
+  // Modul B: yazdırmaya eklenecek Certificate Annex formları ("800 kg 1.6 ms 1-1 askı")
+  certificateAnnexler?: string[];
   guvenlikAksamlari?: DenetimAksam[];
   // Modul E detayı: montaj sözleşmesi ve malzeme faturası dosya/fotoğrafları
   montajSozlesmeleri?: BelgeSlot[];
@@ -83,6 +92,7 @@ export type DenetimGuncelleme = Partial<YeniDenetim> & {
   abUygunlukBeyaniTarihi?: string | null;
   sonKontrolTarihi?: string | null;
   tipProjeler?: BelgeSlot[];
+  certificateAnnexler?: string[];
   guvenlikAksamlari?: DenetimAksam[];
   montajSozlesmeleri?: BelgeSlot[];
   malzemeFaturalari?: BelgeSlot[];
@@ -106,4 +116,9 @@ export function updateDenetim(id: string, data: DenetimGuncelleme): Promise<Dene
 
 export function deleteDenetim(id: string): Promise<{ ok: boolean }> {
   return request<{ ok: boolean }>(`/denetimler/${id}`, { method: 'DELETE' });
+}
+
+// Modul B: Tip Projeler alanında seçilebilen Certificate Annex formları (şablon klasöründen)
+export function getAnnexSecenekleri(): Promise<{ etiket: string }[]> {
+  return request<{ etiket: string }[]>('/denetimler/annex-secenekleri');
 }

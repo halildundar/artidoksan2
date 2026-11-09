@@ -44,6 +44,8 @@ const denetimSchema = new mongoose.Schema(
     abUygunlukBeyaniTarihi: { type: Date, default: null },
     sonKontrolTarihi: { type: Date, default: null },
     tipProjeler: { type: [dosyaSlotSchema], default: [] },
+    // Modul B: yazdırmaya eklenecek Certificate Annex formları (etiket: "800 kg 1.6 ms 1-1 askı")
+    certificateAnnexler: { type: [String], default: [] },
     guvenlikAksamlari: { type: [denetimAksamSchema], default: [] },
     // Modul E: montaj sözleşmesi ve malzeme faturası dosya/fotoğrafları
     montajSozlesmeleri: { type: [dosyaSlotSchema], default: [] },
@@ -73,7 +75,7 @@ export const Denetim = mongoose.model('Denetim', denetimSchema);
 
 const POPULATE = [
   { path: 'firmaId', select: 'ad unvan telefon il ilce' },
-  { path: 'asansorId', select: 'seriNo yapiRuhsatNo il ilce' },
+  { path: 'asansorId', select: 'seriNo yapiRuhsatNo il ilce kisiSayisi beyanYuku makinaKonumu askiTipi hiz durakSayisi asansorProjesiDosya' },
   { path: 'denetciId', select: 'adSoyad muhendisTuru imzaKase onayliKurumNobo onayliKurumUnvan onayliKurumAdres' },
 ];
 
@@ -122,7 +124,7 @@ router.put('/:id', async (req, res) => {
     const {
       firmaId, asansorId, modul, denetimTarihi, denetciId, ceBelgeIdleri, teknikDosyaSeti, tuvFormsSeti,
       ekProje, abUygunlukBeyaniTarihi, sonKontrolTarihi,
-      tipProjeler, guvenlikAksamlari, montajSozlesmeleri, malzemeFaturalari,
+      tipProjeler, certificateAnnexler, guvenlikAksamlari, montajSozlesmeleri, malzemeFaturalari,
     } = req.body ?? {};
     // undefined alanlar Mongoose tarafından ayıklanır — kısmi PUT
     const denetim = await Denetim.findByIdAndUpdate(
@@ -130,7 +132,7 @@ router.put('/:id', async (req, res) => {
       {
         firmaId, asansorId, modul, denetimTarihi, denetciId, ceBelgeIdleri, teknikDosyaSeti, tuvFormsSeti,
         ekProje, abUygunlukBeyaniTarihi, sonKontrolTarihi,
-        tipProjeler, guvenlikAksamlari, montajSozlesmeleri, malzemeFaturalari,
+        tipProjeler, certificateAnnexler, guvenlikAksamlari, montajSozlesmeleri, malzemeFaturalari,
       },
       { new: true, runValidators: true }
     ).populate(POPULATE);

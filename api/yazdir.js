@@ -74,7 +74,33 @@ export const KALEMLER = [
   { no: 34, kod: 'sert-motor', ad: 'Motor Sertifika', tip: 'aksam', motor: true },
   // Kullanıcı kararı: Makine = Motor ile aynı belge (tek sürüş ünitesi verisi)
   { no: 35, kod: 'sert-makine', ad: 'Makine Sertifika', tip: 'aksam', motor: true },
+  // 36-38: Risk Analiz Formu (ce-td-temp1 şablonu) — yalnız asansörde o risk analizi gerekiyorsa
+  // listelenir ve yazdırılır (kuyu dibi / kuyu üstü / makine dairesi)
+  { no: 36, kod: 'risk-analiz-dip', ad: 'Risk Analiz Formu - Kuyu Dibi', tip: 'sablon', riskGrup: 'dip' },
+  { no: 37, kod: 'risk-analiz-ust', ad: 'Risk Analiz Formu - Kuyu Üstü', tip: 'sablon', riskGrup: 'ust' },
+  { no: 38, kod: 'risk-analiz-makine', ad: 'Risk Analiz Formu - Makine Dairesi', tip: 'sablon', riskGrup: 'makine' },
 ];
+
+// Risk formu kalemi, asansörde o risk analizi gerekiyorsa etkindir (diğer kalemler her zaman)
+async function kalemEtkinMi(kalem, { asansor }) {
+  if (!kalem.riskGrup) return true;
+  const { riskGrupAktif } = await import('./denetimYazdir.js');
+  return riskGrupAktif(asansor, kalem.riskGrup);
+}
+const etkinKalemler = async (baglam, filtre = () => true) => {
+  const sonuc = [];
+  for (const k of KALEMLER) if (filtre(k) && (await kalemEtkinMi(k, baglam))) sonuc.push(k);
+  return sonuc;
+};
+
+// Şablon kalemi için yol + veri + sablonDoldur seçenekleri (risk formu ortak ce şablonunu kullanır)
+async function kalemHazirla(kalem, baglam, veri) {
+  if (kalem.riskGrup) {
+    const { riskFormHazirla } = await import('./denetimYazdir.js');
+    return riskFormHazirla(baglam, kalem.riskGrup);
+  }
+  return { yol: sablonYolu(baglam.tescil, baglam.firma, kalem), veri, secenek: undefined };
+}
 
 // ---- Yardımcılar (artidoksan1 templateData.js'ten port) ----
 export function bos(v) {
@@ -586,6 +612,55 @@ function checkboxFontunuSabitle(xml) {
   });
 }
 
+// Birden çok görselin basıldığı tag'ler ({%tag} gövdede tek paragrafta): her tag
+// için depolama anahtarı listesi verilir, görseller yan yana (satır sığdıkça)
+// kutuya ölçeklenerek aynı paragrafa dizilir; liste boşsa tag silinir
+const COKLU_GORSEL_KUTU_PX = [300, 225];
+async function cokluGorselleriYerlestir(zip, xml, cokluGorseller) {
+  if (!cokluGorseller) return xml;
+  let sayac = 5000;
+  for (const [tag, anahtarlar] of Object.entries(cokluGorseller)) {
+    const hedef = `{%${tag}}`;
+    // Etiket Word tarafından birkaç run'a bölünmüş olabilir: paragrafın düz metnine bakılır
+    let pBas = -1, pSon = -1;
+    const pDeseni = /<w:p(?: [^>]*[^>/])?>[\s\S]*?<\/w:p>/g;
+    for (let pm; (pm = pDeseni.exec(xml)); ) {
+      const duz = [...pm[0].matchAll(/<w:t(?: [^>]*)?>([^<]*)<\/w:t>/g)].map((t) => t[1]).join('');
+      if (duz.includes(hedef)) { pBas = pm.index; pSon = pm.index + pm[0].length; break; }
+    }
+    if (pBas === -1) continue;
+    const paragraf = xml.slice(pBas, pSon);
+    const pAc = paragraf.match(/^<w:p(?: [^>]*)?>/)[0];
+    const pPr = (paragraf.match(/<w:pPr>[\s\S]*?<\/w:pPr>/) ?? [''])[0];
+    let runlar = '';
+    for (const anahtar of anahtarlar) {
+      const buffer = await getObjectBuffer(anahtar);
+      const { width, height } = imageSize(buffer);
+      const oran = Math.min(COKLU_GORSEL_KUTU_PX[0] / width, COKLU_GORSEL_KUTU_PX[1] / height);
+      sayac += 1;
+      const rId = zipeResimEkle(zip, 'word/document.xml', buffer, sayac);
+      runlar += inlineResimXml(rId, Math.round(width * oran), Math.round(height * oran), 9000 + sayac) + '<w:r><w:t xml:space="preserve">  </w:t></w:r>';
+    }
+    let sonrasi = xml.slice(pSon);
+    // Görsellerden sonraki boş paragraflar (şablonun yer tutucuları) fazladan boş sayfa üretmesin
+    sonrasi = sonrasi.replace(/^(?:<w:p(?: [^>]*[^>/])?>(?:(?!<w:t[ >]|<w:drawing|<w:br|<w:sectPr)[\s\S])*?<\/w:p>|<w:p(?: [^>]*)?\/>)+/, '');
+    // Başlık paragrafı (görsellerden hemen önceki) görsellerle aynı sayfada kalsın
+    let onceki = xml.slice(0, pBas);
+    const bPos = onceki.lastIndexOf('<w:p ');
+    if (bPos !== -1 && onceki.slice(bPos).includes('<w:pPr>') && !onceki.slice(bPos).includes('<w:keepNext/>')) {
+      onceki = onceki.slice(0, bPos) + onceki.slice(bPos).replace('<w:pPr>', '<w:pPr><w:keepNext/>');
+    }
+    // Başlıktan önceki boş paragraflar da (tablodan sonra) sayfaya taşıp boş sayfa üretmesin
+    const baslikBas = onceki.lastIndexOf('<w:p ');
+    if (baslikBas !== -1) {
+      const oncesi = onceki.slice(0, baslikBas).replace(/(?:<w:p(?: [^>]*[^>/])?>(?:(?!<w:t[ >]|<w:drawing|<w:br|<w:sectPr)[\s\S])*?<\/w:p>|<w:p(?: [^>]*)?\/>)+$/, '');
+      onceki = oncesi + onceki.slice(baslikBas);
+    }
+    xml = onceki + pAc + pPr + runlar + '</w:p>' + sonrasi;
+  }
+  return xml;
+}
+
 export async function sablonDoldur(sablonYolu, veri, firma, secenek = {}) {
   const zip = new PizZip(await fs.readFile(sablonYolu));
   // Sunucuda/Word'de bulunmayan marka yazı tipleri (TÜV'ün "TNG Pro"su) LibreOffice'te rastgele
@@ -601,6 +676,7 @@ export async function sablonDoldur(sablonYolu, veri, firma, secenek = {}) {
     xml = xml.replace(/(<w:t(?: [^>]*)?>)([^<]*)(<\/w:t>)/g, (_m, ac, t, ka) => ac + t.replace(/\{(?=\s|\d)/g, '&#123;') + ka);
     if (secenek.xmlYama) xml = secenek.xmlYama(xml);
     if (secenek.checkboxTagleri) xml = checkboxlariIsaretle(xml, secenek.checkboxTagleri);
+    xml = await cokluGorselleriYerlestir(zip, xml, secenek.cokluGorseller);
     zip.file('word/document.xml', checkboxFontunuSabitle(xml));
   }
   const parcalar = Object.keys(zip.files).filter((n) => GORSEL_PARCA_DESENI.test(n));
@@ -710,7 +786,7 @@ export async function sablonDoldur(sablonYolu, veri, firma, secenek = {}) {
 // ---- Kaynak özeti: belgeyi üreten girdilerin (şablon dosyası + doldurulan
 // veri + logo/imza görselleri) parmak izi. Aynıysa belge yeniden çevrilmez;
 // URETIM_SURUMU üretim mantığı değişince artırılır ve eski çıktıları geçersiz kılar ----
-const URETIM_SURUMU = 20;
+const URETIM_SURUMU = 53;
 const sablonHashOnbellek = new Map();
 
 async function sablonHash(yol) {
@@ -772,14 +848,16 @@ async function kalemListesi(baglam) {
   const ozetler = new Map();
   try {
     const veri = await sablonVerisi(baglam);
-    for (const kalem of KALEMLER.filter((k) => k.tip === 'sablon' && uretilenler.has(k.kod))) {
-      ozetler.set(kalem.kod, await kaynakOzeti(sablonYolu(tescil, firma, kalem), veri, firma));
+    for (const kalem of await etkinKalemler(baglam, (k) => k.tip === 'sablon' && uretilenler.has(k.kod))) {
+      const h = await kalemHazirla(kalem, baglam, veri);
+      ozetler.set(kalem.kod, await kaynakOzeti(h.yol, h.veri, firma));
     }
   } catch {
     /* özet hesaplanamazsa güncellik bilgisi verilmez */
   }
 
-  return KALEMLER.map((kalem) => {
+  const etkinler = new Set((await etkinKalemler(baglam)).map((k) => k.kod));
+  return KALEMLER.filter((k) => etkinler.has(k.kod)).map((kalem) => {
     const satir = { no: kalem.no, kod: kalem.kod, ad: kalem.ad, tip: kalem.tip };
     if (kalem.tip === 'sablon') {
       const u = uretilenler.get(kalem.kod);
@@ -877,13 +955,14 @@ async function kalemUret(tescilId, kod, slot, { zorla, ctx }) {
   const baglam = await tescilYukle(tescilId);
   if (!baglam) throw new Error('Tescil bulunamadı');
   const { tescil, firma } = baglam;
+  if (!(await kalemEtkinMi(kalem, baglam))) throw new Error('Bu belge bu tescil için gerekli değil (risk analizi yok)');
 
-  const yol = sablonYolu(tescil, firma, kalem);
+  const h = await kalemHazirla(kalem, baglam, await sablonVerisi(baglam));
+  const { yol, veri, secenek } = h;
   await fs.access(yol).catch(() => {
     throw new Error(`Şablon dosyası bulunamadı: ${path.relative(TEMPLATES_DIR, yol)}`);
   });
 
-  const veri = await sablonVerisi(baglam);
   const ozet = await kaynakOzeti(yol, veri, firma);
   const mevcut = (tescil.uretilenBelgeler ?? []).find((u) => u.sablonKodu === kod);
   if (!zorla && mevcut?.kaynakOzeti === ozet && mevcut.docx?.dosyaAnahtari && mevcut.pdf?.dosyaAnahtari) {
@@ -891,7 +970,7 @@ async function kalemUret(tescilId, kod, slot, { zorla, ctx }) {
   }
 
   ctx.faz('hazirlaniyor');
-  const docxBuffer = await sablonDoldur(yol, veri, firma);
+  const docxBuffer = await sablonDoldur(yol, veri, firma, secenek);
   ctx.faz('cevriliyor');
   const pdfBuffer = await convertDocxToPdf(docxBuffer, slot);
   ctx.faz('kaydediliyor');
@@ -970,21 +1049,22 @@ async function topluUret(tescilId, slot, { ctx }) {
 
   ctx.faz('hazirlaniyor');
   const hazirlar = [];
-  for (const kalem of KALEMLER.filter((k) => k.tip === 'sablon')) {
+  for (const kalem of await etkinKalemler(baglam, (k) => k.tip === 'sablon')) {
     if (ctx.iptalMi()) return ctx.iptalEt();
     ctx.durum(kalem.kod, 'uretiliyor');
     try {
-      const yol = sablonYolu(tescil, firma, kalem);
+      const h = await kalemHazirla(kalem, baglam, veri);
+      const yol = h.yol;
       await fs.access(yol).catch(() => {
         throw new Error(`Şablon dosyası bulunamadı: ${path.relative(TEMPLATES_DIR, yol)}`);
       });
-      const ozet = await kaynakOzeti(yol, veri, firma);
+      const ozet = await kaynakOzeti(yol, h.veri, firma);
       const mevcut = mevcutlar.get(kalem.kod);
       if (mevcut?.kaynakOzeti === ozet && mevcut.docx?.dosyaAnahtari && mevcut.pdf?.dosyaAnahtari) {
         ctx.durum(kalem.kod, 'guncel');
         continue;
       }
-      const docxBuffer = await sablonDoldur(yol, { ...veri }, firma);
+      const docxBuffer = await sablonDoldur(yol, { ...h.veri }, firma, h.secenek);
       hazirlar.push({ kalem, ozet, docxBuffer });
       ctx.durum(kalem.kod, 'hazir');
     } catch (err) {
@@ -1068,7 +1148,7 @@ router.post('/:id/yazdir-toplu', async (req, res) => {
     if (tescildeAktifIsVar(req.params.id)) {
       return res.status(409).json({ message: 'Bu tescilde başka bir yazdırma sürüyor — bitmesini bekleyin.' });
     }
-    const sablonlar = KALEMLER.filter((k) => k.tip === 'sablon');
+    const sablonlar = await etkinKalemler(await tescilYukle(req.params.id), (k) => k.tip === 'sablon');
     const isId = isBaslat({
       tescilId: req.params.id,
       tip: 'toplu',

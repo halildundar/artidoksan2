@@ -23,6 +23,7 @@
     "@ionic/vue": "^9.0.0",
     "@ionic/vue-router": "^9.0.0",
     "ionicons": "^8.1.0",
+    "jszip": "^3.10.2",
     "pdfjs-dist": "^6.4.299",
     "pdfmake": "^0.3.13",
     "serve": "^14.2.6",

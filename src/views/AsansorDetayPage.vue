@@ -163,6 +163,23 @@ async function yukle() {
 
 onIonViewWillEnter(yukle);
 
+// Asansör projesi: bir kez yüklenir, tescil ve denetimlerde görüntülenir
+const projeYukleniyor = ref(false);
+async function projeSec(event: Event) {
+  const input = event.target as HTMLInputElement;
+  const file = input.files?.[0];
+  input.value = '';
+  if (!file) return;
+  projeYukleniyor.value = true;
+  try {
+    await guncelle({ asansorProjesiDosya: await uploadDosya(file) });
+  } catch (e) {
+    hata.value = e instanceof Error ? e.message : 'Yükleme başarısız';
+  } finally {
+    projeYukleniyor.value = false;
+  }
+}
+
 async function guncelle(veri: AsansorGuncelleme) {
   try {
     asansor.value = await updateAsansor(id.value, veri);
@@ -1615,6 +1632,7 @@ const kapiRiskAnaliziAcik = ref(false);
 // seçilir; seçim snapshot'la asansöre kaydedilir.
 const makineRiskAnaliziAcik = ref(false);
 const makineRiskSecimL = ref<RiskMaddesiSecim[]>([]);
+const makineRiskResimL = ref<BelgeSlot[]>([]);
 
 function makineRiskAnaliziAc() {
   blurActive();
@@ -1626,11 +1644,13 @@ function makineRiskAnaliziAc() {
     resim: s.resim ?? null,
     fotolar: [...(s.fotolar ?? [])],
   }));
+  makineRiskResimL.value = [...(a.makineDairesiRiskResimleri ?? [])];
   makineRiskAnaliziAcik.value = true;
 }
 
 // ---- Kuyu üstü risk analizi (aynı madde sistemi, grup: kuyu-ustu) ----
 const ustRiskSecimL = ref<RiskMaddesiSecim[]>([]);
+const ustRiskResimL = ref<BelgeSlot[]>([]);
 
 function ustRiskAnaliziAc() {
   blurActive();
@@ -1642,12 +1662,14 @@ function ustRiskAnaliziAc() {
     resim: s.resim ?? null,
     fotolar: [...(s.fotolar ?? [])],
   }));
+  ustRiskResimL.value = [...(a.kuyuUstuRiskResimleri ?? [])];
   ustRiskAnaliziAcik.value = true;
 }
 
 // ---- Kuyu dibi risk analizi (aynı madde sistemi, grup: kuyu-dibi) ----
 const dipRiskAnaliziAcik = ref(false);
 const dipRiskSecimL = ref<RiskMaddesiSecim[]>([]);
+const dipRiskResimL = ref<BelgeSlot[]>([]);
 
 function dipRiskAnaliziAc() {
   blurActive();
@@ -1659,6 +1681,7 @@ function dipRiskAnaliziAc() {
     resim: s.resim ?? null,
     fotolar: [...(s.fotolar ?? [])],
   }));
+  dipRiskResimL.value = [...(a.kuyuDibiRiskResimleri ?? [])];
   dipRiskAnaliziAcik.value = true;
 }
 
@@ -1668,7 +1691,7 @@ watch(dipRiskAnaliziAcik, (acik, onceki) => {
     iptalEdildi.value = false;
     return;
   }
-  guncelle({ kuyuDibiRiskMaddeleri: dipRiskSecimL.value });
+  guncelle({ kuyuDibiRiskMaddeleri: dipRiskSecimL.value, kuyuDibiRiskResimleri: dipRiskResimL.value });
 });
 
 watch(ustRiskAnaliziAcik, (acik, onceki) => {
@@ -1677,7 +1700,7 @@ watch(ustRiskAnaliziAcik, (acik, onceki) => {
     iptalEdildi.value = false;
     return;
   }
-  guncelle({ kuyuUstuRiskMaddeleri: ustRiskSecimL.value });
+  guncelle({ kuyuUstuRiskMaddeleri: ustRiskSecimL.value, kuyuUstuRiskResimleri: ustRiskResimL.value });
 });
 
 watch(makineRiskAnaliziAcik, (acik, onceki) => {
@@ -1686,7 +1709,7 @@ watch(makineRiskAnaliziAcik, (acik, onceki) => {
     iptalEdildi.value = false;
     return;
   }
-  guncelle({ makineDairesiRiskMaddeleri: makineRiskSecimL.value });
+  guncelle({ makineDairesiRiskMaddeleri: makineRiskSecimL.value, makineDairesiRiskResimleri: makineRiskResimL.value });
 });
 
 // Ön bilgi kartındaki etiket/değer çiftleri
@@ -1824,6 +1847,34 @@ const onBilgi = computed(() => {
                 Yapı ruhsatı eklenmedi
               </p>
             </template>
+          </section>
+
+          <!-- Asansör projesi: bir kez yüklenir, tescil ve denetim sayfalarında görüntülenir -->
+          <section class="bg-surface-800 p-3 ring-1 ring-white/5">
+            <div class="flex items-center justify-between gap-2">
+              <div class="min-w-0">
+                <h2 class="text-xs font-bold uppercase tracking-wide text-ink">Asansör Projesi</h2>
+                <span v-if="asansor.asansorProjesiDosya" class="mt-1 block truncate text-xs text-ink">
+                  {{ asansor.asansorProjesiDosya.dosyaAdi }}
+                </span>
+                <span v-else class="mt-1 block text-xs font-semibold text-red-400">Asansör projesi eklenmedi</span>
+              </div>
+              <div class="flex shrink-0 items-center gap-1.5">
+                <button v-if="asansor.asansorProjesiDosya" type="button"
+                  @click="dosyaSlotAc(asansor.asansorProjesiDosya)" aria-label="Asansör projesini görüntüle"
+                  class="grid h-7 w-8 place-items-center bg-[#2b5c3d] text-ink ring-1 ring-white/10 active:bg-[#346e4a]">
+                  <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                    stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M2.06 12.35a1 1 0 0 1 0-.7C3.42 8.24 7.26 5 12 5s8.58 3.24 9.94 6.65a1 1 0 0 1 0 .7C20.58 15.76 16.74 19 12 19s-8.58-3.24-9.94-6.65" />
+                    <circle cx="12" cy="12" r="3" />
+                  </svg>
+                </button>
+                <label class="cursor-pointer bg-surface-900 px-2.5 py-1.5 text-[11px] font-semibold text-ink ring-1 ring-white/10 active:bg-[#1a2a20]">
+                  <input type="file" accept="application/pdf,image/*" class="hidden" @change="projeSec" />
+                  {{ projeYukleniyor ? 'Yükleniyor…' : (asansor.asansorProjesiDosya ? 'Değiştir' : '+ Yükle') }}
+                </label>
+              </div>
+            </div>
           </section>
 
           <!-- Buton grubu: sarmalı (wrap) kutucuklar — tıklayınca ilgili şema
@@ -2168,18 +2219,21 @@ const onBilgi = computed(() => {
     kapanınca seçim asansöre kaydedilir -->
     <RiskAnaliziModal v-model:open="dipRiskAnaliziAcik" @iptal="iptalEdildi = true"
       v-model:secilen="dipRiskSecimL"
+      v-model:resimler="dipRiskResimL"
       baslik="Kuyu Dibi Risk Analizi" grup="kuyu-dibi" />
 
     <!-- Kuyu üstü risk analizi — hazır maddelerden çoktan seçmeli;
     kapanınca seçim asansöre kaydedilir -->
     <RiskAnaliziModal v-model:open="ustRiskAnaliziAcik" @iptal="iptalEdildi = true"
       v-model:secilen="ustRiskSecimL"
+      v-model:resimler="ustRiskResimL"
       baslik="Kuyu Üstü Risk Analizi" grup="kuyu-ustu" />
 
     <!-- Makine dairesi risk analizi — hazır maddelerden çoktan seçmeli;
     kapanınca seçim asansöre kaydedilir -->
     <RiskAnaliziModal v-model:open="makineRiskAnaliziAcik" @iptal="iptalEdildi = true"
       v-model:secilen="makineRiskSecimL"
+      v-model:resimler="makineRiskResimL"
       baslik="Makine Dairesi Risk Analizi" grup="makine-dairesi" />
 
     <!-- Kapı yüksekliği risk analizi popup'ı — içeriği daha sonra doldurulacak -->

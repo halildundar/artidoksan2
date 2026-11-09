@@ -28,7 +28,7 @@ const PORT = process.env.PORT ?? 3000;
 
 const app = express();
 app.use(cors()); // mobil uygulamalar farklı origin'den gelir
-app.use(express.json());
+app.use(express.json({ limit: '10mb' })); // KYS verisi (doküman listesi + uygulama kayıtları) büyük olabilir
 
 // Tek bir yüklenmiş dosyanın kaydı (artidoksan1'deki belgeSlotSchema deseni)
 const belgeSlotSchema = new mongoose.Schema(
@@ -102,6 +102,10 @@ const firmaSchema = new mongoose.Schema(
     ceBelgeleri: { type: [ceBelgesiSchema], default: [] },
     // Cihazlar sekmesi: serbest dosya/fotoğraf listesi (yükleme hep sona ekler)
     cihazDosyalari: { type: [belgeSlotSchema], default: [] },
+    // KYS (Modül E Kalite El Kitabı): firma bilgisi dışındaki girdiler, politika/hedef/doküman listesi,
+    // revizyonlar, düzenlenmiş şablonlar ve uygulama kayıtları. Listeleme yanıtlarını şişirmemek için
+    // varsayılan olarak seçilmez; /api/firmalar/:id/kys ile okunur/yazılır.
+    kys: { type: mongoose.Schema.Types.Mixed, default: undefined, select: false },
     // Personel sekmesi: sabit görev sahipleri (ad soyad)
     personel: {
       genelMudur: { type: String, trim: true, default: '' },
@@ -519,6 +523,28 @@ app.get('/api/firmalar/:id', async (req, res) => {
     const firma = await Firma.findById(req.params.id);
     if (!firma) return res.status(404).json({ message: 'Firma bulunamadı' });
     res.json(firma);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+app.get('/api/firmalar/:id/kys', async (req, res) => {
+  try {
+    const firma = await Firma.findById(req.params.id).select('+kys');
+    if (!firma) return res.status(404).json({ message: 'Firma bulunamadı' });
+    res.json(firma.kys ?? null);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+app.put('/api/firmalar/:id/kys', async (req, res) => {
+  try {
+    const kys = req.body;
+    if (!kys || typeof kys !== 'object' || Array.isArray(kys)) return res.status(400).json({ message: 'Geçersiz KYS verisi' });
+    const firma = await Firma.findByIdAndUpdate(req.params.id, { $set: { kys } }, { new: true }).select('_id');
+    if (!firma) return res.status(404).json({ message: 'Firma bulunamadı' });
+    res.json({ ok: true, kaydedildi: new Date().toISOString() });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }

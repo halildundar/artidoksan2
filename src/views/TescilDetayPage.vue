@@ -81,6 +81,19 @@ function konum(v: { il?: string; ilce?: string } | null) {
   return v ? [v.ilce, v.il].filter(Boolean).join('/') : '';
 }
 
+// Asansör kartı özeti: kişi · makine dairesi · askı · hız · durak (dolu olanlar, aralarında nokta)
+function temelOzet(a: { kisiSayisi?: number | null; beyanYuku?: number | null; makinaKonumu?: string | null; askiTipi?: string | null; hiz?: number | null; durakSayisi?: number | null } | null) {
+  if (!a) return '';
+  return [
+    a.kisiSayisi ? `${a.kisiSayisi} kişi` : '',
+    a.beyanYuku ? `${a.beyanYuku} kg` : '',
+    a.makinaKonumu === 'MR' ? 'Makine Daireli' : a.makinaKonumu === 'MRL' ? 'Makine Dairesiz' : '',
+    a.askiTipi ?? '',
+    a.hiz ? `${a.hiz} m/s` : '',
+    a.durakSayisi ? `${a.durakSayisi} durak` : '',
+  ].filter(Boolean).join(' · ');
+}
+
 // Kartlara dokununca tüm bilgiler popup'ta görüntülenir
 const firmaBilgiAcik = ref(false);
 const asansorBilgiAcik = ref(false);
@@ -415,10 +428,23 @@ async function dosyaAc(slot: BelgeSlot) {
                 Ruhsat No: {{ asansor.yapiRuhsatNo }}
               </span>
               <span v-if="konum(asansor)" class="mt-0.5 block text-[11px] text-ink-muted/80">{{ konum(asansor) }}</span>
+              <span v-if="temelOzet(asansor)" class="mt-0.5 block text-[11px] text-ink-muted">{{ temelOzet(asansor) }}</span>
             </span>
             <svg class="h-4 w-4 shrink-0 text-ink-muted/60" viewBox="0 0 24 24" fill="none"
               stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <path d="m9 18 6-6-6-6" />
+            </svg>
+          </button>
+          <button v-if="asansor?.asansorProjesiDosya" type="button" @click="dosyaAc(asansor.asansorProjesiDosya)"
+            class="flex w-full items-center justify-between gap-2 bg-surface-800 p-3 text-left ring-1 ring-white/5 active:bg-[#1a2a20]">
+            <span class="min-w-0">
+              <span class="block text-xs font-bold uppercase tracking-wide text-ink">Asansör Projesi</span>
+              <span class="mt-0.5 block truncate text-[11px] text-ink-muted">{{ asansor.asansorProjesiDosya.dosyaAdi }}</span>
+            </span>
+            <svg class="h-4 w-4 shrink-0 text-ink-muted/60" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+              stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M2.06 12.35a1 1 0 0 1 0-.7C3.42 8.24 7.26 5 12 5s8.58 3.24 9.94 6.65a1 1 0 0 1 0 .7C20.58 15.76 16.74 19 12 19s-8.58-3.24-9.94-6.65" />
+              <circle cx="12" cy="12" r="3" />
             </svg>
           </button>
 

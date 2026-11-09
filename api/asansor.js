@@ -83,6 +83,8 @@ const asansorSchema = new mongoose.Schema(
     yapiSahibiAdi: { type: String, trim: true, default: '' },
     yapiMuteahhidi: { type: String, trim: true, default: '' },
     yapiRuhsatiDosya: { type: dosyaSlotSchema, default: undefined },
+    // Asansör projesi: bir kez yüklenir; tescil ve denetimlerde görüntülenir
+    asansorProjesiDosya: { type: dosyaSlotSchema, default: undefined },
     seriNo: { type: String, trim: true, default: '' },
     montajYili: { type: Number, default: null },
     abUygunlukBeyaniTarihi: { type: Date, default: null },
@@ -170,6 +172,10 @@ const asansorSchema = new mongoose.Schema(
     makineDairesiRiskMaddeleri: { type: [riskMaddeSecimSchema], default: [] },
     // Kuyu üstü risk analizinde seçilen maddeler (id + snapshot)
     kuyuUstuRiskMaddeleri: { type: [riskMaddeSecimSchema], default: [] },
+    // Risk analizi uygulama resimleri (madde bazlı değil, analiz başına genel liste)
+    kuyuDibiRiskResimleri: { type: [dosyaSlotSchema], default: [] },
+    kuyuUstuRiskResimleri: { type: [dosyaSlotSchema], default: [] },
+    makineDairesiRiskResimleri: { type: [dosyaSlotSchema], default: [] },
     // Kuyu dibi risk analizinde seçilen maddeler (id + snapshot)
     kuyuDibiRiskMaddeleri: { type: [riskMaddeSecimSchema], default: [] },
     katYukseklikleri: { type: [katYuksekligiSchema], default: [] },

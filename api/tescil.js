@@ -65,7 +65,7 @@ export const Tescil = mongoose.model('Tescil', tescilSchema);
 
 const POPULATE = [
   { path: 'firmaId', select: 'ad unvan telefon il ilce' },
-  { path: 'asansorId', select: 'seriNo yapiRuhsatNo il ilce' },
+  { path: 'asansorId', select: 'seriNo yapiRuhsatNo il ilce kisiSayisi beyanYuku makinaKonumu askiTipi hiz durakSayisi asansorProjesiDosya' },
 ];
 
 const router = express.Router();

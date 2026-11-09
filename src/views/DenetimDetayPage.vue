@@ -3,7 +3,7 @@ import { IonPage, IonContent, IonHeader, onIonViewWillEnter } from '@ionic/vue';
 import { computed, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import {
-  getDenetim, updateDenetim,
+  getDenetim, updateDenetim, getAnnexSecenekleri,
   type Denetim, type DenetimFirmaOzet, type DenetimAsansorOzet, type DenetimGuncelleme,
   type DenetimAksam,
 } from '@/services/denetimService';
@@ -42,16 +42,9 @@ async function yukle() {
   try {
     denetim.value = await getDenetim(id.value);
     // Modul B: komponent butonları için katalog baştan yüklenir
-    if (denetim.value?.modul === 'Modul B') katalogYukle();
-    // Modül G: onaylı kurum seçimi için firmanın CE belgeleri
-    if (denetim.value?.modul === 'Modul G') {
-      const f = denetim.value.firmaId;
-      const firmaIdDeger = f && typeof f === 'object' ? f._id : f;
-      if (firmaIdDeger) {
-        getFirma(firmaIdDeger)
-          .then((tam) => (firmaCeler.value = tam.ceBelgeleri ?? []))
-          .catch(() => { /* alınamazsa onaylı kurum listesi boş görünür */ });
-      }
+    if (denetim.value?.modul === 'Modul B') {
+      katalogYukle();
+      getAnnexSecenekleri().then((l) => (annexSecenekleri.value = l)).catch(() => { /* seçenek listesi boş kalır */ });
     }
     // Modul E / H1: firmanın kalibrasyon (Cihazlar sekmesi) dosyaları çekilir
     if (MONTAJLI_MODULLER.includes(denetim.value?.modul ?? '')) {
@@ -59,7 +52,10 @@ async function yukle() {
       const firmaIdDeger = f && typeof f === 'object' ? f._id : f;
       if (firmaIdDeger) {
         getFirma(firmaIdDeger)
-          .then((tam) => (firmaKalibrasyon.value = tam.cihazDosyalari ?? []))
+          .then((tam) => {
+            firmaKalibrasyon.value = tam.cihazDosyalari ?? [];
+            firmaCeler.value = tam.ceBelgeleri ?? [];
+          })
           .catch(() => { /* alınamazsa kalibrasyon bölümü boş görünür */ });
       }
     }
@@ -102,6 +98,19 @@ function konum(v: { il?: string; ilce?: string } | null) {
   return v ? [v.ilce, v.il].filter(Boolean).join('/') : '';
 }
 
+// Asansör kartı özeti: kişi · makine dairesi · askı · hız · durak (dolu olanlar, aralarında nokta)
+function temelOzet(a: { kisiSayisi?: number | null; beyanYuku?: number | null; makinaKonumu?: string | null; askiTipi?: string | null; hiz?: number | null; durakSayisi?: number | null } | null) {
+  if (!a) return '';
+  return [
+    a.kisiSayisi ? `${a.kisiSayisi} kişi` : '',
+    a.beyanYuku ? `${a.beyanYuku} kg` : '',
+    a.makinaKonumu === 'MR' ? 'Makine Daireli' : a.makinaKonumu === 'MRL' ? 'Makine Dairesiz' : '',
+    a.askiTipi ?? '',
+    a.hiz ? `${a.hiz} m/s` : '',
+    a.durakSayisi ? `${a.durakSayisi} durak` : '',
+  ].filter(Boolean).join(' · ');
+}
+
 // Kartlara dokununca tüm bilgiler popup'ta görüntülenir
 const firmaBilgiAcik = ref(false);
 const asansorBilgiAcik = ref(false);
@@ -121,7 +130,8 @@ function tarihKaydet(alan: 'abUygunlukBeyaniTarihi' | 'sonKontrolTarihi', event:
 
 // ---- Modül G: denetçi (Ayarlar > Denetçiler) — bilgileri ve imza-kaşesi gösterilir,
 // değiştirilebilir; yazdırılan belgelere ad soyad ve imza-kaşe olarak basılır ----
-const modulG = computed(() => denetim.value?.modul === 'Modul G');
+// Denetçi ve onaylı kuruluş alanları Modül G, B, E ve H1'de aynıdır
+const denetciModulu = computed(() => ['Modul G', 'Modul B', 'Modul E', 'Modul H1'].includes(denetim.value?.modul ?? ''));
 const denetciler = ref<Denetci[]>([]);
 const denetciOzeti = computed(() => {
   const d = denetim.value?.denetciId;
@@ -142,18 +152,6 @@ const denetciSecenekleri = computed(() =>
 );
 const denetciImzaUrl = ref('');
 
-// Onaylı kurum: firmanın CE belgelerinden işaretlenir (hiçbiri seçili değilse
-// yazdırmada modüle uyan belgeler otomatik kullanılır)
-const firmaCeler = ref<CeBelgesi[]>([]);
-const seciliCeIdleri = computed(() => denetim.value?.ceBelgeIdleri ?? []);
-function ceToggle(ceId: string | undefined) {
-  if (!ceId) return;
-  const mevcut = seciliCeIdleri.value;
-  guncelle({
-    ceBelgeIdleri: mevcut.includes(ceId) ? mevcut.filter((x) => x !== ceId) : [...mevcut, ceId],
-  });
-}
-
 watch(
   () => denetciOzeti.value?.imzaKase?.dosyaAnahtari,
   async (anahtar) => {
@@ -168,34 +166,23 @@ watch(
   { immediate: true }
 );
 
-watch(modulG, (g) => {
+// Modül E: onaylı kurum, firmanın CE belgelerinden işaretlenir (hiçbiri seçili değilse
+// yazdırmada modüle uyan belgeler otomatik kullanılır)
+const firmaCeler = ref<CeBelgesi[]>([]);
+const seciliCeIdleri = computed(() => denetim.value?.ceBelgeIdleri ?? []);
+function ceToggle(ceId: string | undefined) {
+  if (!ceId) return;
+  const mevcut = seciliCeIdleri.value;
+  guncelle({
+    ceBelgeIdleri: mevcut.includes(ceId) ? mevcut.filter((x) => x !== ceId) : [...mevcut, ceId],
+  });
+}
+
+watch(denetciModulu, (g) => {
   if (g && !denetciler.value.length) {
     getDenetciler().then((l) => (denetciler.value = l)).catch(() => { /* seçenek listesi boş kalır */ });
   }
 }, { immediate: true });
-
-// ---- Uygulama projesi (PDF veya ZIP) ----
-const ekProjeYukleniyor = ref(false);
-
-// PDF görüntülenir; ZIP görüntülenemediği için indirilir
-const ekProjePdf = computed(() => denetim.value?.ekProje?.mimeType === 'application/pdf');
-
-async function ekProjeSec(event: Event) {
-  const input = event.target as HTMLInputElement;
-  const file = input.files?.[0];
-  input.value = '';
-  if (!file) return;
-  ekProjeYukleniyor.value = true;
-  hata.value = '';
-  try {
-    const slot = await uploadDosya(file);
-    await guncelle({ ekProje: slot });
-  } catch (e) {
-    hata.value = e instanceof Error ? e.message : 'Dosya yüklenemedi';
-  } finally {
-    ekProjeYukleniyor.value = false;
-  }
-}
 
 // ---- Modul B: tip projeleri (ZIP) — yükleme hep listenin sonuna ekler ----
 const modulB = computed(() => denetim.value?.modul === 'Modul B');
@@ -233,10 +220,31 @@ async function tipProjeSilOnayla() {
   await guncelle({ tipProjeler: yeni });
 }
 
-// ---- Modul B: güvenlik aksamı seçimi — katalogdan (Ayarlar > Güvenlik
-// Aksamları) komponent başına en çok 10 satır eklenir ----
+// ---- Modul B: Tip Projeler — Certificate Annex formu seçimi (şablon dosya adlarındaki parantez içi:
+// "800 kg 1.6 ms 1-1 askı"); seçilenler yazdırma listesine ek form olarak girer ----
+const annexSecenekleri = ref<{ etiket: string }[]>([]);
+const annexSecilen = computed(() => denetim.value?.certificateAnnexler ?? []);
+// Asansörün askı tipine (1:1 / 2:1) uyan formlar listelenir; askı tipi yoksa hepsi
+const annexSecimListesi = computed(() => {
+  const aski = asansor.value?.askiTipi?.replace(':', '-');
+  return annexSecenekleri.value
+    .filter((o) => !aski || !/\d-\d\s*askı/i.test(o.etiket) || o.etiket.includes(`${aski} askı`))
+    .map((o) => ({ label: o.etiket, value: o.etiket }));
+});
+// Seçim kutuda görünür kalır; yeniden tıklanıp başka bir form seçilebilir
+const annexModel = computed<string | number | null>({
+  get: () => annexSecilen.value[0] ?? null,
+  set: (v) => {
+    if (typeof v === 'string' && v !== annexSecilen.value[0]) guncelle({ certificateAnnexler: [v] });
+  },
+});
+
+// ---- Modul B: komponentler — katalogdaki (Ayarlar > Güvenlik Aksamları) belgeler; her
+// komponent için tam sayfa popup'ta arama + onay kutularıyla seçilir, Kaydet ile denetime
+// yazılır; seçilenler panelde komponent başlığı altında (accordion) listelenir ----
+// Komponent başına en çok 10 farklı marka seçilebilir (aynı markanın sertifika sayısı sınırsız)
 const AKSAM_MAX = 10;
-// Hangi komponentin ekleme popup'ının açık olduğu (null: kapalı)
+// Hangi komponentin seçim popup'ının açık olduğu (null: kapalı)
 const aksamSecKod = ref<string | null>(null);
 const katalog = ref<AksamBelgesi[]>([]);
 const katalogYukleniyor = ref(false);
@@ -248,145 +256,208 @@ const HARIC_KODLAR = ['sarkac_test_raporu', 'yangin_sizdirmazlik_raporu'];
 function katalogYukle() {
   if (katalog.value.length || katalogYukleniyor.value) return;
   katalogYukleniyor.value = true;
-  getAksamBelgeleri({ kategori: 'guvenlik_aksami', durum: 'aktif' })
-    .then((liste) => (katalog.value = liste.filter((b) => !HARIC_KODLAR.includes(b.bilesenTipiKodu))))
-    .catch(() => { /* katalog alınamazsa komponent alanları boş kalır */ })
+  Promise.all([
+    getAksamBelgeleri({ kategori: 'guvenlik_aksami', durum: 'aktif' }),
+    getAksamBelgeleri({ kategori: 'asansor_bileseni', durum: 'aktif' }),
+  ])
+    .then(([aksamlar, bilesenlerListesi]) => {
+      // Dişlili / dişlisiz motor belgeleri tek "Motor" komponentinde toplanır
+      const motorlar = bilesenlerListesi
+        .filter((b) => b.bilesenTipiKodu.startsWith('motor'))
+        .map((b) => ({ ...b, bilesenTipiKodu: 'motor', bilesenTipiAdi: 'Motor' }));
+      katalog.value = [...aksamlar.filter((b) => !HARIC_KODLAR.includes(b.bilesenTipiKodu)), ...motorlar];
+    })
+    .catch(() => { /* katalog alınamazsa komponent butonları boş kalır */ })
     .finally(() => (katalogYukleniyor.value = false));
 }
 
-// Komponent ekleme butonları katalogdan türetilir
+// Komponent butonları katalogdan türetilir
 const bilesenler = computed(() => {
   const gorulen = new Map<string, string>();
   for (const b of katalog.value) {
     if (!gorulen.has(b.bilesenTipiKodu)) gorulen.set(b.bilesenTipiKodu, b.bilesenTipiAdi);
   }
-  return [...gorulen].map(([kod, ad]) => ({ kod, ad }));
+  const liste = [...gorulen].map(([kod, ad]) => ({ kod, ad }));
+  // Durak kapı kilidi ile kabin kapı kilidi yan yana (ardışık) gösterilir
+  const kabin = liste.findIndex((b) => b.kod === 'kabin_kapi_kilidi');
+  const durak = liste.findIndex((b) => b.kod === 'durak_kapi_kilidi');
+  if (kabin !== -1 && durak !== -1) {
+    const [k] = liste.splice(kabin, 1);
+    liste.splice(liste.findIndex((b) => b.kod === 'durak_kapi_kilidi') + 1, 0, k);
+  }
+  // Motor, alfabetik sırada Kontrol Kartı ile Tampon arasında yer alır
+  const motor = liste.findIndex((b) => b.kod === 'motor');
+  if (motor !== -1) {
+    const [m] = liste.splice(motor, 1);
+    const tampon = liste.findIndex((b) => b.kod === 'tampon');
+    liste.splice(tampon === -1 ? liste.length : tampon, 0, m);
+  }
+  return liste;
 });
 
-function aksamSecimAc(kod: string) {
-  aksamArama.value = '';
-  aksamSecKod.value = kod;
+// Aynı sertifika numaralı belge/tip satırları tek seçenek olarak birleşir (sertifika
+// numarası aynıysa birlikte seçilir); numarası olmayan satır kendi başına kalır
+interface AksamSatir {
+  bilesenTipiKodu: string;
+  bilesenTipiAdi: string;
+  belgeId: string;
+  marka: string;
+  tip: string;
+  sertifikaNo: string;
+  dosya?: AksamBelgesi['dosya'];
 }
+interface AksamGrup {
+  anahtar: string;
+  markalar: string[];
+  tipler: string[];
+  sertifikaNo: string;
+  uyeler: AksamSatir[];
+  dosya?: AksamBelgesi['dosya'];
+}
+const satirAnahtari = (a: { belgeId: string; tip: string }) => `${a.belgeId}|${a.tip}`;
+const grupAnahtari = (a: { sertifikaNo?: string; belgeId: string; tip: string }) =>
+  a.sertifikaNo?.trim() ? `sert:${a.sertifikaNo.trim().toLocaleLowerCase('tr')}` : satirAnahtari(a);
+
+function satirlariGrupla(satirlar: AksamSatir[]): AksamGrup[] {
+  const gruplar = new Map<string, AksamGrup>();
+  for (const sat of satirlar) {
+    const anahtar = grupAnahtari(sat);
+    let g = gruplar.get(anahtar);
+    if (!g) {
+      g = { anahtar, markalar: [], tipler: [], sertifikaNo: sat.sertifikaNo ?? '', uyeler: [], dosya: undefined };
+      gruplar.set(anahtar, g);
+    }
+    g.uyeler.push(sat);
+    if (sat.marka && !g.markalar.includes(sat.marka)) g.markalar.push(sat.marka);
+    if (sat.tip && !g.tipler.includes(sat.tip)) g.tipler.push(sat.tip);
+    if (!g.dosya && sat.dosya) g.dosya = sat.dosya;
+  }
+  return [...gruplar.values()];
+}
+const grupBaslik = (g: AksamGrup) =>
+  [g.markalar.join(', '), g.tipler.join(', ')].filter(Boolean).join(' — ') || '—';
+
+// Denetimde seçili satırlar (komponent bazında) — adet, birleşik sertifika sayısıdır
+function secilenGruplar(kod: string | null): AksamGrup[] {
+  if (!kod) return [];
+  return satirlariGrupla((denetim.value?.guvenlikAksamlari ?? []).filter((a) => a.bilesenTipiKodu === kod));
+}
+function aksamAdet(kod: string | null) {
+  return secilenGruplar(kod).length;
+}
+
+// Panelde yalnız seçili belgesi olan komponentler listelenir
+const secilenBilesenler = computed(() => bilesenler.value.filter((b) => aksamAdet(b.kod) > 0));
+
+// Popup seçenekleri: açık komponentin katalog belgeleri, sertifika numarasına göre birleşik;
+// katalogdan kalkmış ama denetimde seçili kalmış satırlar da (işaretini kaldırabilmek için) listelenir
+const aksamSecenekleri = computed<AksamGrup[]>(() => {
+  const kod = aksamSecKod.value;
+  if (!kod) return [];
+  const satirlar: AksamSatir[] = [];
+  for (const belge of katalog.value) {
+    if (belge.bilesenTipiKodu !== kod) continue;
+    // Tipi olmayan belge tek satır olarak sunulur
+    for (const tip of (belge.tipler.length ? belge.tipler : [''])) {
+      satirlar.push({
+        bilesenTipiKodu: belge.bilesenTipiKodu, bilesenTipiAdi: belge.bilesenTipiAdi, belgeId: belge._id,
+        marka: belge.marka, tip, sertifikaNo: belge.sertifikaNo, dosya: belge.dosya,
+      });
+    }
+  }
+  const varOlanlar = new Set(satirlar.map(satirAnahtari));
+  for (const a of denetim.value?.guvenlikAksamlari ?? []) {
+    if (a.bilesenTipiKodu === kod && !varOlanlar.has(satirAnahtari(a))) satirlar.push({ ...a });
+  }
+  return satirlariGrupla(satirlar);
+});
 
 // Popup içi arama: marka, tip ve sertifika no üzerinde filtreler
 const aksamArama = ref('');
+const suzulmusSecenekler = computed(() => {
+  const arama = aksamArama.value.trim().toLocaleLowerCase('tr');
+  if (!arama) return aksamSecenekleri.value;
+  return aksamSecenekleri.value.filter((g) =>
+    [...g.markalar, ...g.tipler, g.sertifikaNo].some((alan) => (alan ?? '').toLocaleLowerCase('tr').includes(arama))
+  );
+});
+const aksamBaslik = computed(() => bilesenler.value.find((b) => b.kod === aksamSecKod.value)?.ad ?? 'Komponent');
 
-function aksamAdet(kod: string | null) {
-  if (!kod) return 0;
-  return (denetim.value?.guvenlikAksamlari ?? []).filter((a) => a.bilesenTipiKodu === kod).length;
+// Kaydedilene kadar taslak seçim (birleşik grup anahtarları)
+const taslakSecim = ref<Set<string>>(new Set());
+
+function aksamSecimAc(kod: string) {
+  aksamArama.value = '';
+  taslakSecim.value = new Set(secilenGruplar(kod).map((g) => g.anahtar));
+  aksamSecKod.value = kod;
 }
 
-// Popup: katalog, komponent başlıkları altında marka+tip satırlarına açılır.
-// Eklenmiş satırlar listeden düşer (tekrar eklenemez); üst sınıra ulaşan
-// komponentin kalan seçenekleri gizlenir.
-interface AksamSecenek { belge: AksamBelgesi; tip: string }
+const markaAnahtari = (m: string) => m.trim().toLocaleLowerCase('tr');
 
-const katalogGruplari = computed(() => {
-  const eklenmis = new Set(
-    (denetim.value?.guvenlikAksamlari ?? []).map((a) => `${a.belgeId}|${a.tip}`)
-  );
-  const gruplar: { kod: string; ad: string; adet: number; secenekler: AksamSecenek[] }[] = [];
-  for (const belge of katalog.value) {
-    let grup = gruplar.find((g) => g.kod === belge.bilesenTipiKodu);
-    if (!grup) {
-      grup = {
-        kod: belge.bilesenTipiKodu, ad: belge.bilesenTipiAdi,
-        adet: aksamAdet(belge.bilesenTipiKodu), secenekler: [],
-      };
-      gruplar.push(grup);
-    }
-    // Tipi olmayan belge tek satır olarak sunulur
-    for (const tip of (belge.tipler.length ? belge.tipler : [''])) {
-      if (!eklenmis.has(`${belge._id}|${tip}`)) grup.secenekler.push({ belge, tip });
-    }
+// Taslakta seçili grupların farklı marka kümesi
+const taslakMarkalari = computed(() => {
+  const markalar = new Set<string>();
+  for (const g of aksamSecenekleri.value) {
+    if (taslakSecim.value.has(g.anahtar)) for (const m of g.markalar) markalar.add(markaAnahtari(m));
   }
-  return gruplar;
+  return markalar;
 });
 
-// Açık popup'ın komponent grubu + arama filtresi uygulanmış seçenekleri
-const seciliGrup = computed(
-  () => katalogGruplari.value.find((g) => g.kod === aksamSecKod.value) ?? null
-);
+// Bu grup eklenirse farklı marka sayısı sınırı aşılır mı? (zaten seçili grup etkilenmez)
+function markaSiniriAsilir(g: AksamGrup) {
+  if (taslakSecim.value.has(g.anahtar)) return false;
+  const markalar = new Set(taslakMarkalari.value);
+  for (const m of g.markalar) markalar.add(markaAnahtari(m));
+  return markalar.size > AKSAM_MAX;
+}
 
-const suzulmusSecenekler = computed(() => {
-  const grup = seciliGrup.value;
-  if (!grup) return [];
-  const arama = aksamArama.value.trim().toLocaleLowerCase('tr');
-  if (!arama) return grup.secenekler;
-  return grup.secenekler.filter((s) =>
-    [s.belge.marka, s.tip, s.belge.sertifikaNo]
-      .some((alan) => alan.toLocaleLowerCase('tr').includes(arama))
-  );
-});
+function taslakToggle(g: AksamGrup) {
+  const yeni = new Set(taslakSecim.value);
+  if (yeni.has(g.anahtar)) yeni.delete(g.anahtar);
+  else if (!markaSiniriAsilir(g)) yeni.add(g.anahtar);
+  taslakSecim.value = yeni;
+}
 
-async function aksamEkle(secenek: AksamSecenek) {
+async function aksamKaydet() {
   const d = denetim.value;
-  const belge = secenek.belge;
-  if (!d || aksamKaydediliyor.value) return;
-  if (aksamAdet(belge.bilesenTipiKodu) >= AKSAM_MAX) return;
+  const kod = aksamSecKod.value;
+  if (!d || !kod || aksamKaydediliyor.value) return;
   aksamKaydediliyor.value = true;
   try {
-    await guncelle({
-      guvenlikAksamlari: [...(d.guvenlikAksamlari ?? []), {
-        bilesenTipiKodu: belge.bilesenTipiKodu,
-        bilesenTipiAdi: belge.bilesenTipiAdi,
-        belgeId: belge._id,
-        marka: belge.marka,
-        tip: secenek.tip,
-        sertifikaNo: belge.sertifikaNo,
-      }],
-    });
+    const mevcut = d.guvenlikAksamlari ?? [];
+    const diger = mevcut.filter((a) => a.bilesenTipiKodu !== kod);
+    // Seçili birleşik grubun tüm belge/tip satırları yazılır (var olan satır korunur)
+    const bu: DenetimAksam[] = aksamSecenekleri.value
+      .filter((g) => taslakSecim.value.has(g.anahtar))
+      .flatMap((g) => g.uyeler)
+      .map((u) => mevcut.find((a) => a.bilesenTipiKodu === kod && satirAnahtari(a) === satirAnahtari(u)) ?? {
+        bilesenTipiKodu: u.bilesenTipiKodu, bilesenTipiAdi: u.bilesenTipiAdi, belgeId: u.belgeId,
+        marka: u.marka, tip: u.tip, sertifikaNo: u.sertifikaNo,
+      });
+    await guncelle({ guvenlikAksamlari: [...diger, ...bu] });
+    aksamSecKod.value = null;
   } finally {
     aksamKaydediliyor.value = false;
   }
 }
 
-// Bir komponentin eklenmiş satırları (dizideki asıl index korunur)
-function grupSatirlari(kod: string) {
-  const satirlar: { aksam: DenetimAksam; i: number }[] = [];
-  (denetim.value?.guvenlikAksamlari ?? []).forEach((aksam, i) => {
-    if (aksam.bilesenTipiKodu === kod) satirlar.push({ aksam, i });
-  });
-  return satirlar;
-}
-
-// Seçilenler: komponent grupları açılır/kapanır (varsayılan açık)
-const kapaliGruplar = ref<Record<string, boolean>>({});
+// Panel: komponent grupları açılır/kapanır (varsayılan kapalı)
+const acikGruplar = ref<Record<string, boolean>>({});
 
 function grupAcik(kod: string) {
-  return !kapaliGruplar.value[kod];
+  return !!acikGruplar.value[kod];
 }
 
 function grupToggle(kod: string) {
-  kapaliGruplar.value[kod] = grupAcik(kod);
+  acikGruplar.value[kod] = !grupAcik(kod);
 }
 
-// Çoklu seçim (guvenlikAksamlari dizisindeki indexler) + toplu silme
-const aksamIsaretliler = ref<Set<number>>(new Set());
-const aksamTopluSilOnay = ref(false);
-
-function aksamIsaretToggle(i: number) {
-  const yeni = new Set(aksamIsaretliler.value);
-  if (yeni.has(i)) yeni.delete(i);
-  else yeni.add(i);
-  aksamIsaretliler.value = yeni;
-}
-
-async function aksamTopluSilOnayla() {
-  const d = denetim.value;
-  aksamTopluSilOnay.value = false;
-  if (!d || !aksamIsaretliler.value.size) return;
-  const yeni = (d.guvenlikAksamlari ?? []).filter((_, i) => !aksamIsaretliler.value.has(i));
-  await guncelle({ guvenlikAksamlari: yeni });
-  aksamIsaretliler.value = new Set();
-}
-
-// Satırın sertifika belgesi katalogdan bulunarak görüntülenir
-async function aksamBelgeAc(aksam: DenetimAksam) {
-  if (!aksam.belgeId) return;
+// Birleşik satırın sertifika belgesi katalogdan bulunarak görüntülenir
+async function aksamBelgeAc(g: AksamGrup) {
+  const belgeId = g.uyeler.find((u) => u.belgeId)?.belgeId;
+  if (!belgeId) return;
   try {
-    const belge = katalog.value.find((b) => b._id === aksam.belgeId)
-      ?? await getAksamBelgesi(aksam.belgeId);
+    const belge = katalog.value.find((b) => b._id === belgeId) ?? await getAksamBelgesi(belgeId);
     if (belge.dosya) await ekProjeAc(belge.dosya);
   } catch {
     hata.value = 'Belge açılamadı';
@@ -628,15 +699,28 @@ async function ekProjeAc(slot: BelgeSlot) {
                 Ruhsat No: {{ asansor.yapiRuhsatNo }}
               </span>
               <span v-if="konum(asansor)" class="mt-0.5 block text-[11px] text-ink-muted/80">{{ konum(asansor) }}</span>
+              <span v-if="temelOzet(asansor)" class="mt-0.5 block text-[11px] text-ink-muted">{{ temelOzet(asansor) }}</span>
             </span>
             <svg class="h-4 w-4 shrink-0 text-ink-muted/60" viewBox="0 0 24 24" fill="none"
               stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <path d="m9 18 6-6-6-6" />
             </svg>
           </button>
+          <button v-if="asansor?.asansorProjesiDosya" type="button" @click="ekProjeAc(asansor.asansorProjesiDosya)"
+            class="flex w-full items-center justify-between gap-2 bg-surface-800 p-3 text-left ring-1 ring-white/5 active:bg-[#1a2a20]">
+            <span class="min-w-0">
+              <span class="block text-xs font-bold uppercase tracking-wide text-ink">Asansör Projesi</span>
+              <span class="mt-0.5 block truncate text-[11px] text-ink-muted">{{ asansor.asansorProjesiDosya.dosyaAdi }}</span>
+            </span>
+            <svg class="h-4 w-4 shrink-0 text-ink-muted/60" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+              stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M2.06 12.35a1 1 0 0 1 0-.7C3.42 8.24 7.26 5 12 5s8.58 3.24 9.94 6.65a1 1 0 0 1 0 .7C20.58 15.76 16.74 19 12 19s-8.58-3.24-9.94-6.65" />
+              <circle cx="12" cy="12" r="3" />
+            </svg>
+          </button>
 
           <!-- Modül G: denetçi bilgileri + imza-kaşe; seçimle değiştirilir -->
-          <section v-if="modulG" class="space-y-2 bg-surface-800 p-3 ring-1 ring-white/5">
+          <section v-if="denetciModulu" class="space-y-2 bg-surface-800 p-3 ring-1 ring-white/5">
             <h2 class="text-xs font-bold uppercase tracking-wide text-ink">Denetçi</h2>
             <AramaliSelect v-model="denetciModel" :options="denetciSecenekleri"
               :placeholder="denetciler.length ? 'Denetçi seçiniz' : 'Önce Ayarlar > Denetçiler\'den ekleyin'" />
@@ -657,9 +741,9 @@ async function ekProjeAc(slot: BelgeSlot) {
             </div>
           </section>
 
-          <!-- Modül G: onaylı kurum — firmanın CE belgelerinden işaretlenir -->
-          <section v-if="modulG" class="space-y-2 bg-surface-800 p-3 ring-1 ring-white/5">
-            <h2 class="text-xs font-bold uppercase tracking-wide text-ink">Onaylı Kurum (CE Belgesi)</h2>
+          <!-- Modül E: firmanın CE belgeleri — onay kutusuyla seçilir -->
+          <section v-if="denetim.modul === 'Modul E'" class="space-y-2 bg-surface-800 p-3 ring-1 ring-white/5">
+            <h2 class="text-xs font-bold uppercase tracking-wide text-ink">CE Belgeleri</h2>
             <p v-if="!firmaCeler.length" class="text-[11px] text-ink-muted">
               Firmada kayıtlı CE belgesi yok. Firmalar &gt; CE Belgeleri bölümünden ekleyin.
             </p>
@@ -680,45 +764,6 @@ async function ekProjeAc(slot: BelgeSlot) {
             <p v-if="firmaCeler.length && !seciliCeIdleri.length" class="text-[11px] text-ink-muted">
               Seçim yapılmazsa yazdırmada denetim modülüne uyan belgeler otomatik kullanılır.
             </p>
-          </section>
-
-          <!-- Uygulama projesi: PDF görüntülenir, ZIP indirilir -->
-          <section class="space-y-1.5 bg-surface-800 p-3 ring-1 ring-white/5">
-            <h2 class="text-xs font-bold uppercase tracking-wide text-ink">Uygulama Projesi</h2>
-            <div class="flex items-center gap-1.5">
-              <label
-                class="shrink-0 cursor-pointer border border-dashed border-white/20 px-2.5 py-1.5 text-[11px] font-semibold text-ink-muted active:border-white/40 active:text-ink">
-                <input type="file" class="hidden"
-                  accept="application/pdf,application/zip,application/x-zip-compressed,.pdf,.zip"
-                  @change="ekProjeSec" />
-                {{ ekProjeYukleniyor ? 'Yükleniyor…' : denetim.ekProje ? 'Değiştir' : '+ Proje Yükle (PDF/ZIP)' }}
-              </label>
-              <span class="min-w-0 flex-1 truncate text-xs"
-                :class="denetim.ekProje ? 'text-ink' : 'text-ink-muted/60'">
-                {{ denetim.ekProje?.dosyaAdi ?? 'Proje yüklenmedi' }}
-              </span>
-              <button v-if="denetim.ekProje" type="button" @click="ekProjeAc(denetim.ekProje)"
-                :aria-label="ekProjePdf ? 'Projeyi görüntüle' : 'Projeyi indir'"
-                class="grid h-6.5 w-8 shrink-0 place-items-center bg-[#2b5c3d] text-ink ring-1 ring-white/10 active:bg-[#346e4a]">
-                <!-- PDF: göz (görüntüle) — ZIP: ok (indir) -->
-                <svg v-if="ekProjePdf" class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none"
-                  stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M2.06 12.35a1 1 0 0 1 0-.7C3.42 8.24 7.26 5 12 5s8.58 3.24 9.94 6.65a1 1 0 0 1 0 .7C20.58 15.76 16.74 19 12 19s-8.58-3.24-9.94-6.65" />
-                  <circle cx="12" cy="12" r="3" />
-                </svg>
-                <svg v-else class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none"
-                  stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M12 3v12" />
-                  <path d="m8 11 4 4 4-4" />
-                  <path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2" />
-                </svg>
-              </button>
-              <button v-if="denetim.ekProje" type="button" @click="guncelle({ ekProje: null })"
-                aria-label="Projeyi kaldır"
-                class="grid h-6.5 w-7 shrink-0 place-items-center bg-surface-900 text-red-300/80 ring-1 ring-red-500/20">
-                ✕
-              </button>
-            </div>
           </section>
 
           <!-- Modul B: tip projeleri (ZIP) — yükleme hep listenin sonuna ekler -->
@@ -742,6 +787,13 @@ async function ekProjeAc(slot: BelgeSlot) {
               </label>
             </div>
 
+            <!-- Certificate Annex seçimi: seçilen form yazdırmada ek olarak basılır -->
+            <div class="space-y-1.5 bg-surface-900/40 p-2 ring-1 ring-white/5">
+              <span class="block text-[11px] font-semibold text-ink-muted">Certificate Annex For Modul B (yazdırılacak form)</span>
+              <AramaliSelect v-model="annexModel" :options="annexSecimListesi"
+                :placeholder="annexSecenekleri.length ? 'Kapasite / hız / askı seçiniz' : 'Annex şablonu bulunamadı'" />
+            </div>
+
             <p v-if="!denetim.tipProjeler?.length" class="py-2 text-xs text-ink-muted/60">
               Henüz tip projesi yüklenmedi. "+ ZIP Yükle" ile ekleyin; her yükleme listeye eklenir.
             </p>
@@ -762,98 +814,6 @@ async function ekProjeAc(slot: BelgeSlot) {
                 ✕
               </button>
             </div>
-          </section>
-
-          <!-- Modul B: güvenlik aksamı seçimleri — komponent başına en çok 10 -->
-          <section v-if="modulB" class="space-y-1.5 bg-surface-800 p-3 ring-1 ring-white/5">
-            <div class="flex items-center justify-between gap-2">
-              <h2 class="text-xs font-bold uppercase tracking-wide text-ink">
-                Güvenlik Aksamları ({{ denetim.guvenlikAksamlari?.length ?? 0 }})
-              </h2>
-              <button v-if="aksamIsaretliler.size" type="button" @click="aksamTopluSilOnay = true"
-                class="shrink-0 bg-red-950/60 px-2.5 py-1.5 text-[11px] font-semibold text-red-300 ring-1 ring-red-500/30 active:bg-red-950">
-                Listeden Çıkar ({{ aksamIsaretliler.size }})
-              </button>
-            </div>
-
-            <p v-if="katalogYukleniyor && !bilesenler.length" class="py-1 text-[11px] text-ink-muted">
-              Katalog yükleniyor…
-            </p>
-            <p v-else-if="!bilesenler.length" class="py-1 text-[11px] text-ink-muted/60">
-              Katalogda aktif güvenlik aksamı belgesi yok. Belgeler,
-              Ayarlar &gt; Güvenlik Aksamları'ndan eklenir.
-            </p>
-
-            <!-- Her komponent kendi alanında: başlık (açılır/kapanır) + kendi
-              Ekle butonu + eklenen satırları -->
-            <div v-for="b in bilesenler" :key="b.kod" class="bg-surface-900/40 ring-1 ring-white/5">
-              <div class="flex items-center gap-1.5 p-2">
-                <button type="button" @click="grupToggle(b.kod)"
-                  class="flex min-w-0 flex-1 items-center gap-1.5 text-left">
-                  <svg class="h-4 w-4 shrink-0 text-ink-muted/60 transition-transform"
-                    :class="grupAcik(b.kod) ? 'rotate-180' : ''" viewBox="0 0 24 24"
-                    fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                    stroke-linejoin="round">
-                    <path d="m6 9 6 6 6-6" />
-                  </svg>
-                  <span class="min-w-0 flex-1 truncate text-[11px] font-bold uppercase tracking-wide text-ink">
-                    {{ b.ad }}
-                    <span class="font-semibold normal-case text-ink-muted/80">
-                      ({{ aksamAdet(b.kod) }}/{{ AKSAM_MAX }})
-                    </span>
-                  </span>
-                </button>
-                <button type="button" @click="aksamSecimAc(b.kod)"
-                  :disabled="aksamAdet(b.kod) >= AKSAM_MAX"
-                  class="flex shrink-0 items-center gap-1 bg-[#2b5c3d] px-2.5 py-1.5 text-[11px] font-semibold text-ink ring-1 ring-white/10 active:bg-[#346e4a] disabled:opacity-40">
-                  <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                    stroke-width="2.5" stroke-linecap="round">
-                    <path d="M12 5v14M5 12h14" />
-                  </svg>
-                  Ekle
-                </button>
-              </div>
-
-              <div v-if="grupAcik(b.kod)" class="space-y-1 px-2 pb-2">
-                <p v-if="!grupSatirlari(b.kod).length" class="text-[11px] text-ink-muted/50">
-                  Henüz eklenmedi.
-                </p>
-                <div v-for="{ aksam, i } in grupSatirlari(b.kod)" :key="aksam._id ?? i"
-                  class="flex items-center gap-1.5 bg-surface-900/60 p-2 ring-1 ring-white/5">
-                  <!-- Satıra dokununca işaretlenir (çoklu seçim) -->
-                  <button type="button" class="flex min-w-0 flex-1 items-center gap-2 text-left"
-                    @click="aksamIsaretToggle(i)">
-                    <span class="grid h-5 w-5 shrink-0 place-items-center ring-1"
-                      :class="aksamIsaretliler.has(i) ? 'bg-[#2b5c3d] ring-white/20' : 'bg-surface-900 ring-white/15'">
-                      <svg v-if="aksamIsaretliler.has(i)" class="h-3.5 w-3.5 text-ink"
-                        viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"
-                        stroke-linecap="round" stroke-linejoin="round">
-                        <path d="m5 13 4 4L19 7" />
-                      </svg>
-                    </span>
-                    <span class="min-w-0 flex-1">
-                      <span class="block truncate text-xs font-semibold text-ink">
-                        {{ [aksam.marka, aksam.tip].filter(Boolean).join(' — ') || '—' }}
-                      </span>
-                      <span v-if="aksam.sertifikaNo"
-                        class="mt-0.5 block truncate text-[11px] text-ink-muted/80">
-                        Sertifika: {{ aksam.sertifikaNo }}
-                      </span>
-                    </span>
-                  </button>
-                  <button v-if="aksam.belgeId" type="button" @click="aksamBelgeAc(aksam)"
-                    aria-label="Sertifika belgesini görüntüle"
-                    class="grid h-6.5 w-8 shrink-0 place-items-center bg-[#2b5c3d] text-ink ring-1 ring-white/10 active:bg-[#346e4a]">
-                    <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                      stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                      <path d="M2.06 12.35a1 1 0 0 1 0-.7C3.42 8.24 7.26 5 12 5s8.58 3.24 9.94 6.65a1 1 0 0 1 0 .7C20.58 15.76 16.74 19 12 19s-8.58-3.24-9.94-6.65" />
-                      <circle cx="12" cy="12" r="3" />
-                    </svg>
-                  </button>
-                </div>
-              </div>
-            </div>
-
           </section>
 
           <!-- Modul E: montaj sözleşmesi — dosya yükleme + fotoğraf çekme -->
@@ -1008,8 +968,74 @@ async function ekProjeAc(slot: BelgeSlot) {
             </label>
           </section>
 
+          <!-- Modul B komponentleri: butonlar tam sayfa seçim popup'ını açar; seçilenler
+            komponent başlığı altında açılır/kapanır liste olarak gösterilir -->
+          <section v-if="modulB" class="space-y-2 bg-surface-800 p-3 ring-1 ring-white/5">
+            <h2 class="text-xs font-bold uppercase tracking-wide text-ink">
+              Modul B Komponentler ({{ denetim.guvenlikAksamlari?.length ?? 0 }})
+            </h2>
+
+            <p v-if="katalogYukleniyor && !bilesenler.length" class="py-1 text-[11px] text-ink-muted">
+              Katalog yükleniyor…
+            </p>
+            <p v-else-if="!bilesenler.length" class="py-1 text-[11px] text-ink-muted/60">
+              Katalogda aktif güvenlik aksamı belgesi yok. Belgeler,
+              Ayarlar &gt; Güvenlik Aksamları'ndan eklenir.
+            </p>
+
+            <!-- Komponent menü butonları -->
+            <div class="grid grid-cols-2 gap-1.5">
+              <button v-for="b in bilesenler" :key="b.kod" type="button" @click="aksamSecimAc(b.kod)"
+                :class="b.kod === 'durak_kapi_kilidi' ? 'col-start-1' : ''"
+                class="flex items-center gap-1.5 bg-surface-900/60 px-2.5 py-2 text-left ring-1 ring-white/10 active:bg-[#1a2a20]">
+                <span class="min-w-0 flex-1 truncate text-[11px] font-semibold text-ink">{{ b.ad }}</span>
+                <span v-if="aksamAdet(b.kod)"
+                  class="shrink-0 bg-[#2b5c3d] px-1.5 py-0.5 text-[10px] font-bold text-ink">
+                  {{ aksamAdet(b.kod) }}
+                </span>
+              </button>
+            </div>
+
+            <!-- Seçilenler: komponent başlığı altında accordion -->
+            <div v-for="b in secilenBilesenler" :key="'sec-' + b.kod" class="bg-surface-900/40 ring-1 ring-white/5">
+              <button type="button" @click="grupToggle(b.kod)"
+                class="flex w-full items-center gap-1.5 p-2 text-left">
+                <svg class="h-4 w-4 shrink-0 text-ink-muted/60 transition-transform"
+                  :class="grupAcik(b.kod) ? 'rotate-180' : ''" viewBox="0 0 24 24"
+                  fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                  stroke-linejoin="round">
+                  <path d="m6 9 6 6 6-6" />
+                </svg>
+                <span class="min-w-0 flex-1 truncate text-[11px] font-bold uppercase tracking-wide text-ink">
+                  {{ b.ad }}
+                  <span class="font-semibold normal-case text-ink-muted/80">({{ aksamAdet(b.kod) }})</span>
+                </span>
+              </button>
+              <div v-if="grupAcik(b.kod)" class="space-y-1 px-2 pb-2">
+                <div v-for="g in secilenGruplar(b.kod)" :key="g.anahtar"
+                  class="flex items-center gap-1.5 bg-surface-900/60 p-2 ring-1 ring-white/5">
+                  <span class="min-w-0 flex-1">
+                    <span class="block truncate text-xs font-semibold text-ink">{{ grupBaslik(g) }}</span>
+                    <span v-if="g.sertifikaNo" class="mt-0.5 block truncate text-[11px] text-ink-muted/80">
+                      Sertifika: {{ g.sertifikaNo }}
+                    </span>
+                  </span>
+                  <button v-if="g.uyeler.some((u) => u.belgeId)" type="button" @click="aksamBelgeAc(g)"
+                    aria-label="Sertifika belgesini görüntüle"
+                    class="grid h-6.5 w-8 shrink-0 place-items-center bg-[#2b5c3d] text-ink ring-1 ring-white/10 active:bg-[#346e4a]">
+                    <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                      stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M2.06 12.35a1 1 0 0 1 0-.7C3.42 8.24 7.26 5 12 5s8.58 3.24 9.94 6.65a1 1 0 0 1 0 .7C20.58 15.76 16.74 19 12 19s-8.58-3.24-9.94-6.65" />
+                      <circle cx="12" cy="12" r="3" />
+                    </svg>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </section>
+
           <!-- Onaylı kuruluş bilgileri (denetçiden) — metin olarak -->
-          <section v-if="modulG" class="space-y-1 bg-surface-800 p-3 ring-1 ring-white/5">
+          <section v-if="denetciModulu" class="space-y-1 bg-surface-800 p-3 ring-1 ring-white/5">
             <h2 class="text-xs font-bold uppercase tracking-wide text-ink">Onaylı Kuruluş</h2>
             <template v-if="denetciOzeti?.onayliKurumUnvan">
               <p class="text-xs text-ink"><span class="text-ink-muted">Ünvan: </span>{{ denetciOzeti.onayliKurumUnvan }}</p>
@@ -1024,20 +1050,17 @@ async function ekProjeAc(slot: BelgeSlot) {
       </div>
     </ion-content>
 
-    <!-- Aksam seçim popup'ı — tam sayfa, tek komponent: o komponentin katalog
-      belgeleri (marka — tip) listelenir; dokununca eklenir ve listeden düşer.
-      Üstteki arama marka/tip/sertifika üzerinde filtreler -->
+    <!-- Komponent seçim popup'ı — tam sayfa: komponentin katalog belgeleri onay kutularıyla
+      seçilir (marka/tip/sertifika aramasıyla); Kaydet denetime yazar ve kapatır, Vazgeç yazmadan kapatır -->
     <Teleport to="body">
       <div v-if="aksamSecKod != null" class="fixed inset-0 z-50 flex flex-col bg-[#101a14]">
         <div
           class="flex shrink-0 items-center justify-between border-b border-white/5 bg-surface-bar px-4 py-3 pt-[max(0.75rem,env(safe-area-inset-top))]">
           <h2 class="truncate text-sm font-bold text-ink">
-            {{ seciliGrup?.ad ?? 'Güvenlik Aksamı' }} Ekle
-            <span v-if="seciliGrup" class="font-semibold text-ink-muted/80">
-              ({{ seciliGrup.adet }}/{{ AKSAM_MAX }})
-            </span>
+            {{ aksamBaslik }}
+            <span class="font-semibold text-ink-muted/80">({{ taslakMarkalari.size }}/{{ AKSAM_MAX }} marka)</span>
           </h2>
-          <button type="button" @click="aksamSecKod = null"
+          <button type="button" @click="aksamSecKod = null" aria-label="Vazgeç"
             class="grid h-8 w-8 shrink-0 place-items-center bg-surface-800 text-ink-muted ring-1 ring-white/10">
             ✕
           </button>
@@ -1045,9 +1068,13 @@ async function ekProjeAc(slot: BelgeSlot) {
 
         <!-- Arama: marka / tip / sertifika no -->
         <div class="shrink-0 border-b border-white/5 bg-surface-bar px-4 pb-3">
-          <div class="mx-auto max-w-lg">
-            <input v-model="aksamArama" type="search" placeholder="Marka veya tip ara…"
-              class="w-full bg-surface-800 px-3 py-2 text-xs text-ink ring-1 ring-white/10 outline-none placeholder:text-ink-muted/50 focus:ring-white/30" />
+          <div class="mx-auto flex max-w-lg items-center gap-1.5">
+            <input v-model="aksamArama" type="search" placeholder="Marka, tip veya sertifika ara…"
+              class="min-w-0 flex-1 bg-surface-800 px-3 py-2 text-xs text-ink ring-1 ring-white/10 outline-none placeholder:text-ink-muted/50 focus:ring-white/30" />
+            <button type="button" @click="taslakSecim = new Set()" :disabled="!taslakSecim.size"
+              class="shrink-0 bg-red-950/60 px-2.5 py-2 text-[11px] font-semibold text-red-300 ring-1 ring-red-500/30 active:bg-red-950 disabled:opacity-40">
+              Seçilenleri Kaldır
+            </button>
           </div>
         </div>
 
@@ -1056,67 +1083,62 @@ async function ekProjeAc(slot: BelgeSlot) {
             <p v-if="katalogYukleniyor" class="py-6 text-center text-xs text-ink-muted">
               Katalog yükleniyor…
             </p>
-
-            <template v-else-if="seciliGrup">
-              <p class="text-[11px] text-ink-muted">
-                Satıra dokununca listeye eklenir; eklenenler buradan düşer, tekrar eklenemez.
-              </p>
-
-              <p v-if="seciliGrup.adet >= AKSAM_MAX" class="py-2 text-xs text-red-300">
-                Bu komponent için üst sınıra ({{ AKSAM_MAX }}) ulaşıldı.
-              </p>
-              <p v-else-if="!seciliGrup.secenekler.length" class="py-2 text-xs text-ink-muted/60">
-                Bu komponentin tüm belgeleri eklendi.
-              </p>
-              <p v-else-if="!suzulmusSecenekler.length" class="py-2 text-xs text-ink-muted/60">
-                Aramayla eşleşen belge yok.
-              </p>
-              <template v-else>
-                <div v-for="s in suzulmusSecenekler" :key="s.belge._id + s.tip"
-                  class="flex items-center gap-1.5 bg-surface-800 p-2 ring-1 ring-white/5">
-                  <button type="button" class="min-w-0 flex-1 text-left"
-                    :disabled="aksamKaydediliyor" @click="aksamEkle(s)">
-                    <span class="block truncate text-xs font-semibold text-ink">
-                      {{ [s.belge.marka, s.tip].filter(Boolean).join(' — ') || '—' }}
-                    </span>
-                    <span v-if="s.belge.sertifikaNo"
-                      class="mt-0.5 block truncate text-[11px] text-ink-muted/80">
-                      Sertifika: {{ s.belge.sertifikaNo }}
-                    </span>
-                  </button>
-                  <button v-if="s.belge.dosya" type="button" @click="ekProjeAc(s.belge.dosya!)"
-                    aria-label="Sertifika belgesini görüntüle"
-                    class="grid h-6.5 w-8 shrink-0 place-items-center bg-surface-900 text-ink-muted ring-1 ring-white/10 active:text-ink">
-                    <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                      stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                      <path d="M2.06 12.35a1 1 0 0 1 0-.7C3.42 8.24 7.26 5 12 5s8.58 3.24 9.94 6.65a1 1 0 0 1 0 .7C20.58 15.76 16.74 19 12 19s-8.58-3.24-9.94-6.65" />
-                      <circle cx="12" cy="12" r="3" />
-                    </svg>
-                  </button>
-                  <button type="button" :disabled="aksamKaydediliyor" @click="aksamEkle(s)"
-                    aria-label="Aksamı ekle"
-                    class="grid h-6.5 w-8 shrink-0 place-items-center bg-[#2b5c3d] text-ink ring-1 ring-white/10 active:bg-[#346e4a] disabled:opacity-50">
-                    <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                      stroke-width="2.5" stroke-linecap="round">
-                      <path d="M12 5v14M5 12h14" />
-                    </svg>
-                  </button>
-                </div>
-              </template>
-            </template>
-
-            <p v-else class="py-6 text-center text-xs text-ink-muted/60">
+            <p v-else-if="!aksamSecenekleri.length" class="py-6 text-center text-xs text-ink-muted/60">
               Bu komponent için katalogda belge yok.
             </p>
+            <template v-else>
+              <p class="text-[11px] text-ink-muted">
+                Belgeleri onay kutusuyla seçin. En çok {{ AKSAM_MAX }} farklı marka seçilebilir (aynı markadan istediğiniz kadar sertifika); Kaydet'e basınca listeye eklenir.
+              </p>
+              <p v-if="!suzulmusSecenekler.length" class="py-2 text-xs text-ink-muted/60">
+                Aramayla eşleşen belge yok.
+              </p>
+              <div v-for="g in suzulmusSecenekler" :key="g.anahtar"
+                class="flex items-center gap-1.5 bg-surface-800 p-2 ring-1 ring-white/5">
+                <button type="button" class="flex min-w-0 flex-1 items-center gap-2 text-left"
+                  :disabled="markaSiniriAsilir(g)"
+                  :class="markaSiniriAsilir(g) ? 'opacity-40' : ''"
+                  @click="taslakToggle(g)">
+                  <span class="grid h-5 w-5 shrink-0 place-items-center ring-1"
+                    :class="taslakSecim.has(g.anahtar) ? 'bg-[#2b5c3d] ring-white/20' : 'bg-surface-900 ring-white/15'">
+                    <svg v-if="taslakSecim.has(g.anahtar)" class="h-3.5 w-3.5 text-ink" viewBox="0 0 24 24"
+                      fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"
+                      stroke-linejoin="round">
+                      <path d="m5 13 4 4L19 7" />
+                    </svg>
+                  </span>
+                  <span class="min-w-0 flex-1">
+                    <span class="block truncate text-xs font-semibold text-ink">{{ grupBaslik(g) }}</span>
+                    <span v-if="g.sertifikaNo" class="mt-0.5 block truncate text-[11px] text-ink-muted/80">
+                      Sertifika: {{ g.sertifikaNo }}
+                      <span v-if="g.uyeler.length > 1">({{ g.uyeler.length }} kayıt)</span>
+                    </span>
+                  </span>
+                </button>
+                <button v-if="g.dosya" type="button" @click="ekProjeAc(g.dosya!)"
+                  aria-label="Sertifika belgesini görüntüle"
+                  class="grid h-6.5 w-8 shrink-0 place-items-center bg-surface-900 text-ink-muted ring-1 ring-white/10 active:text-ink">
+                  <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                    stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M2.06 12.35a1 1 0 0 1 0-.7C3.42 8.24 7.26 5 12 5s8.58 3.24 9.94 6.65a1 1 0 0 1 0 .7C20.58 15.76 16.74 19 12 19s-8.58-3.24-9.94-6.65" />
+                    <circle cx="12" cy="12" r="3" />
+                  </svg>
+                </button>
+              </div>
+            </template>
           </div>
         </div>
 
         <div
           class="shrink-0 border-t border-white/5 bg-surface-bar p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
-          <div class="mx-auto max-w-lg">
+          <div class="mx-auto flex max-w-lg gap-1.5">
             <button type="button" @click="aksamSecKod = null"
-              class="w-full bg-surface-800 px-4 py-3 text-xs font-semibold text-ink-muted ring-1 ring-white/10">
-              Kapat
+              class="flex-1 bg-surface-800 px-4 py-3 text-xs font-semibold text-ink-muted ring-1 ring-white/10">
+              Vazgeç
+            </button>
+            <button type="button" @click="aksamKaydet" :disabled="aksamKaydediliyor"
+              class="flex-1 bg-[#2b5c3d] px-4 py-3 text-xs font-semibold text-ink ring-1 ring-white/10 active:bg-[#346e4a] disabled:opacity-50">
+              {{ aksamKaydediliyor ? 'Kaydediliyor…' : 'Kaydet' }}
             </button>
           </div>
         </div>
@@ -1138,15 +1160,12 @@ async function ekProjeAc(slot: BelgeSlot) {
         : ''"
       @vazgec="faturaSilinecek = null" @onayla="faturaSilOnayla" />
 
-    <!-- Silme onayları: tip projesi ve güvenlik aksamı -->
+    <!-- Silme onayı: tip projesi -->
     <SilmeOnayi :acik="tipProjeSilinecek != null"
       :aciklama="tipProjeSilinecek != null
         ? `${denetim?.tipProjeler?.[tipProjeSilinecek]?.dosyaAdi ?? 'Tip projesi'} silinecek. Emin misiniz?`
         : ''"
       @vazgec="tipProjeSilinecek = null" @onayla="tipProjeSilOnayla" />
-    <SilmeOnayi :acik="aksamTopluSilOnay"
-      :aciklama="`İşaretli ${aksamIsaretliler.size} güvenlik aksamı bu denetimin listesinden çıkarılacak (katalogdan silinmez). Emin misiniz?`"
-      @vazgec="aksamTopluSilOnay = false" @onayla="aksamTopluSilOnayla" />
 
     <!-- Firma / asansör tüm bilgiler popup'ları -->
     <FirmaBilgiModal v-model:acik="firmaBilgiAcik" :firma-id="firma?._id ?? null" />
@@ -1159,6 +1178,7 @@ async function ekProjeAc(slot: BelgeSlot) {
       goruntule-tip="pdf" :goruntule-ad="pdfDosyaAdi || 'Denetim Raporu.pdf'" />
 
     <!-- Yazdır popup'ı — içeriği henüz boş, kullanıcı tarifiyle doldurulacak -->
-    <YazdirPopup v-model:acik="yazdirAcik" :denetim-id="denetim?._id ?? null" />
+    <YazdirPopup v-model:acik="yazdirAcik" :denetim-id="denetim?._id ?? null"
+      :kys-firma-id="denetim?.modul === 'Modul E' ? (firma?._id ?? null) : null" />
   </ion-page>
 </template>
