@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import KullaniciMenusu from '@/components/KullaniciMenusu.vue';
 import { IonPage, IonContent, IonHeader, onIonViewWillEnter } from '@ionic/vue';
 import { computed, defineAsyncComponent, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
@@ -811,6 +812,7 @@ onIonViewWillEnter(yukle);
             </h1>
           </div>
 
+          <div class="flex shrink-0 items-center gap-2">
           <button v-if="!secili" type="button" @click="git('/firma/yeni')"
             class="flex items-center gap-1.5 bg-[#2b5c3d] px-4 py-2.5 text-xs font-semibold text-ink ring-1 ring-white/10 active:bg-[#346e4a]">
             <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor"
@@ -819,6 +821,8 @@ onIonViewWillEnter(yukle);
             </svg>
             Yeni Ekle
           </button>
+          <KullaniciMenusu />
+        </div>
           <!-- Düzenle butonu header'da değil, yalnız Genel Bilgiler bölümünde -->
         </header>
 

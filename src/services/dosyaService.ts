@@ -1,4 +1,5 @@
 import { ApiError, request } from './api';
+import { authBasliklari } from './authDepo';
 
 const BASE_URL = import.meta.env.VITE_API_URL as string;
 
@@ -14,7 +15,7 @@ export interface BelgeSlot {
 export async function uploadDosya(file: File): Promise<BelgeSlot> {
   const fd = new FormData();
   fd.append('dosya', file);
-  const res = await fetch(`${BASE_URL}/upload`, { method: 'POST', body: fd });
+  const res = await fetch(`${BASE_URL}/upload`, { method: 'POST', body: fd, headers: authBasliklari() });
   if (!res.ok) {
     let message = `Yükleme başarısız (${res.status})`;
     try {

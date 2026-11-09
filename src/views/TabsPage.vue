@@ -48,19 +48,17 @@ const go = (path: string) => {
             <span class="text-[10px] font-medium leading-none">Asansör</span>
           </button>
 
-          <button type="button" @click="go('/rapor')"
+          <button type="button" @click="go('/tescil')"
             class="flex flex-col items-center justify-center gap-1"
-            :class="isActive('/rapor') ? 'text-ink' : 'text-ink-muted'">
-            <!-- Rapor: grafikli belge -->
+            :class="isActive('/tescil') ? 'text-ink' : 'text-ink-muted'">
+            <!-- Tescil: mühür/kaşe -->
             <svg class="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor"
               stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7z" />
-              <path d="M14 2v4a2 2 0 0 0 2 2h4" />
-              <path d="M8 18v-1" />
-              <path d="M12 18v-6" />
-              <path d="M16 18v-3" />
+              <path d="M5 22h14" />
+              <path d="M19.27 13.73A2.5 2.5 0 0 0 17.5 13h-11A2.5 2.5 0 0 0 4 15.5V17a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-1.5c0-.66-.26-1.3-.73-1.77" />
+              <path d="M14 13V8.5C14 7 15 7 15 5a3 3 0 0 0-6 0c0 2 1 2 1 3.5V13" />
             </svg>
-            <span class="text-[10px] font-medium leading-none">Rapor</span>
+            <span class="text-[10px] font-medium leading-none">Tescil</span>
           </button>
 
           <button type="button" @click="go('/anasayfa')"
@@ -91,17 +89,19 @@ const go = (path: string) => {
             <span class="text-[10px] font-medium leading-none">Denetim</span>
           </button>
 
-          <button type="button" @click="go('/tescil')"
+          <button type="button" @click="go('/rapor')"
             class="flex flex-col items-center justify-center gap-1"
-            :class="isActive('/tescil') ? 'text-ink' : 'text-ink-muted'">
-            <!-- Tescil: mühür/kaşe -->
+            :class="isActive('/rapor') ? 'text-ink' : 'text-ink-muted'">
+            <!-- Rapor: grafikli belge -->
             <svg class="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor"
               stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M5 22h14" />
-              <path d="M19.27 13.73A2.5 2.5 0 0 0 17.5 13h-11A2.5 2.5 0 0 0 4 15.5V17a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-1.5c0-.66-.26-1.3-.73-1.77" />
-              <path d="M14 13V8.5C14 7 15 7 15 5a3 3 0 0 0-6 0c0 2 1 2 1 3.5V13" />
+              <path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7z" />
+              <path d="M14 2v4a2 2 0 0 0 2 2h4" />
+              <path d="M8 18v-1" />
+              <path d="M12 18v-6" />
+              <path d="M16 18v-3" />
             </svg>
-            <span class="text-[10px] font-medium leading-none">Tescil</span>
+            <span class="text-[10px] font-medium leading-none">Rapor</span>
           </button>
 
           <button type="button" @click="go('/ayarlar')"

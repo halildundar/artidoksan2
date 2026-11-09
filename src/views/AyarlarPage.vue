@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import KullaniciMenusu from '@/components/KullaniciMenusu.vue';
 import { IonPage, IonContent, IonHeader } from '@ionic/vue';
 import { useRouter } from 'vue-router';
 import { blurActive } from '@/utils/blurActive';
@@ -22,6 +23,7 @@ function git(path: string) {
         <header class="mx-auto flex max-w-lg items-center justify-between px-4 py-3">
           <h1 class="text-xl font-bold leading-8 tracking-wide text-ink">Ayarlar</h1>
           <!-- Koyu/açık tema anahtarı: ay — kaydırıcı — güneş -->
+          <div class="flex shrink-0 items-center gap-2">
           <button type="button" @click="degistir"
             :aria-label="tema === 'acik' ? 'Koyu temaya geç' : 'Açık temaya geç'"
             class="relative flex h-8 w-[4.25rem] shrink-0 items-center justify-between bg-surface-900 px-2 ring-1 ring-white/10">
@@ -42,6 +44,8 @@ function git(path: string) {
               <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41" />
             </svg>
           </button>
+          <KullaniciMenusu />
+        </div>
         </header>
       </div>
     </ion-header>
@@ -97,6 +101,26 @@ function git(path: string) {
             </svg>
           </span>
           <span class="flex-1 text-sm font-semibold text-ink">Denetçiler</span>
+          <svg class="h-4 w-4 shrink-0 text-ink-muted/60" viewBox="0 0 24 24" fill="none"
+            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="m9 18 6-6-6-6" />
+          </svg>
+        </button>
+
+        <!-- Kullanıcılar -->
+        <button type="button" @click="git('/ayarlar/kullanicilar')"
+          class="flex w-full items-center gap-3 bg-surface-800 p-3 text-left ring-1 ring-white/5 active:bg-[#1a2a20]">
+          <span class="grid h-10 w-10 shrink-0 place-items-center bg-[#1c2a21] ring-1 ring-white/10">
+            <!-- Kullanıcılar: iki kişi -->
+            <svg class="h-5 w-5 text-ink-muted" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+              stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+              <circle cx="9" cy="7" r="4" />
+              <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
+              <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+            </svg>
+          </span>
+          <span class="flex-1 text-sm font-semibold text-ink">Kullanıcılar</span>
           <svg class="h-4 w-4 shrink-0 text-ink-muted/60" viewBox="0 0 24 24" fill="none"
             stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <path d="m9 18 6-6-6-6" />

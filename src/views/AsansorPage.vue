@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import KullaniciMenusu from '@/components/KullaniciMenusu.vue';
 import { IonPage, IonContent, IonHeader, onIonViewWillEnter } from '@ionic/vue';
 import { ref } from 'vue';
 import { useRouter } from 'vue-router';
@@ -70,6 +71,7 @@ onIonViewWillEnter(yukle);
       <div class="border-b border-white/5 bg-surface-bar">
         <header class="mx-auto flex max-w-lg items-center justify-between gap-2 px-4 py-3">
           <h1 class="truncate text-xl font-bold leading-8 tracking-wide text-ink">Asansörler</h1>
+          <div class="flex shrink-0 items-center gap-2">
           <button type="button" @click="git('/asansor/yeni')"
             class="flex shrink-0 items-center gap-1.5 bg-[#2b5c3d] px-4 py-2.5 text-xs font-semibold text-ink ring-1 ring-white/10 active:bg-[#346e4a]">
             <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor"
@@ -78,6 +80,8 @@ onIonViewWillEnter(yukle);
             </svg>
             Yeni Ekle
           </button>
+          <KullaniciMenusu />
+        </div>
         </header>
 
         <div class="mx-auto max-w-lg px-4 pb-3">

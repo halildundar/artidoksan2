@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import KullaniciMenusu from '@/components/KullaniciMenusu.vue';
 import { IonPage, IonContent, IonHeader, onIonViewWillEnter } from '@ionic/vue';
 import { computed, ref, watch } from 'vue';
 import { getTesciller, createTescil, deleteTescil, type Tescil } from '@/services/tescilService';
@@ -149,6 +150,7 @@ async function silOnayla() {
       <div class="border-b border-white/5 bg-surface-bar">
         <header class="mx-auto flex max-w-lg items-center justify-between px-4 py-3">
           <h1 class="text-xl font-bold leading-8 tracking-wide text-ink">Tescil</h1>
+          <div class="flex shrink-0 items-center gap-2">
           <button type="button" @click="ekleAc"
             class="flex items-center gap-1.5 bg-[#2b5c3d] px-4 py-2.5 text-xs font-semibold text-ink ring-1 ring-white/10 active:bg-[#346e4a]">
             <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor"
@@ -157,6 +159,8 @@ async function silOnayla() {
             </svg>
             Yeni Ekle
           </button>
+          <KullaniciMenusu />
+        </div>
         </header>
       </div>
     </ion-header>

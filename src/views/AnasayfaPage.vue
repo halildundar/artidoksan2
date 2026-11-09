@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import KullaniciMenusu from '@/components/KullaniciMenusu.vue';
 import { IonPage, IonContent, IonHeader } from '@ionic/vue';
 </script>
 
@@ -7,8 +8,9 @@ import { IonPage, IonContent, IonHeader } from '@ionic/vue';
     <!-- Header: scroll boyunca üstte sabit -->
     <ion-header class="ion-no-border">
       <div class="border-b border-white/5 bg-surface-bar">
-        <header class="mx-auto max-w-lg px-4 py-3">
+        <header class="mx-auto flex max-w-lg items-center justify-between gap-2 px-4 py-3">
           <h1 class="text-xl font-bold leading-8 tracking-wide text-ink">Anasayfa</h1>
+          <KullaniciMenusu />
         </header>
       </div>
     </ion-header>

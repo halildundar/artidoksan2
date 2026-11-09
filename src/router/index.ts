@@ -1,8 +1,13 @@
 import { createRouter, createWebHistory } from '@ionic/vue-router';
 import { RouteRecordRaw } from 'vue-router';
 import TabsPage from '../views/TabsPage.vue'
+import { AUTH_ZORUNLU, hazirSozu, setGirisHedefi, useAuth } from '@/composables/useAuth';
 
 const routes: Array<RouteRecordRaw> = [
+  // Giriş, hesap doğrulama ve şifre sıfırlama (oturum gerektirmez)
+  { path: '/giris', component: () => import('@/views/GirisPage.vue'), meta: { acik: true } },
+  { path: '/dogrula', component: () => import('@/views/SifreBelirlePage.vue'), meta: { acik: true, mod: 'dogrula' } },
+  { path: '/sifre-sifirla', component: () => import('@/views/SifreBelirlePage.vue'), meta: { acik: true, mod: 'sifirla' } },
   // Tam sayfa formlar — sekme düzeninin dışında, alt menü görünmez
   {
     path: '/firma/yeni',
@@ -74,6 +79,14 @@ const routes: Array<RouteRecordRaw> = [
     component: () => import('@/views/DanismanFormPage.vue')
   },
   {
+    path: '/ayarlar/kullanicilar/yeni',
+    component: () => import('@/views/KullaniciFormPage.vue')
+  },
+  {
+    path: '/ayarlar/kullanicilar/:id/duzenle',
+    component: () => import('@/views/KullaniciFormPage.vue')
+  },
+  {
     path: '/ayarlar/denetciler/yeni',
     component: () => import('@/views/DenetciFormPage.vue')
   },
@@ -130,6 +143,10 @@ const routes: Array<RouteRecordRaw> = [
         component: () => import('@/views/DanismanlarPage.vue')
       },
       {
+        path: 'ayarlar/kullanicilar',
+        component: () => import('@/views/KullanicilarPage.vue')
+      },
+      {
         path: 'ayarlar/denetciler',
         component: () => import('@/views/DenetcilerPage.vue')
       },
@@ -156,5 +173,18 @@ const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
   routes
 })
+
+// Rota koruması: giriş zorunluyken oturumsuz kullanıcı giriş sayfasına yönlendirilir
+router.beforeEach(async (to) => {
+  if (!AUTH_ZORUNLU) return true;
+  await hazirSozu; // oturum geri yüklemesi bitsin
+  const { girisliMi } = useAuth();
+  if (!to.meta.acik && !girisliMi.value) {
+    setGirisHedefi(to.fullPath); // adres çubuğunda sorgu (?hedef=) olmasın
+    return '/giris';
+  }
+  if (to.path === '/giris' && girisliMi.value) return '/';
+  return true;
+});
 
 export default router

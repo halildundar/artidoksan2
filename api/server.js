@@ -16,6 +16,8 @@ import asansorRouter, { varsayilanlariTamamla } from './asansor.js';
 import denetimRouter from './denetim.js';
 import denetimYazdirRouter from './denetimYazdir.js';
 import denetciRouter from './denetciler.js';
+import kullaniciRouter from './kullanicilar.js';
+import authRouter, { girisGerekli } from './auth.js';
 import tescilRouter from './tescil.js';
 import yazdirRouter from './yazdir.js';
 import smmFirmalariRouter from './smmFirmalari.js';
@@ -343,12 +345,18 @@ app.get('/api/health', (_req, res) => {
   res.json({ ok: true });
 });
 
+// Kimlik doğrulama: AUTH_ZORUNLU=1 iken /api/auth ve /api/health dışındaki tüm uçlar giriş ister
+// (kapalıyken uçlar açık kalır; jeton varsa kullanıcı isteğe eklenir)
+app.use('/api/auth', authRouter);
+app.use('/api', (req, res, next) => (req.path === '/health' ? next() : girisGerekli()(req, res, next)));
+
 app.use('/api/adres', adresRouter);
 app.use('/api/adres-kayitlari', adresKayitlariRouter);
 app.use('/api/risk-maddeleri', riskMaddeleriRouter);
 app.use('/api', katalogRouter);
 app.use('/api/asansorler', asansorRouter);
 app.use('/api/denetciler', denetciRouter);
+app.use('/api/kullanicilar', girisGerekli('admin'), kullaniciRouter);
 app.use('/api/denetimler', denetimYazdirRouter); // /:id/yazdir rotaları (önce eşleşmeli)
 app.use('/api/denetimler', denetimRouter);
 app.use('/api/tesciller', yazdirRouter); // /:id/yazdir rotaları (önce eşleşmeli)
