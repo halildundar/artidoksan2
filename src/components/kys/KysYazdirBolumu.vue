@@ -2,7 +2,7 @@
 import { computed, markRaw, onMounted, ref, shallowRef } from 'vue';
 import { getFirma } from '@/services/firmaService';
 import { getKys } from '@/services/kysService';
-import { eksikKysBilgileri, firmaLogosu, kysMotoruKur, tarayiciIndir, type KysMotor } from '@/utils/kys/kysMotor';
+import { eksikKysBilgileri, firmaLogosu, kysBaglami, kysMotoruKur, tarayiciIndir, type KysMotor } from '@/utils/kys/kysMotor';
 
 // Modül E denetimi yazdırma alanı: firmanın KYS dokümanları. Eksik bilgi varsa uyarı gösterilir;
 // üretim engellenmez (eksik alanlar belgede [köşeli parantez] olarak basılır).
@@ -17,8 +17,8 @@ const mesgul = ref('');
 onMounted(async () => {
   try {
     const firma = await getFirma(props.firmaId);
-    const [kys, logo] = await Promise.all([getKys(props.firmaId), firmaLogosu(firma)]);
-    const { motor: m } = kysMotoruKur({ firma, kys, logo });
+    const [kys, logo, baglam] = await Promise.all([getKys(props.firmaId), firmaLogosu(firma), kysBaglami(firma)]);
+    const { motor: m } = kysMotoruKur({ firma, kys, logo, baglam });
     motor.value = markRaw(m);
     eksik.value = eksikKysBilgileri(m, !!logo);
   } catch (e) {

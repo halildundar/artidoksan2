@@ -3,7 +3,7 @@ import { computed, markRaw, onBeforeUnmount, onMounted, ref, shallowRef } from '
 import type { Firma } from '@/services/firmaService';
 import { getKys, saveKys } from '@/services/kysService';
 import {
-  eksikKysBilgileri, firmaLogosu, kysKayitVerisi, kysMotoruKur, type KysMotor,
+  eksikKysBilgileri, firmaLogosu, FIRMA_KAYNAKLI_ALANLAR, kysBaglami, kysKayitVerisi, kysMotoruKur, type KysMotor,
 } from '@/utils/kys/kysMotor';
 import KysKayitlar from './KysKayitlar.vue';
 import KysOnizleme from './KysOnizleme.vue';
@@ -35,9 +35,9 @@ let kaydedilecek = false;
 
 onMounted(async () => {
   try {
-    const [kys, logo] = await Promise.all([getKys(props.firma._id), firmaLogosu(props.firma)]);
+    const [kys, logo, baglam] = await Promise.all([getKys(props.firma._id), firmaLogosu(props.firma), kysBaglami(props.firma)]);
     const kurulum = kysMotoruKur({
-      firma: props.firma, kys, logo,
+      firma: props.firma, kys, logo, baglam,
       onDurum: (tur, mesaj) => { durumMesaji.value = tur === 'err' ? mesaj : ''; },
     });
     motor.value = markRaw(kurulum.motor);
@@ -100,10 +100,17 @@ function alanDegeri(k: string) {
   return motor.value?.S.v[k] ?? '';
 }
 
-function firmadan(k: string) {
-  void surum.value;
-  return !!firmaAlanlari.value[k] && !girilen.value[k];
-}
+// Firma kaydından gelen alanlar salt okunur metin; geri kalanı form
+const firmadanMi = (k: string) => k in FIRMA_KAYNAKLI_ALANLAR;
+// CE belgesinden türeyen alanlar: firmada hiç CE belgesi yoksa "Yok" yazılır
+const CE_ALANLARI = ['tipSertNo', 'tipSertTarih', 'tipKurulus', 'tipKurulusNo', 'meKurulus', 'meBelgeNo', 'meBelgeTarih'];
+const ceBelgeleri = computed(() => props.firma.ceBelgeleri ?? []);
+const ceYok = (k: string) => CE_ALANLARI.includes(k) && !ceBelgeleri.value.length;
+const tarihYaz = (iso?: string | null) => (iso && motor.value ? (motor.value.fmtD(String(iso).slice(0, 10)) as string) : '');
+const gosterim = (a: AlanTanimi, k = a[0]) => {
+  const v = String(alanDegeri(k) ?? '');
+  return a[2] === 'date' ? (motor.value?.fmtD(v) as string) : v;
+};
 
 function alanYaz(k: string, e: Event) {
   const m = motor.value;
@@ -180,7 +187,12 @@ const dugme = 'bg-surface-900 px-2.5 py-1.5 text-[11px] font-semibold text-ink r
       <div
         class="flex shrink-0 items-center gap-2 border-b border-white/5 bg-surface-bar px-3 py-3 pt-[max(0.75rem,env(safe-area-inset-top))]">
         <button type="button" @click="kapat" aria-label="Geri"
-          class="grid h-8 w-8 shrink-0 place-items-center bg-surface-800 text-ink ring-1 ring-white/10">←</button>
+          class="grid h-8 w-8 shrink-0 place-items-center bg-surface-800 text-ink ring-1 ring-white/10">
+          <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+            stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="m15 18-6-6 6-6" />
+          </svg>
+        </button>
         <div class="min-w-0 flex-1">
           <h2 class="truncate text-sm font-bold text-ink">KYS — Modül E Kalite El Kitabı</h2>
           <p class="truncate text-[11px] text-ink-muted">{{ firma.unvan || firma.ad }}<span v-if="durum"> · {{ durum }}</span></p>
@@ -215,18 +227,40 @@ const dugme = 'bg-surface-900 px-2.5 py-1.5 text-[11px] font-semibold text-ink r
           <!-- ===== Bilgiler ===== -->
           <div v-if="sekme === 'bilgiler'" class="space-y-3">
             <p class="text-[11px] text-ink-muted">
-              Doluluk: {{ doluluk[0] }}/{{ doluluk[1] }}. "Firmadan" etiketli alanlar firma kaydından gelir; üzerine
-              yazarsanız yalnız KYS'de geçerli olur, boş bırakırsanız firma kaydına döner.
-              Firma logosu: {{ logoVar ? 'firma kaydından kullanılıyor' : 'yok (Firma > Genel Bilgiler\'den yükleyin)' }}.
+              Doluluk: {{ doluluk[0] }}/{{ doluluk[1] }}. Firma kaydından gelen bilgiler metin olarak gösterilir; eksik olanlar
+              firmada ilgili bölümden girilmelidir. Aşağıdaki formlar KYS'ye özgü bilgilerdir.
             </p>
-            <section v-for="g in gruplar" :key="g.title" class="space-y-1.5 bg-surface-800 p-3 ring-1 ring-white/5">
+            <section v-for="g in gruplar" :key="g.title" class="space-y-2 bg-surface-800 p-3 ring-1 ring-white/5">
               <h3 class="text-xs font-bold uppercase tracking-wide text-ink">{{ g.title }}</h3>
-              <div class="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
-                <label v-for="f in g.fields" :key="f[0]" class="block space-y-0.5" :class="f[4] === 'wide' ? 'sm:col-span-2' : ''">
-                  <span class="flex items-center gap-1.5 text-[11px] font-medium text-ink-muted">
-                    {{ f[1] }}
-                    <span v-if="firmadan(f[0])" class="bg-[#223c2d] px-1 text-[10px] text-ink">Firmadan</span>
-                  </span>
+
+              <!-- Firma kaydından: salt okunur metin, girilmemişse eksik -->
+              <!-- CE belgeleri listesi (tip inceleme ve Modül E kuruluşları grubunda) -->
+              <div v-if="g.fields.some((f) => f[0] === 'tipSertNo')" class="space-y-1">
+                <p class="text-[11px] font-semibold text-ink-muted">Firmanın CE belgeleri ({{ ceBelgeleri.length }})</p>
+                <p v-if="!ceBelgeleri.length" class="bg-surface-900/50 px-2 py-1.5 text-xs font-semibold text-red-400 ring-1 ring-white/5">Yok</p>
+                <p v-for="(c, i) in ceBelgeleri" :key="i" class="bg-surface-900/50 px-2 py-1.5 text-xs text-ink ring-1 ring-white/5">
+                  <span class="font-semibold">{{ c.modul || '—' }}</span> · {{ c.kurum || '—' }} · Belge No: {{ c.belgeNo || '—' }}
+                  <span v-if="c.bitisTarihi || c.gecerlilikTarihi" class="text-ink-muted"> · {{ tarihYaz(c.bitisTarihi || c.gecerlilikTarihi) }}</span>
+                </p>
+              </div>
+
+              <dl v-if="g.fields.some((f) => firmadanMi(f[0]))" class="space-y-1">
+                <div v-for="f in g.fields.filter((x) => firmadanMi(x[0]))" :key="f[0]"
+                  class="flex flex-wrap items-baseline gap-x-2 bg-surface-900/50 px-2 py-1.5 ring-1 ring-white/5">
+                  <dt class="w-40 shrink-0 text-[11px] text-ink-muted">{{ f[1] }}</dt>
+                  <dd v-if="gosterim(f)" class="min-w-0 flex-1 break-words text-xs font-medium text-ink">{{ gosterim(f) }}</dd>
+                  <dd v-else-if="ceYok(f[0])" class="min-w-0 flex-1 text-xs font-semibold text-red-400">Yok</dd>
+                  <dd v-else class="min-w-0 flex-1 text-xs font-semibold text-red-400">
+                    Eksik <span class="font-normal text-ink-muted">— {{ FIRMA_KAYNAKLI_ALANLAR[f[0]] }} bölümünden girin</span>
+                  </dd>
+                </div>
+              </dl>
+
+              <!-- KYS'ye özgü bilgiler: form -->
+              <div v-if="g.fields.some((f) => !firmadanMi(f[0]))" class="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
+                <label v-for="f in g.fields.filter((x) => !firmadanMi(x[0]))" :key="f[0]" class="block space-y-0.5"
+                  :class="f[4] === 'wide' ? 'sm:col-span-2' : ''">
+                  <span class="text-[11px] font-medium text-ink-muted">{{ f[1] }}</span>
                   <textarea v-if="f[2] === 'textarea'" rows="3" :value="alanDegeri(f[0])" :placeholder="f[3]" :class="girdi"
                     @input="alanYaz(f[0], $event)"></textarea>
                   <input v-else :type="f[2] === 'date' ? 'date' : f[2] === 'number' ? 'number' : 'text'"
@@ -234,6 +268,9 @@ const dugme = 'bg-surface-900 px-2.5 py-1.5 text-[11px] font-semibold text-ink r
                 </label>
               </div>
             </section>
+            <p class="text-[11px]" :class="logoVar ? 'text-ink-muted' : 'font-semibold text-red-400'">
+              Firma logosu: {{ logoVar ? 'firma kaydından kullanılıyor' : "Eksik — Firma > Genel Bilgiler'den yükleyin" }}
+            </p>
           </div>
 
           <!-- ===== Politika ve hedefler ===== -->

@@ -71,6 +71,8 @@ const firmaSchema = new mongoose.Schema(
     postaKodu: { type: String, trim: true, default: '' },
     adres: { type: String, trim: true, default: '' },
     yetkili: { type: String, trim: true, default: '' },
+    vergiDairesi: { type: String, trim: true, default: '' },
+    vergiNo: { type: String, trim: true, default: '' },
     belgeler: {
       logo: { type: belgeSlotSchema, default: undefined },
       imzaKase: { type: belgeSlotSchema, default: undefined },
@@ -492,7 +494,7 @@ app.get('/api/firmalar', async (_req, res) => {
 app.post('/api/firmalar', async (req, res) => {
   try {
     const {
-      ad, unvan, telefon, email, il, ilce, mahalle, postaKodu, adres, yetkili, belgeler,
+      ad, unvan, telefon, email, il, ilce, mahalle, postaKodu, adres, yetkili, vergiDairesi, vergiNo, belgeler,
       sanayiSicilBelgeNo, sanayiSicilBelgeTarihi, sanayiSicilDosya,
       hybBelgeNo, hybIlkVerilis, hybGecerlilik, hybDosya, isoDosya, ceBelgeleri, cihazDosyalari,
       personel, muhendisler, sgkDokumleri, kurumEvrakDosyalari,
@@ -504,7 +506,7 @@ app.post('/api/firmalar', async (req, res) => {
       return res.status(400).json({ message: 'Firma adı zorunludur' });
     }
     const firma = await Firma.create({
-      ad, unvan, telefon, email, il, ilce, mahalle, postaKodu, adres, yetkili, belgeler,
+      ad, unvan, telefon, email, il, ilce, mahalle, postaKodu, adres, yetkili, vergiDairesi, vergiNo, belgeler,
       sanayiSicilBelgeNo, sanayiSicilBelgeTarihi, sanayiSicilDosya,
       hybBelgeNo, hybIlkVerilis, hybGecerlilik, hybDosya, isoDosya, ceBelgeleri, cihazDosyalari,
       personel, muhendisler, sgkDokumleri, kurumEvrakDosyalari,
@@ -553,7 +555,7 @@ app.put('/api/firmalar/:id/kys', async (req, res) => {
 app.put('/api/firmalar/:id', async (req, res) => {
   try {
     const {
-      ad, unvan, telefon, email, il, ilce, mahalle, postaKodu, adres, yetkili, belgeler,
+      ad, unvan, telefon, email, il, ilce, mahalle, postaKodu, adres, yetkili, vergiDairesi, vergiNo, belgeler,
       sanayiSicilBelgeNo, sanayiSicilBelgeTarihi, sanayiSicilDosya,
       hybBelgeNo, hybIlkVerilis, hybGecerlilik, hybDosya, isoDosya, ceBelgeleri, cihazDosyalari,
       personel, muhendisler, sgkDokumleri, kurumEvrakDosyalari,
@@ -569,7 +571,7 @@ app.put('/api/firmalar/:id', async (req, res) => {
     const firma = await Firma.findByIdAndUpdate(
       req.params.id,
       {
-        ad, unvan, telefon, email, il, ilce, mahalle, postaKodu, adres, yetkili, belgeler,
+        ad, unvan, telefon, email, il, ilce, mahalle, postaKodu, adres, yetkili, vergiDairesi, vergiNo, belgeler,
         sanayiSicilBelgeNo, sanayiSicilBelgeTarihi, sanayiSicilDosya,
         hybBelgeNo, hybIlkVerilis, hybGecerlilik, hybDosya, isoDosya, ceBelgeleri, cihazDosyalari,
       personel, muhendisler, sgkDokumleri, kurumEvrakDosyalari,

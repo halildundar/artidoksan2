@@ -15,8 +15,8 @@ const baslik = computed(() => (duzenlenenId.value ? 'Firmayı Düzenle' : 'Yeni 
 const form = ref<{
   ad: string; unvan: string; telefon: string; email: string;
   il: string; ilce: string; mahalle: string; postaKodu: string; adres: string;
-  yetkili: string; belgeler: FirmaBelgeleri;
-}>({ ad: '', unvan: '', telefon: '', email: '', il: '', ilce: '', mahalle: '', postaKodu: '', adres: '', yetkili: '', belgeler: {} });
+  yetkili: string; vergiDairesi: string; vergiNo: string; belgeler: FirmaBelgeleri;
+}>({ ad: '', unvan: '', telefon: '', email: '', il: '', ilce: '', mahalle: '', postaKodu: '', adres: '', yetkili: '', vergiDairesi: '', vergiNo: '', belgeler: {} });
 
 // Logo, İmza & Kaşe ve kurum evrakları bu formda DEĞİL — Firmalar > Genel
 // Bilgiler'den sonradan yüklenir/görüntülenir (kullanıcı isteği). Mevcut
@@ -47,6 +47,8 @@ onMounted(async () => {
       postaKodu: firma.postaKodu,
       adres: firma.adres,
       yetkili: firma.yetkili,
+      vergiDairesi: firma.vergiDairesi ?? '',
+      vergiNo: firma.vergiNo ?? '',
       belgeler: firma.belgeler ?? {},
     };
   } catch (e) {
@@ -149,6 +151,21 @@ async function kaydet() {
               class="w-full bg-surface-900 px-2.5 py-1.5 text-xs text-ink ring-1 ring-white/10 outline-none placeholder:text-ink-muted/50 focus:ring-white/30"
               placeholder="Ad Soyad" />
           </label>
+
+          <div class="grid grid-cols-2 gap-2">
+            <label class="block space-y-0.5">
+              <span class="text-xs font-medium text-ink-muted">Vergi Dairesi</span>
+              <input v-model="form.vergiDairesi" type="text"
+                class="w-full bg-surface-900 px-2.5 py-1.5 text-xs text-ink ring-1 ring-white/10 outline-none placeholder:text-ink-muted/50 focus:ring-white/30"
+                placeholder="Vergi dairesi adı" />
+            </label>
+            <label class="block space-y-0.5">
+              <span class="text-xs font-medium text-ink-muted">Vergi No</span>
+              <input v-model="form.vergiNo" type="text" inputmode="numeric"
+                class="w-full bg-surface-900 px-2.5 py-1.5 text-xs text-ink ring-1 ring-white/10 outline-none placeholder:text-ink-muted/50 focus:ring-white/30"
+                placeholder="10 haneli vergi no" />
+            </label>
+          </div>
 
         </form>
       </div>

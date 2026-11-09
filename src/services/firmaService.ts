@@ -57,6 +57,8 @@ export interface Firma {
   postaKodu: string;
   adres: string;
   yetkili: string;
+  vergiDairesi?: string;
+  vergiNo?: string;
   belgeler?: FirmaBelgeleri;
   kurumEvrakDosyalari?: KurumEvrakDosyalari;
   // Sanayi Sicil Belgesi: no + tarih + dosya
@@ -113,6 +115,8 @@ export interface YeniFirma {
   postaKodu?: string;
   adres?: string;
   yetkili?: string;
+  vergiDairesi?: string;
+  vergiNo?: string;
   belgeler?: FirmaBelgeleri;
   kurumEvrakDosyalari?: KurumEvrakDosyalari;
   sanayiSicilBelgeNo?: string;

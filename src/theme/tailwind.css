@@ -130,4 +130,7 @@ html.acik-tema .anasayfa-daire { background-color: #2e6242; }
 html.acik-tema .anasayfa-daire svg { color: #ffffff; }
 
 /* Uyarı rozeti (Yazdır: "Güncel değil") açık zeminde koyu amber */
-html.acik-tema .text-amber-300 { color: #92400e; }
+html.acik-tema .text-amber-300,
+html.acik-tema .text-amber-200 { color: #92400e; }
+html.acik-tema .text-amber-100\/80,
+html.acik-tema .text-amber-100\/60 { color: #78350f; }

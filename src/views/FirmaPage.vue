@@ -55,6 +55,8 @@ const genelBilgiler = computed<[string, string][]>(() => {
     ['Firma Adı', f.ad],
     ['Ünvan', f.unvan],
     ['Firma Yetkilisi', f.yetkili],
+    ['Vergi Dairesi', f.vergiDairesi ?? ''],
+    ['Vergi No', f.vergiNo ?? ''],
     ['Telefon', f.telefon],
     ['Email', f.email],
     ['İl', f.il],
@@ -1045,7 +1047,7 @@ onIonViewWillEnter(yukle);
             <div v-else-if="aktifMenu === 3" class="space-y-2">
               <div class="flex items-center justify-between">
                 <p class="text-xs font-semibold text-ink">CE Belgeleri ({{ secili.ceBelgeleri?.length ?? 0 }})</p>
-                <button type="button" @click="ceEkleAcik = !ceEkleAcik"
+                <button type="button" @click="ceEkleAcik = true"
                   class="flex items-center gap-1 bg-[#2b5c3d] px-2.5 py-1.5 text-[11px] font-semibold text-ink ring-1 ring-white/10 active:bg-[#346e4a]">
                   <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                     stroke-width="2.5" stroke-linecap="round">
@@ -1055,21 +1057,13 @@ onIonViewWillEnter(yukle);
                 </button>
               </div>
 
-              <!-- Yeni CE belgesi formu -->
-              <CeBelgeFormu v-if="ceEkleAcik" v-model:belge="ceForm" :kurumlar="kurumSecenekleri"
-                :kaydediliyor="ceKaydediliyor"
-                @vazgec="ceEkleAcik = false; ceForm = bosCeForm()" @kaydet="ceEkle" />
-
-              <p v-if="!secili.ceBelgeleri?.length && !ceEkleAcik" class="py-4 text-center text-xs text-ink-muted">
+              <p v-if="!secili.ceBelgeleri?.length" class="py-4 text-center text-xs text-ink-muted">
                 Henüz CE belgesi eklenmedi.
               </p>
 
               <!-- Kart listesi: her belge alt alta bir panel; kalemle yerinde düzenlenir -->
               <template v-for="(ce, i) in secili.ceBelgeleri ?? []" :key="ce._id ?? i">
-                <CeBelgeFormu v-if="ceDuzenleIndex === i" v-model:belge="ceDuzenleForm"
-                  :kurumlar="kurumSecenekleri" :kaydediliyor="ceKaydediliyor"
-                  @vazgec="ceDuzenleIndex = null" @kaydet="ceDuzenleKaydet" />
-                <div v-else class="space-y-1.5 bg-surface-900/60 p-2.5 ring-1 ring-white/5">
+                <div class="space-y-1.5 bg-surface-900/60 p-2.5 ring-1 ring-white/5">
                   <div class="flex items-start justify-between gap-2">
                     <div class="flex min-w-0 flex-1 items-center gap-1.5">
                       <span
@@ -1755,6 +1749,34 @@ onIonViewWillEnter(yukle);
         ? `${RESIM_SLOTLARI.find((r) => r.anahtar === resimSilinecek)?.etiket ?? 'Resim'} silinecek. Emin misiniz?`
         : ''"
       @vazgec="resimSilinecek = null" @onayla="resimSilOnayla" />
+
+    <!-- CE belgesi ekleme / düzenleme: tam sayfa popup -->
+    <Teleport to="body">
+      <div v-if="ceEkleAcik || ceDuzenleIndex != null" class="fixed inset-0 z-50 flex flex-col bg-[#101a14]">
+        <div
+          class="flex shrink-0 items-center gap-2 border-b border-white/5 bg-surface-bar px-3 py-3 pt-[max(0.75rem,env(safe-area-inset-top))]">
+          <button type="button" aria-label="Geri"
+            @click="ceEkleAcik = false; ceDuzenleIndex = null; ceForm = bosCeForm()"
+            class="grid h-8 w-8 shrink-0 place-items-center bg-surface-800 text-ink ring-1 ring-white/10">
+            <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+              stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="m15 18-6-6 6-6" />
+            </svg>
+          </button>
+          <h2 class="min-w-0 flex-1 truncate text-sm font-bold text-ink">
+            {{ ceDuzenleIndex != null ? 'CE Belgesini Düzenle' : 'CE Belgesi Ekle' }}
+          </h2>
+        </div>
+        <div class="min-h-0 flex-1 overflow-y-auto p-3 pb-[max(1.5rem,env(safe-area-inset-bottom))]">
+          <CeBelgeFormu v-if="ceDuzenleIndex != null" v-model:belge="ceDuzenleForm"
+            :kurumlar="kurumSecenekleri" :kaydediliyor="ceKaydediliyor"
+            @vazgec="ceDuzenleIndex = null" @kaydet="ceDuzenleKaydet" />
+          <CeBelgeFormu v-else v-model:belge="ceForm" :kurumlar="kurumSecenekleri"
+            :kaydediliyor="ceKaydediliyor"
+            @vazgec="ceEkleAcik = false; ceForm = bosCeForm()" @kaydet="ceEkle" />
+        </div>
+      </div>
+    </Teleport>
 
     <KysPanel v-if="kysAcik && secili" :key="secili._id" :firma="secili" @kapat="kysAcik = false" />
 

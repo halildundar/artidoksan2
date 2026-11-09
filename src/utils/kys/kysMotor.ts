@@ -2,6 +2,8 @@ import JSZip from 'jszip';
 import { createKysEngine } from '@/data/kys/engine.js';
 import { getDosyaUrl } from '@/services/dosyaService';
 import type { Firma } from '@/services/firmaService';
+import { getAsansorler, type Asansor } from '@/services/asansorService';
+import { getOnayliKurumSecenekleri, type OnayliKurumSecenek } from '@/services/onayliKurumService';
 import type { KysVerisi } from '@/services/kysService';
 
 // KYS motoru (artifact'tan taşınan üretici kod) — durum S bir düz nesnedir; arayüz doğrudan değiştirir.
@@ -12,8 +14,42 @@ const iso = (d?: string | null) => (d ? String(d).slice(0, 10) : '');
 const modulB = (m: string) => /(^|\s)B($|\s)|modul b|modül b/i.test(m);
 const modulE = (m: string) => /(^|\s)E($|\s)|modul e|modül e/i.test(m);
 
+// Firma dışı bağlam: onaylı kurum kataloğu (NoBo no) ve firmanın asansörleri (model varyant kapsamı)
+export interface KysBaglam { kurumlar: OnayliKurumSecenek[]; asansorler: Asansor[] }
+
+export async function kysBaglami(f: Firma): Promise<KysBaglam> {
+  const [kurumlar, asansorler] = await Promise.all([
+    getOnayliKurumSecenekleri().catch(() => [] as OnayliKurumSecenek[]),
+    getAsansorler({ firmaId: f._id }).catch(() => [] as Asansor[]),
+  ]);
+  return { kurumlar, asansorler };
+}
+
+const trKey = (s: string) => s.trim().toLocaleLowerCase('tr');
+const sayiAraligi = (liste: number[], birim: string) => {
+  if (!liste.length) return '';
+  const a = Math.min(...liste), b = Math.max(...liste);
+  const f = (x: number) => String(x).replace('.', ',');
+  return a === b ? `${f(a)} ${birim}` : `${f(a)}–${f(b)} ${birim}`;
+};
+
+// Asansörlerden model varyant kapsamı: makine yeri, yük, hız, askı oranı
+function modelKapsami(asansorler: Asansor[]): string {
+  if (!asansorler.length) return '';
+  const say = (k: keyof Asansor) => asansorler.map((a) => Number(a[k])).filter((n) => Number.isFinite(n) && n > 0);
+  const tekil = (k: keyof Asansor) => [...new Set(asansorler.map((a) => a[k]).filter(Boolean) as string[])].sort();
+  const parcalar = [
+    tekil('makinaKonumu').map((k) => (k === 'MRL' ? 'Makine Dairesiz(MRL)' : 'Makine Daireli(MR)')).join(' / '),
+    sayiAraligi(say('beyanYuku'), 'kg'),
+    sayiAraligi(say('hiz'), 'm/s'),
+    tekil('askiTipi').length ? `${tekil('askiTipi').join(', ')} askı` : '',
+  ].filter(Boolean);
+  return parcalar.join(', ');
+}
+
 // Firma kaydından gelen (elle girilmemiş) alanlar — KYS'deki aynı adlı alanlarla eşleşir
-export function firmaKysAlanlari(f: Firma): Record<string, string> {
+export function firmaKysAlanlari(f: Firma, baglam?: KysBaglam): Record<string, string> {
+  const nobo = (kurum?: string) => (kurum ? baglam?.kurumlar.find((k) => trKey(k.unvan) === trKey(kurum))?.nobo ?? '' : '');
   const ce = f.ceBelgeleri ?? [];
   const tip = ce.find((c) => modulB(c.modul));
   const me = ce.find((c) => modulE(c.modul));
@@ -23,6 +59,9 @@ export function firmaKysAlanlari(f: Firma): Record<string, string> {
   const adres = [f.mahalle, f.adres, f.postaKodu, [f.ilce, f.il].filter(Boolean).join('/')].filter(Boolean).join(' ');
   const v: Record<string, string> = {
     unvan: f.unvan || f.ad,
+    vergiDairesi: f.vergiDairesi ?? '',
+    vergiNo: f.vergiNo ?? '',
+    kisaKod: f.ad, // firmanın kısa adı, proje numaralarında kod olarak kullanılır
     il: f.il,
     adres,
     telefon: f.telefon,
@@ -32,7 +71,10 @@ export function firmaKysAlanlari(f: Firma): Record<string, string> {
     tipSertNo: tip?.belgeNo ?? '',
     tipSertTarih: iso(tip?.bitisTarihi || tip?.gecerlilikTarihi),
     tipKurulus: tip?.kurum ?? '',
+    tipKurulusNo: nobo(tip?.kurum),
+    modelKapsam: modelKapsami(baglam?.asansorler ?? []),
     meKurulus: me?.kurum ?? '',
+    meKurulusNo: nobo(me?.kurum),
     meBelgeNo: me?.belgeNo ?? '',
     meBelgeTarih: iso(me?.bitisTarihi || me?.gecerlilikTarihi),
     gm: p?.genelMudur ?? '',
@@ -46,6 +88,19 @@ export function firmaKysAlanlari(f: Firma): Record<string, string> {
   Object.keys(v).forEach((k) => { if (!v[k] || !String(v[k]).trim()) delete v[k]; });
   return v;
 }
+
+// Firma kaydından alınabilen KYS alanları ve bunların firmada girileceği yer (Bilgiler sekmesinde salt okunur
+// metin olarak gösterilir; eksikse firmada nereden girileceği belirtilir)
+export const FIRMA_KAYNAKLI_ALANLAR: Record<string, string> = {
+  unvan: 'Firma > Genel Bilgiler', kisaKod: 'Firma > Genel Bilgiler (Firma Adı)', vergiDairesi: 'Firma > Genel Bilgiler', vergiNo: 'Firma > Genel Bilgiler', il: 'Firma > Genel Bilgiler', adres: 'Firma > Genel Bilgiler',
+  telefon: 'Firma > Genel Bilgiler', eposta: 'Firma > Genel Bilgiler',
+  hyb: 'Firma > HYB Belgesi', hybTarih: 'Firma > HYB Belgesi',
+  tipSertNo: 'Firma > CE Belgeler (Modul B)', tipSertTarih: 'Firma > CE Belgeler (Modul B)', tipKurulus: 'Firma > CE Belgeler (Modul B)', tipKurulusNo: 'Firma > CE Belgeler (Modul B kurumu, NoBo)',
+  modelKapsam: 'Firma > Montajlar (asansör bilgileri)', meKurulusNo: 'Firma > CE Belgeler (Modul E kurumu, NoBo)',
+  meKurulus: 'Firma > CE Belgeler (Modul E)', meBelgeNo: 'Firma > CE Belgeler (Modul E)', meBelgeTarih: 'Firma > CE Belgeler (Modul E)',
+  gm: 'Firma > Personel', kyt: 'Firma > Personel', smd: 'Firma > Personel', sef: 'Firma > Personel',
+  bakimSefi: 'Firma > Personel', satin: 'Firma > Personel', tm: 'Firma > Personel (mühendisler)',
+};
 
 const dolu = (x: unknown) => x != null && String(x).trim() !== '';
 
@@ -65,7 +120,7 @@ export async function firmaLogosu(f: Firma): Promise<{ src: string; w: number; h
     ctx.fillStyle = '#fff';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     ctx.drawImage(bitmap, 0, 0);
-    return { src: canvas.toDataURL('image/png'), w: bitmap.width, h: bitmap.height, adGoster: true };
+    return { src: canvas.toDataURL('image/png'), w: bitmap.width, h: bitmap.height, adGoster: false };
   } catch {
     return null; // logo alınamazsa belge logosuz üretilir
   }
@@ -87,12 +142,13 @@ export interface KysKurulum {
   firma: Firma;
   kys: KysVerisi | null;
   logo?: { src: string; w: number; h: number; adGoster: boolean } | null;
+  baglam?: KysBaglam;
   onDurum?: (tur: string, mesaj: string) => void;
 }
 
 // Motoru kurar: kayıtlı KYS verisi + firma kaydından gelen alanlar. girilen = kullanıcının elle yazdıkları
 // (yalnız bunlar kaydedilir; firma bilgisi değişince KYS de güncel kalır).
-export function kysMotoruKur({ firma, kys, logo, onDurum }: KysKurulum) {
+export function kysMotoruKur({ firma, kys, logo, baglam, onDurum }: KysKurulum) {
   const motor: KysMotor = createKysEngine({
     state: {},
     JSZip,
@@ -103,8 +159,8 @@ export function kysMotoruKur({ firma, kys, logo, onDurum }: KysKurulum) {
   const girilen: Record<string, string> = {};
   Object.entries((kayitli.v ?? {}) as Record<string, unknown>).forEach(([k, x]) => { if (dolu(x)) girilen[k] = String(x); });
   const s = motor.setState({ ...kayitli, v: {} });
-  const firmaAlanlari = firmaKysAlanlari(firma);
-  s.v = { ...s.v, ...firmaAlanlari, ...girilen };
+  const firmaAlanlari = firmaKysAlanlari(firma, baglam);
+  s.v = { ...s.v, ...girilen, ...firmaAlanlari }; // firma kaydındaki bilgi esastır
   s.logo = logo ?? null;
   motor.kyInit();
   return { motor, girilen, firmaAlanlari };

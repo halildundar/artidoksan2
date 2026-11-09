@@ -151,7 +151,7 @@ var embedded={};try{embedded=JSON.parse(document.getElementById("kek-state").tex
 /* ---------- Firma çalışma alanı ---------- */
 function esc(s){return String(s==null?"":s).replace(/[&<>"']/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c];});}
 function fmtD(d){if(!d)return "";var m=/^(\d{4})-(\d{2})-(\d{2})$/.exec(d);return m?m[3]+"."+m[2]+"."+m[1]:d;}
-function P(k,alt){var x=S.v[k];if(x!==undefined&&String(x).trim()!==""){var t=(LABELS[k]&&FIELD_TYPE[k]==="date")?fmtD(x):x;return '<span class="v-in">'+esc(t).replace(/\n/g,"<br>")+'</span>';}return '<span class="ph">['+esc(alt||LABELS[k]||k)+']</span>';}
+function P(k,alt){var x=S.v[k];if(k==="revTarih"&&(x===undefined||String(x).trim()===""))return "-";if(x!==undefined&&String(x).trim()!==""){var t=(LABELS[k]&&FIELD_TYPE[k]==="date")?fmtD(x):x;return '<span class="v-in">'+esc(t).replace(/\n/g,"<br>")+'</span>';}return '<span class="ph">['+esc(alt||LABELS[k]||k)+']</span>';}
 function T(k){var x=S.v[k];return x&&String(x).trim()?String(x):"";}
 var FIELD_TYPE={};FIELD_GROUPS.forEach(function(g){g.fields.forEach(function(f){FIELD_TYPE[f[0]]=f[2];});});
 function $(s,r){return (r||document).querySelector(s);}
@@ -160,7 +160,7 @@ function ul(a){return "<ul>"+a.map(function(x){return "<li>"+x+"</li>";}).join("
 function ol(a){return "<ol>"+a.map(function(x){return "<li>"+x+"</li>";}).join("")+"</ol>";}
 
 /* ---------- Tamamlanma ---------- */
-var REQUIRED=["unvan","kisaKod","il","adres","telefon","eposta","vergiDairesi","vergiNo","mersis","hyb","tipSertNo","tipKurulus","tipKurulusNo","modelKapsam","meKurulus","meKurulusNo","dokKod","ilkYayin","revNo","revTarih","gm","kyt","tm","smd","sef","bakimSefi","satin"];
+var REQUIRED=["unvan","kisaKod","il","adres","telefon","eposta","vergiDairesi","vergiNo","mersis","hyb","tipSertNo","tipKurulus","tipKurulusNo","modelKapsam","meKurulus","meKurulusNo","dokKod","ilkYayin","revNo","gm","kyt","tm","smd","sef","bakimSefi","satin"];
 function completeness(){var n=0;REQUIRED.forEach(function(k){if(T(k))n++;});return [n,REQUIRED.length];}
 
 /* ---------- El kitabı ---------- */
