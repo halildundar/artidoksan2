@@ -17,6 +17,7 @@ import denetimRouter from './denetim.js';
 import denetimYazdirRouter from './denetimYazdir.js';
 import denetciRouter from './denetciler.js';
 import kullaniciRouter from './kullanicilar.js';
+import istatistikRouter from './istatistik.js';
 import authRouter, { girisGerekli } from './auth.js';
 import tescilRouter from './tescil.js';
 import yazdirRouter from './yazdir.js';
@@ -357,6 +358,7 @@ app.use('/api', katalogRouter);
 app.use('/api/asansorler', asansorRouter);
 app.use('/api/denetciler', denetciRouter);
 app.use('/api/kullanicilar', girisGerekli('admin'), kullaniciRouter);
+app.use('/api/istatistik', istatistikRouter);
 app.use('/api/denetimler', denetimYazdirRouter); // /:id/yazdir rotaları (önce eşleşmeli)
 app.use('/api/denetimler', denetimRouter);
 app.use('/api/tesciller', yazdirRouter); // /:id/yazdir rotaları (önce eşleşmeli)

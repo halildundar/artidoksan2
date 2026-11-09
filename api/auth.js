@@ -3,7 +3,7 @@ import { promisify } from 'node:util';
 import express from 'express';
 import mongoose from 'mongoose';
 import { Kullanici, oturumlariSifirla } from './kullanicilar.js';
-import { epostaGonder, konsolModu, sonKonsolEpostalari } from './eposta.js';
+import { epostaGonder, konsolModu, sonKonsolEpostalari, EpostaHatasi } from './eposta.js';
 import {
   hesapDogrulamaSablonu, girisKoduSablonu, sifreSifirlamaSablonu, sifreDegistirmeSablonu, sifreDegistiBildirimiSablonu, YapilandirmaHatasi,
 } from './epostaSablonlari.js';
@@ -239,6 +239,7 @@ const sar = (fn) => async (req, res) => {
   } catch (err) {
     if (err instanceof HataKodu) return res.status(err.durum).json({ message: err.message, ...err.ek });
     if (err instanceof YapilandirmaHatasi) return res.status(500).json({ message: err.message });
+    if (err instanceof EpostaHatasi) return res.status(502).json({ message: err.message });
     console.error('[auth]', err);
     res.status(500).json({ message: 'Beklenmeyen bir hata oluştu' });
   }
