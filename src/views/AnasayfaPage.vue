@@ -143,7 +143,7 @@ const PASIF = '#8a978e';
         </section>
 
         <!-- Son asansörler ve denetimler: yan yana paneller, toplam adet + son 10 kayıt -->
-        <section class="grid grid-cols-2 items-start gap-2 sm:grid-cols-3" aria-label="Son kayıtlar">
+        <section class="grid grid-cols-2 gap-2" aria-label="Son kayıtlar">
           <!-- Asansörler -->
           <div class="min-w-0 space-y-2 bg-surface-800 p-3 ring-1 ring-white/5">
             <div class="flex items-start justify-between gap-1">
@@ -199,8 +199,8 @@ const PASIF = '#8a978e';
             </ul>
           </div>
 
-          <!-- Tescil: küçük ekranda tam genişlik, geniş ekranda üçüncü sütun -->
-          <div class="col-span-2 min-w-0 space-y-2 bg-surface-800 p-3 ring-1 ring-white/5 sm:col-span-1">
+          <!-- Tescil: iki sütunlu düzende alt satıra sarılır -->
+          <div class="min-w-0 space-y-2 bg-surface-800 p-3 ring-1 ring-white/5">
             <div class="flex items-start justify-between gap-1">
               <div class="min-w-0">
                 <h2 class="truncate text-[11px] font-bold uppercase tracking-wide text-ink">Tescil</h2>
