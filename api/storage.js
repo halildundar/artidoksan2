@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3';
+import { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand, ListObjectsV2Command } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 
 // Cloudflare R2 dosya deposu — artidoksan1'deki storage/r2.js deseninin
@@ -50,6 +50,20 @@ export async function deleteObject(key) {
   await getClient().send(
     new DeleteObjectCommand({ Bucket: process.env.R2_BUCKET, Key: key })
   );
+}
+
+// Depodaki tüm nesneleri listeler (temizlik betiği için): [{ key, boyut, tarih }]
+export async function listObjects() {
+  const sonuc = [];
+  let token;
+  do {
+    const res = await getClient().send(
+      new ListObjectsV2Command({ Bucket: process.env.R2_BUCKET, ContinuationToken: token })
+    );
+    for (const o of res.Contents ?? []) sonuc.push({ key: o.Key, boyut: o.Size ?? 0, tarih: o.LastModified });
+    token = res.IsTruncated ? res.NextContinuationToken : undefined;
+  } while (token);
+  return sonuc;
 }
 
 // Görüntüleme/önizleme için kısa ömürlü imzalı GET URL'i üretir.

@@ -1,5 +1,6 @@
 import express from 'express';
 import mongoose from 'mongoose';
+import { kaydiVeDosyalariniSil } from './depoTemizlik.js';
 
 const dosyaSlotSchema = new mongoose.Schema(
   {
@@ -145,9 +146,10 @@ router.put('/:id', async (req, res) => {
 
 router.delete('/:id', async (req, res) => {
   try {
-    const denetim = await Denetim.findByIdAndDelete(req.params.id);
-    if (!denetim) return res.status(404).json({ message: 'Denetim bulunamadı' });
-    res.json({ ok: true });
+    // Kayıtla birlikte yüklenen ve üretilen dosyalar da R2'den silinir
+    const sonuc = await kaydiVeDosyalariniSil('Denetim', req.params.id);
+    if (!sonuc) return res.status(404).json({ message: 'Denetim bulunamadı' });
+    res.json({ ok: true, depodanSilinen: sonuc.depodanSilinen });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }

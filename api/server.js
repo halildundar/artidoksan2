@@ -25,6 +25,7 @@ import smmFirmalariRouter from './smmFirmalari.js';
 import multer from 'multer';
 import archiver from 'archiver';
 import { buildObjectKey, putObject, createViewUrl, createDownloadUrl, getObjectBuffer } from './storage.js';
+import { kaydiVeDosyalariniSil } from './depoTemizlik.js';
 
 const MONGODB_URI = process.env.MONGODB_URI ?? 'mongodb://127.0.0.1:27017/artidoksan2';
 const PORT = process.env.PORT ?? 3000;
@@ -614,9 +615,10 @@ app.delete('/api/firmalar/:id', async (req, res) => {
         message: `Bu firmaya bağlı ${parcalar.join(', ')} var. Firmayı silmek için önce bunları silin.`,
       });
     }
-    const firma = await Firma.findByIdAndDelete(req.params.id);
-    if (!firma) return res.status(404).json({ message: 'Firma bulunamadı' });
-    res.json({ ok: true });
+    // Firmanın logo, imza/kaşe, belge ve personel dosyaları da R2'den silinir
+    const sonuc = await kaydiVeDosyalariniSil('Firma', req.params.id);
+    if (!sonuc) return res.status(404).json({ message: 'Firma bulunamadı' });
+    res.json({ ok: true, depodanSilinen: sonuc.depodanSilinen });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }

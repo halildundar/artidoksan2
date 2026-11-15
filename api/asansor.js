@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import mongoose from 'mongoose';
-import { deleteObject } from './storage.js';
+import { kaydiVeDosyalariniSil } from './depoTemizlik.js';
 
 // Asansör modeli — artidoksan1 Asansor.js'in uyarlaması (kullanıcı/rol,
 // danışman snapshot'ı ve tescil dosyası alanları bu projede yok).
@@ -448,33 +448,6 @@ router.put('/:id', async (req, res) => {
   }
 });
 
-// Bir kayıttaki (iç içe) tüm dosya anahtarlarını toplar
-function dosyaAnahtarlari(deger, kume = new Set()) {
-  if (Array.isArray(deger)) deger.forEach((d) => dosyaAnahtarlari(d, kume));
-  else if (deger && typeof deger === 'object' && !(deger instanceof Date) && !deger._bsontype) {
-    if (typeof deger.dosyaAnahtari === 'string') kume.add(deger.dosyaAnahtari);
-    Object.values(deger).forEach((d) => dosyaAnahtarlari(d, kume));
-  }
-  return kume;
-}
-
-// Asansörün dosyalarından başka kayıtlarla PAYLAŞILANLARI (SMM havuzundan/
-// firmadan kopyalanan belgeler gibi) ayıklamak için tüm modellerdeki diğer
-// kayıtların anahtarları toplanır — paylaşılan dosya silinmez.
-async function baskasinaAitAnahtarlar(asansorId) {
-  const kume = new Set();
-  // Dosya taşıyan modeller (adres önbelleği gibi büyük koleksiyonlar taranmaz)
-  for (const ad of ['Firma', 'Asansor', 'Tescil', 'Denetim', 'SmmFirmasi', 'AksamBelgesi']) {
-    if (!mongoose.models[ad]) continue;
-    const kayitlar = await mongoose.model(ad).find().lean();
-    for (const k of kayitlar) {
-      if (ad === 'Asansor' && String(k._id) === String(asansorId)) continue;
-      dosyaAnahtarlari(k, kume);
-    }
-  }
-  return kume;
-}
-
 // Tamamen sil: asansör kaydı + yalnız bu asansöre ait dosyalar (fotoğraflar,
 // belgeler) R2'den silinir. Bağlı tescil/denetim varsa reddedilir.
 router.delete('/:id', async (req, res) => {
@@ -490,19 +463,8 @@ router.delete('/:id', async (req, res) => {
         message: `Bu asansöre bağlı ${parcalar.join(', ')} var. Asansörü silmek için önce bunları silin.`,
       });
     }
-    const paylasilan = await baskasinaAitAnahtarlar(req.params.id);
-    const silinecek = [...dosyaAnahtarlari(mevcut)].filter((a) => !paylasilan.has(a));
-    await Asansor.findByIdAndDelete(req.params.id);
-    let silinen = 0;
-    for (const anahtar of silinecek) {
-      try {
-        await deleteObject(anahtar);
-        silinen += 1;
-      } catch (err) {
-        console.error('R2 silme hatası:', anahtar, err.message);
-      }
-    }
-    res.json({ ok: true, depodanSilinen: silinen });
+    const sonuc = await kaydiVeDosyalariniSil('Asansor', req.params.id);
+    res.json({ ok: true, depodanSilinen: sonuc?.depodanSilinen ?? 0 });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
