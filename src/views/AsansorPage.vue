@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import KullaniciMenusu from '@/components/KullaniciMenusu.vue';
 import { IonPage, IonContent, IonHeader, onIonViewWillEnter } from '@ionic/vue';
-import { ref } from 'vue';
+import { ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { getAsansorler, deleteAsansor, type Asansor } from '@/services/asansorService';
 import SilmeOnayi from '@/components/SilmeOnayi.vue';
@@ -13,17 +13,34 @@ const asansorler = ref<Asansor[]>([]);
 const yukleniyor = ref(false);
 const hata = ref('');
 const arama = ref('');
+const aramaInput = ref<HTMLInputElement | null>(null);
+// Eski bir isteğin yanıtı daha yeni aramanın sonucunu ezmesin
+let istekNo = 0;
 
 async function yukle() {
+  const no = ++istekNo;
   yukleniyor.value = true;
   hata.value = '';
   try {
-    asansorler.value = await getAsansorler({ search: arama.value.trim() || undefined });
+    const liste = await getAsansorler({ search: arama.value.trim() || undefined });
+    if (no === istekNo) asansorler.value = liste;
   } catch (e) {
-    hata.value = e instanceof Error ? e.message : 'Asansörler yüklenemedi';
+    if (no === istekNo) hata.value = e instanceof Error ? e.message : 'Asansörler yüklenemedi';
   } finally {
-    yukleniyor.value = false;
+    if (no === istekNo) yukleniyor.value = false;
   }
+}
+
+// Yazdıkça otomatik arama (kısa gecikmeyle); kutu boşalınca tüm liste gelir
+let aramaZamanlayici: ReturnType<typeof setTimeout> | undefined;
+watch(arama, () => {
+  clearTimeout(aramaZamanlayici);
+  aramaZamanlayici = setTimeout(yukle, 300);
+});
+
+function aramayiTemizle() {
+  arama.value = '';
+  aramaInput.value?.focus();
 }
 
 function git(path: string) {
@@ -91,9 +108,18 @@ onIonViewWillEnter(yukle);
               <circle cx="11" cy="11" r="8" />
               <path d="m21 21-4.3-4.3" />
             </svg>
-            <input v-model="arama" type="search" @keyup.enter="yukle" @input="!arama && yukle()"
+            <input ref="aramaInput" v-model="arama" type="text" autocomplete="off" enterkeyhint="search"
               class="w-full bg-transparent py-1.5 text-xs text-ink outline-none placeholder:text-ink-muted/50"
-              placeholder="Ruhsat no, seri no, yapı sahibi veya il/ilçe ara (Enter)" />
+              placeholder="Ruhsat no, seri no, yapı sahibi veya il/ilçe ara" />
+            <!-- Çarpı her zaman görünür; metni siler ve odağı kutuya geri verir -->
+            <button type="button" aria-label="Aramayı temizle" @click="aramayiTemizle"
+              class="grid h-6 w-6 shrink-0 place-items-center transition-opacity active:text-ink"
+              :class="arama ? 'text-ink opacity-100' : 'text-ink-muted/60 opacity-60'">
+              <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M18 6 6 18M6 6l12 12" />
+              </svg>
+            </button>
           </div>
         </div>
       </div>

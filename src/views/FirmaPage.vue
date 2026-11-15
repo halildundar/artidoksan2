@@ -30,6 +30,27 @@ const firmalar = ref<Firma[]>([]);
 const yukleniyor = ref(false);
 const hata = ref('');
 
+// Liste araması: ad, ünvan, il ve ilçe üzerinde (Türkçe harf/büyük-küçük duyarsız)
+const arama = ref('');
+const aramaInput = ref<HTMLInputElement | null>(null);
+function aramayiTemizle() {
+  arama.value = '';
+  aramaInput.value?.focus();
+}
+const aramaNormal = (s: string) =>
+  s.toLocaleLowerCase('tr').replace(/ı/g, 'i').normalize('NFD').replace(/[̀-ͯ]/g, '');
+const filtreliFirmalar = computed(() => {
+  const q = aramaNormal(arama.value.trim());
+  // A-Z sıralama: Türkçe alfabeye göre (Ç, Ğ, İ, Ö, Ş, Ü doğru yerinde)
+  const sirali = [...firmalar.value].sort((a, b) =>
+    a.ad.trim().localeCompare(b.ad.trim(), 'tr', { sensitivity: 'base', numeric: true })
+  );
+  if (!q) return sirali;
+  return sirali.filter((f) =>
+    [f.ad, f.unvan, f.il, f.ilce].some((alan) => aramaNormal(alan ?? '').includes(q))
+  );
+});
+
 const secili = ref<Firma | null>(null);
 const aktifMenu = ref(1);
 // Firma detay menüsü — Güvenlik Aksamlar panelindeki gibi ikonlu ızgara
@@ -825,6 +846,29 @@ onIonViewWillEnter(yukle);
         </div>
           <!-- Düzenle butonu header'da değil, yalnız Genel Bilgiler bölümünde -->
         </header>
+
+        <!-- Arama: ad, ünvan ve il/ilçeye göre anlık filtreler; boşken tüm liste -->
+        <div v-if="!secili" class="mx-auto max-w-lg px-4 pb-3">
+          <div class="flex items-center gap-2 bg-surface-900 px-2.5 ring-1 ring-white/10 focus-within:ring-white/30">
+            <svg class="h-4 w-4 shrink-0 text-ink-muted/60" viewBox="0 0 24 24" fill="none"
+              stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="11" cy="11" r="8" />
+              <path d="m21 21-4.3-4.3" />
+            </svg>
+            <input ref="aramaInput" v-model="arama" type="text" autocomplete="off" enterkeyhint="search"
+              class="w-full bg-transparent py-1.5 text-xs text-ink outline-none placeholder:text-ink-muted/50"
+              placeholder="Firma adı, ünvan veya şehir ara" />
+            <!-- Çarpı her zaman görünür; metni siler ve odağı kutuya geri verir -->
+            <button type="button" aria-label="Aramayı temizle" @click="aramayiTemizle"
+              class="grid h-6 w-6 shrink-0 place-items-center transition-opacity active:text-ink"
+              :class="arama ? 'text-ink opacity-100' : 'text-ink-muted/60 opacity-60'">
+              <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M18 6 6 18M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+        </div>
 
       </div>
     </ion-header>
@@ -1669,7 +1713,12 @@ onIonViewWillEnter(yukle);
             Henüz firma yok. Sağ üstteki "Yeni Ekle" ile ilk firmayı ekleyin.
           </p>
 
-          <button v-for="firma in firmalar" :key="firma._id" type="button" @click="sec(firma)"
+          <p v-if="!yukleniyor && firmalar.length && !filtreliFirmalar.length"
+            class="py-8 text-center text-sm text-ink-muted">
+            Aramayla eşleşen firma yok.
+          </p>
+
+          <button v-for="firma in filtreliFirmalar" :key="firma._id" type="button" @click="sec(firma)"
             class="flex w-full items-center gap-3 bg-surface-800 p-3 text-left ring-1 ring-white/5 active:bg-[#1a2a20]">
             <span class="grid h-12 w-12 shrink-0 place-items-center bg-[#1c2a21] ring-1 ring-white/10">
               <svg class="h-6 w-6 text-ink-muted" viewBox="0 0 24 24" fill="none" stroke="currentColor"
