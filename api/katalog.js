@@ -122,6 +122,7 @@ router.get('/aksam-belgeleri', async (req, res) => {
         { marka: { $regex: q, $options: 'i' } },
         { sertifikaNo: { $regex: q, $options: 'i' } },
         { bilesenTipiAdi: { $regex: q, $options: 'i' } },
+        { tipler: { $regex: q, $options: 'i' } },
       ];
     }
     const belgeler = await AksamBelgesi.find(filter).lean();

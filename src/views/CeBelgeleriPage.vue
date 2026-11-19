@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { IonPage, IonContent, IonHeader, onIonViewWillEnter } from '@ionic/vue';
-import { ref } from 'vue';
+import { ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { getAksamBelgeleri, deleteAksamBelgesi, type AksamBelgesi } from '@/services/aksamBelgesiService';
 import SilmeOnayi from '@/components/SilmeOnayi.vue';
@@ -14,19 +14,37 @@ const hata = ref('');
 const arama = ref('');
 const kategori = ref<'' | 'guvenlik_aksami' | 'asansor_bileseni'>('');
 
+const aramaInput = ref<HTMLInputElement | null>(null);
+// Eski bir isteğin yanıtı daha yeni aramanın sonucunu ezmesin
+let istekNo = 0;
+
 async function yukle() {
+  const no = ++istekNo;
   yukleniyor.value = true;
   hata.value = '';
   try {
-    belgeler.value = await getAksamBelgeleri({
+    const liste = await getAksamBelgeleri({
       search: arama.value.trim() || undefined,
       kategori: kategori.value || undefined,
     });
+    if (no === istekNo) belgeler.value = liste;
   } catch (e) {
-    hata.value = e instanceof Error ? e.message : 'Belgeler yüklenemedi';
+    if (no === istekNo) hata.value = e instanceof Error ? e.message : 'Belgeler yüklenemedi';
   } finally {
-    yukleniyor.value = false;
+    if (no === istekNo) yukleniyor.value = false;
   }
+}
+
+// Yazdıkça otomatik arama (kısa gecikmeyle); kutu boşalınca tüm liste gelir
+let aramaZamanlayici: ReturnType<typeof setTimeout> | undefined;
+watch(arama, () => {
+  clearTimeout(aramaZamanlayici);
+  aramaZamanlayici = setTimeout(yukle, 300);
+});
+
+function aramayiTemizle() {
+  arama.value = '';
+  aramaInput.value?.focus();
 }
 
 function geri() {
@@ -118,9 +136,17 @@ onIonViewWillEnter(yukle);
               <circle cx="11" cy="11" r="8" />
               <path d="m21 21-4.3-4.3" />
             </svg>
-            <input v-model="arama" type="search" @keyup.enter="yukle" @input="!arama && yukle()"
+            <input ref="aramaInput" v-model="arama" type="text" autocomplete="off" enterkeyhint="search"
               class="w-full bg-transparent py-1.5 text-xs text-ink outline-none placeholder:text-ink-muted/50"
-              placeholder="Marka, sertifika no veya bileşen ara (Enter)" />
+              placeholder="Marka, tip, sertifika no veya bileşen ara" />
+            <button type="button" aria-label="Aramayı temizle" @click="aramayiTemizle"
+              class="grid h-6 w-6 shrink-0 place-items-center transition-opacity active:text-ink"
+              :class="arama ? 'text-ink opacity-100' : 'text-ink-muted/60 opacity-60'">
+              <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M18 6 6 18M6 6l12 12" />
+              </svg>
+            </button>
           </div>
         </div>
       </div>
