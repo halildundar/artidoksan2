@@ -91,6 +91,11 @@ watch(
   open,
   (acik) => {
     if (!acik) return;
+    // Varsayılan: her bölümde 1 adet ve 1 form satırı
+    for (const bolum of [kabin.value, karsiAgirlik.value]) {
+      if (!(typeof bolum.adet === 'number' && bolum.adet > 0)) bolum.adet = 1;
+      satirlariUydur(bolum);
+    }
     for (const foto of [...kabin.value.fotolar, ...karsiAgirlik.value.fotolar]) fotoUrlGetir(foto);
   },
   { immediate: true }
