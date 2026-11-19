@@ -188,9 +188,27 @@ function annexKalemleri(baglam) {
     }));
 }
 
+// 12.11 UCM/ACOP: asansörde seçili çözüm türüne göre ilgili tüm aksam belgeleri
+// 12.11.1, 12.11.2, ... olarak (adlarıyla) art arda eklenir
+function ucmKalemleri(asansor) {
+  const tur = asansor?.ucmAcopTuru
+    ?? (asansor?.ucmAcopHizRegulatoruFrenIle === false && (asansor?.guvenlikAksamlari ?? []).some((s) => s.slot === 'ucm_acop') ? 'kart-motor-fren' : 'kart-reg-fren');
+  const parcalar = tur === 'kart-motor-fren'
+    ? [['MAIN BOARD', ['kontrol_karti']], ['MOTOR BRAKE', ['ucm_acop']]]
+    : [['MAIN BOARD', ['kontrol_karti']], ['OVERSPEED GOVERNER', ['hiz_regulatoru']], ['BRAKE', ['fren']]];
+  return parcalar.map(([ad, slotlar], i) => ({
+    no: `12.11.${i + 1}`,
+    kod: `sc-ucm-${i + 1}`,
+    ad: `Safety Comp. ASCENDING OVERSPEED PROTECTION ${i + 1} - ${ad}`,
+    tip: 'aksam',
+    slotlar,
+  }));
+}
+
 const aktifKalemler = (baglam) => {
   const sonuc = [];
   for (const k of DENETIM_G_KALEMLERI) {
+    if (k.kod === 'sc-ucm') { sonuc.push(...ucmKalemleri(baglam.asansor)); continue; }
     if (kalemAktif(k, baglam)) sonuc.push(k);
     if (k.kod === 'engineers-competency') sonuc.push(...annexKalemleri(baglam));
   }
