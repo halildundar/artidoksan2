@@ -325,6 +325,7 @@ const RAY_OLCULERI = {
   'T90/A': '90x75x16', 'T89/A': '89x62x16', 'T82/A': '82x68x9', 'T70/A': '70x65x9', 'T50/A': '50x50x5',
 };
 const rayTuru = (kod) => (kod ? String(kod).split('/')[1] ?? '' : '');
+const rayTamAd = (kod) => (kod ? (RAY_OLCULERI[kod] ? `${kod} (${RAY_OLCULERI[kod]} mm)` : String(kod)) : '');
 const rayOlcusu = (kod) => (kod ? `${kod} ${RAY_OLCULERI[kod] ?? ''}`.trim() : '');
 
 // mm -> m (örn. 1100 -> 1.1)
@@ -470,6 +471,9 @@ function ornekTabloVerisi(asansor) {
   return {
     kat_sayisi: bos(asansor?.katSayisi),
     tripped_hiz: '',
+    // Klavuz raylar: tip + ölçü (ör. "T89/B (89x62x16 mm)")
+    kab_ray_tip: rayTamAd(asansor?.kabinRayTipi),
+    kar_ray_tip: rayTamAd(asansor?.karsiAgirlikRayTipi),
     kabin_giris_adet: asansor?.kabinGirisTipi === 'cift' ? '2' : '1',
     kabin_genislik: mmToM(asansor?.kabinGenislik ?? 1350),
     kabin_derinlik: mmToM(asansor?.kabinDerinlik ?? 1350),
