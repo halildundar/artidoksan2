@@ -121,7 +121,11 @@ async function yukle() {
     } else if (secili.value) {
       // açık detay varsa güncel veriyle tazele
       secili.value = firmalar.value.find((f) => f._id === secili.value?._id) ?? null;
-      if (secili.value) resimleriYukle(secili.value);
+      if (secili.value) {
+        resimleriYukle(secili.value);
+        // Asansör formundan geri dönüldüğünde yeni eklenen asansör Montajlar'da görünsün
+        montajlariYukle(secili.value._id);
+      }
     }
   } catch (e) {
     hata.value = e instanceof Error ? e.message : 'Firmalar yüklenemedi';
