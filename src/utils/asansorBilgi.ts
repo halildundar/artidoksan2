@@ -300,19 +300,6 @@ export function asansorBolumleri(a: Asansor): BilgiBolumu[] {
     }
   );
 
-  if (a.smmFirmaId || a.smmKisaAd) {
-    liste.push({
-      baslik: 'SMM Bilgileri',
-      satirlar: [
-        [['Yıl', a.smmYil ? String(a.smmYil) : ''], ['Kısa Adı', a.smmKisaAd]],
-        [['Ünvan', a.smmUnvan]],
-        [['Adres', a.smmAdres]],
-        [['Mak. Müh.', a.smmMakMuhAdSoyad], ['Sicil/Tel', [a.smmMakMuhOdaSicilNo, a.smmMakMuhTelefon].filter(Boolean).join(' / ')]],
-        [['Elk. Müh.', a.smmElkMuhAdSoyad], ['Sicil/Tel', [a.smmElkMuhOdaSicilNo, a.smmElkMuhTelefon].filter(Boolean).join(' / ')]],
-      ],
-    });
-  }
-
   return liste;
 }
 

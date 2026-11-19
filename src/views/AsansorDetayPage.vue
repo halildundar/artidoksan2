@@ -4,8 +4,6 @@ import { computed, provide, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { getAsansor, updateAsansor, type Asansor, type AsansorGuncelleme, type GuvenlikAksami } from '@/services/asansorService';
 import { getAksamBelgeleri, type AksamBelgesi } from '@/services/aksamBelgesiService';
-import { getSmmFirmalari, type SmmFirmasi } from '@/services/smmFirmaService';
-import SmmFirmaSecModal from '@/components/SmmFirmaSecModal.vue';
 import { getDosyaUrl, getDosyaIndirUrl, uploadDosya, type BelgeSlot } from '@/services/dosyaService';
 import FotoCekModal from '@/components/FotoCekModal.vue';
 import SilmeOnayi from '@/components/SilmeOnayi.vue';
@@ -155,10 +153,6 @@ async function yukle() {
     .then((belgeler) => (katalogBelgeler.value = belgeler))
     .catch(() => { /* katalog çekilemezse sabit listelerle devam edilir */ });
 
-  // Havuz her ekran girişinde tazelenir (sonradan eklenen SMM firması görünsün)
-  getSmmFirmalari()
-    .then((liste) => (smmFirmalar.value = liste))
-    .catch(() => { /* havuz çekilemezse mevcut snapshot gösterilmeye devam eder */ });
 }
 
 onIonViewWillEnter(yukle);
@@ -201,75 +195,6 @@ function geri() {
 const firmaAdi = computed(() => {
   const f = asansor.value?.firmaId;
   return typeof f === 'object' && f ? f.ad : '';
-});
-
-// ---- SMM firması: havuzdan (Ayarlar > SMM Firmaları) seçilir, seçilen
-// kaydın bilgileri olduğu gibi asansöre kopyalanır ----
-const smmFirmalar = ref<SmmFirmasi[]>([]);
-const smmSecAcik = ref(false);
-
-// Seçim kutusunda görünen etiket: "yıl — kısa ad"
-const seciliSmmEtiket = computed(() => {
-  const a = asansor.value;
-  return a ? [a.smmYil, a.smmKisaAd].filter(Boolean).join(' — ') : '';
-});
-
-// Popup'tan seçilen SMM firmasının bilgileri olduğu gibi asansöre kopyalanır
-function smmFirmaSec(s: SmmFirmasi) {
-  guncelle({
-    smmFirmaId: s._id,
-    smmYil: s.yil,
-    smmKisaAd: s.kisaAd,
-    smmUnvan: s.unvan,
-    smmAdres: s.adres,
-    smmBuroTescilBelgesi: s.buroTescilBelgesi ?? null,
-    smmMakMuhAdSoyad: s.makMuhAdSoyad,
-    smmMakMuhOdaSicilNo: s.makMuhOdaSicilNo,
-    smmMakMuhTelefon: s.makMuhTelefon,
-    smmMakMuhSmmBelgesi: s.makMuhSmmBelgesi ?? null,
-    smmMakMuhImzaSirkusu: s.makMuhImzaSirkusu ?? null,
-    smmElkMuhAdSoyad: s.elkMuhAdSoyad,
-    smmElkMuhOdaSicilNo: s.elkMuhOdaSicilNo,
-    smmElkMuhTelefon: s.elkMuhTelefon,
-    smmElkMuhSmmBelgesi: s.elkMuhSmmBelgesi ?? null,
-    smmElkMuhImzaSirkusu: s.elkMuhImzaSirkusu ?? null,
-  });
-}
-
-// Seçimi ve kopyalanan tüm snapshot alanlarını temizler
-function smmTemizle() {
-  guncelle({
-    smmFirmaId: null, smmYil: null, smmKisaAd: '', smmUnvan: '', smmAdres: '',
-    smmBuroTescilBelgesi: null,
-    smmMakMuhAdSoyad: '', smmMakMuhOdaSicilNo: '', smmMakMuhTelefon: '',
-    smmMakMuhSmmBelgesi: null, smmMakMuhImzaSirkusu: null,
-    smmElkMuhAdSoyad: '', smmElkMuhOdaSicilNo: '', smmElkMuhTelefon: '',
-    smmElkMuhSmmBelgesi: null, smmElkMuhImzaSirkusu: null,
-  });
-}
-
-// Gösterim satırları — yalnızca dolu mühendis blokları listelenir
-const smmMuhendisler = computed(() => {
-  const a = asansor.value;
-  if (!a) return [];
-  return [
-    {
-      baslik: 'Makine Mühendisi',
-      adSoyad: a.smmMakMuhAdSoyad, sicil: a.smmMakMuhOdaSicilNo, telefon: a.smmMakMuhTelefon,
-      belgeler: [
-        { etiket: 'SMM Belgesi', dosya: a.smmMakMuhSmmBelgesi ?? null },
-        { etiket: 'İmza Sirküsü', dosya: a.smmMakMuhImzaSirkusu ?? null },
-      ],
-    },
-    {
-      baslik: 'Elektrik Mühendisi',
-      adSoyad: a.smmElkMuhAdSoyad, sicil: a.smmElkMuhOdaSicilNo, telefon: a.smmElkMuhTelefon,
-      belgeler: [
-        { etiket: 'SMM Belgesi', dosya: a.smmElkMuhSmmBelgesi ?? null },
-        { etiket: 'İmza Sirküsü', dosya: a.smmElkMuhImzaSirkusu ?? null },
-      ],
-    },
-  ].filter((m) => m.adSoyad || m.sicil || m.telefon || m.belgeler.some((b) => b.dosya));
 });
 
 // ---- Bölüm kutucukları (buton grubu) ----
@@ -1996,89 +1921,6 @@ const onBilgi = computed(() => {
             </div>
           </section>
 
-          <!-- SMM Bilgileri: havuzdan firma seçilir, bilgileri olduğu gibi
-          kopyalanır ve burada gösterilir -->
-          <section class="space-y-2 bg-surface-800 p-3 ring-1 ring-white/5">
-            <h2 class="text-xs font-bold uppercase tracking-wide text-ink">SMM Bilgileri</h2>
-
-            <div class="block space-y-0.5">
-              <span class="text-xs font-medium text-ink-muted">SMM Firması</span>
-              <div class="flex items-center gap-1.5">
-                <span class="min-w-0 flex-1 truncate bg-surface-900 px-2.5 py-2 text-xs ring-1 ring-white/10"
-                  :class="seciliSmmEtiket ? 'text-ink' : 'text-ink-muted/60'">
-                  {{ seciliSmmEtiket || 'SMM firması seçilmedi' }}
-                </span>
-                <button type="button" @click="smmSecAcik = true"
-                  class="shrink-0 bg-[#2b5c3d] px-3 py-2 text-xs font-semibold text-ink ring-1 ring-white/10 active:bg-[#346e4a]">
-                  {{ seciliSmmEtiket ? 'Değiştir' : 'Seç' }}
-                </button>
-              </div>
-            </div>
-
-            <template v-if="asansor.smmFirmaId || asansor.smmKisaAd">
-              <div class="flex items-start justify-between gap-2 border-t border-white/5 pt-2">
-                <div class="min-w-0 flex-1">
-                  <div class="flex items-center gap-2">
-                    <span v-if="asansor.smmYil"
-                      class="shrink-0 bg-[#1c2a21] px-2 py-0.5 text-[11px] font-semibold text-[#6fcf97] ring-1 ring-white/10">
-                      {{ asansor.smmYil }}
-                    </span>
-                    <span class="truncate text-xs font-semibold text-ink">{{ asansor.smmKisaAd }}</span>
-                  </div>
-                  <p v-if="asansor.smmUnvan" class="mt-1 text-[11px] text-ink-muted">{{ asansor.smmUnvan }}</p>
-                  <p v-if="asansor.smmAdres" class="mt-0.5 text-[11px] text-ink-muted/80">{{ asansor.smmAdres }}</p>
-                </div>
-                <button type="button" @click="smmTemizle" aria-label="SMM firması seçimini kaldır"
-                  class="grid h-6.5 w-7 shrink-0 place-items-center bg-surface-900 text-red-300/80 ring-1 ring-red-500/20">
-                  ✕
-                </button>
-              </div>
-
-              <!-- Büro tescil belgesi (varsa görüntülenebilir) -->
-              <div v-if="asansor.smmBuroTescilBelgesi"
-                class="flex items-center justify-between gap-2 border-t border-white/5 pt-2">
-                <div class="min-w-0">
-                  <span class="block text-[10px] text-ink-muted">Büro Tescil Belgesi</span>
-                  <span class="block truncate text-xs font-medium text-ink">{{ asansor.smmBuroTescilBelgesi.dosyaAdi }}</span>
-                </div>
-                <button type="button" @click="dosyaSlotAc(asansor.smmBuroTescilBelgesi)"
-                  aria-label="Büro tescil belgesini görüntüle"
-                  class="grid h-6.5 w-8 shrink-0 place-items-center bg-[#2b5c3d] text-ink ring-1 ring-white/10 active:bg-[#346e4a]">
-                  <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                    stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M2.06 12.35a1 1 0 0 1 0-.7C3.42 8.24 7.26 5 12 5s8.58 3.24 9.94 6.65a1 1 0 0 1 0 .7C20.58 15.76 16.74 19 12 19s-8.58-3.24-9.94-6.65" />
-                    <circle cx="12" cy="12" r="3" />
-                  </svg>
-                </button>
-              </div>
-
-              <!-- Mühendis bilgileri (yalnızca dolu bloklar) -->
-              <div v-for="m in smmMuhendisler" :key="m.baslik"
-                class="border-t border-white/5 pt-2">
-                <h3 class="text-[10px] font-bold uppercase tracking-wide text-ink-muted">{{ m.baslik }}</h3>
-                <p class="mt-0.5 flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-ink-muted">
-                  <span v-if="m.adSoyad">Ad Soyad: <strong class="font-semibold text-ink">{{ m.adSoyad }}</strong></span>
-                  <span v-if="m.sicil">Oda Sicil No: <strong class="font-semibold text-ink">{{ m.sicil }}</strong></span>
-                  <span v-if="m.telefon">Telefon: <strong class="font-semibold text-ink">{{ m.telefon }}</strong></span>
-                </p>
-                <div class="mt-1 flex flex-wrap gap-1.5">
-                  <template v-for="b in m.belgeler" :key="b.etiket">
-                    <button v-if="b.dosya" type="button" @click="dosyaSlotAc(b.dosya)"
-                      class="flex items-center gap-1.5 bg-surface-900 px-2 py-1 text-[11px] font-medium text-ink ring-1 ring-white/10 active:bg-[#1a2a20]">
-                      <svg class="h-3 w-3 text-[#6fcf97]" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                        stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <path d="M2.06 12.35a1 1 0 0 1 0-.7C3.42 8.24 7.26 5 12 5s8.58 3.24 9.94 6.65a1 1 0 0 1 0 .7C20.58 15.76 16.74 19 12 19s-8.58-3.24-9.94-6.65" />
-                        <circle cx="12" cy="12" r="3" />
-                      </svg>
-                      {{ b.etiket }}
-                    </button>
-                  </template>
-                </div>
-              </div>
-            </template>
-            <p v-else class="text-xs text-ink-muted">Henüz SMM firması seçilmedi.</p>
-          </section>
-
           <!-- Risk durumları paneli: şema verilerinden türeyen uyarılar -->
           <section class="bg-surface-800 p-3 ring-1 ring-white/5">
             <h2 class="mb-2 text-xs font-bold uppercase tracking-wide text-ink">Risk Durumları</h2>
@@ -2211,9 +2053,6 @@ const onBilgi = computed(() => {
       <p class="py-4 text-center text-xs text-ink-muted">Bu bölümün içeriği daha sonra eklenecek.</p>
     </SemaModal>
 
-    <!-- SMM firması seçim popup'ı — satıra dokununca bilgiler kopyalanır -->
-    <SmmFirmaSecModal v-model:acik="smmSecAcik" :firmalar="smmFirmalar"
-      :secili-id="asansor?.smmFirmaId" @sec="smmFirmaSec" />
 
     <!-- Kuyu dibi risk analizi — hazır maddelerden çoktan seçmeli;
     kapanınca seçim asansöre kaydedilir -->

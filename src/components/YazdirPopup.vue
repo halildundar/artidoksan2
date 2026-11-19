@@ -46,6 +46,7 @@ const tuvFormsSeti = ref('tuv-temp1');
 const yukleniyor = ref(false);
 const hata = ref('');
 const listeMesaji = ref('');
+const zipAdi = ref('');
 
 async function yukle(sessiz = false) {
   if (!kayitId.value) return;
@@ -58,6 +59,7 @@ async function yukle(sessiz = false) {
     teknikDosyaSeti.value = liste.teknikDosyaSeti ?? 'ce-td-temp1';
     tuvFormsSeti.value = liste.tuvFormsSeti ?? 'tuv-temp1';
     listeMesaji.value = liste.mesaj ?? '';
+    zipAdi.value = liste.zipAdi ?? '';
   } catch (e) {
     hata.value = e instanceof Error ? e.message : 'Liste yüklenemedi';
   } finally {
@@ -332,7 +334,7 @@ async function tumunuIndir() {
   zipUrl.value = '';
   zipHata.value = '';
   try {
-    const sonuc = await createZipLink(kaynak.value === 'denetimler' ? 'Denetim Dosyası' : 'Tescil Dosyası', zipIcerigi.value);
+    const sonuc = await createZipLink(zipAdi.value || (kaynak.value === 'denetimler' ? 'Denetim Dosyası' : 'Tescil Dosyası'), zipIcerigi.value);
     zipUrl.value = sonuc.url;
   } catch (e) {
     zipHata.value = e instanceof Error ? e.message : 'ZIP oluşturulamadı';

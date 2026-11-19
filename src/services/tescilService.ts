@@ -57,6 +57,7 @@ export interface YazdirListesi {
   tuvFormsSeti?: string;
   kalemler: YazdirKalemi[];
   mesaj?: string;
+  zipAdi?: string;
 }
 
 export interface YeniTescil {

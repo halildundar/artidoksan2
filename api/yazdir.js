@@ -265,8 +265,8 @@ export async function sablonVerisi({ tescil, firma, asansor }) {
     [`${onEk}_nobo`]: grup?.nobo ?? '',
   });
 
-  // SMM bilgileri asansör kaydına seçim anında kopyalanır — asansör öncelikli
-  const smm = (alan) => bos(asansor?.[alan] || firma?.[alan]);
+  // SMM bilgileri firma kaydından gelir (eski asansör kopyaları yedek)
+  const smm = (alan) => bos(firma?.[alan] || asansor?.[alan]);
 
   return {
     // Firma
@@ -830,11 +830,11 @@ function dosyaKalemi(kod, { tescil, firma, asansor }) {
     case 'hyb': return tekil(firma?.hybDosya);
     case 'sanayi-sicil': return tekil(firma?.sanayiSicilDosya);
     case 'fatura': return tescil.faturalar ?? [];
-    case 'buro-tescil': return tekil(asansor?.smmBuroTescilBelgesi || firma?.smmBuroTescilBelgesi);
-    case 'imza-sirkusu-elk': return tekil(asansor?.smmElkMuhImzaSirkusu || firma?.smmElkMuhImzaSirkusu);
-    case 'imza-sirkusu-mak': return tekil(asansor?.smmMakMuhImzaSirkusu || firma?.smmMakMuhImzaSirkusu);
-    case 'smm-elk': return tekil(asansor?.smmElkMuhSmmBelgesi || firma?.smmElkMuhSmmBelgesi);
-    case 'smm-mak': return tekil(asansor?.smmMakMuhSmmBelgesi || firma?.smmMakMuhSmmBelgesi);
+    case 'buro-tescil': return tekil(firma?.smmBuroTescilBelgesi || asansor?.smmBuroTescilBelgesi);
+    case 'imza-sirkusu-elk': return tekil(firma?.smmElkMuhImzaSirkusu || asansor?.smmElkMuhImzaSirkusu);
+    case 'imza-sirkusu-mak': return tekil(firma?.smmMakMuhImzaSirkusu || asansor?.smmMakMuhImzaSirkusu);
+    case 'smm-elk': return tekil(firma?.smmElkMuhSmmBelgesi || asansor?.smmElkMuhSmmBelgesi);
+    case 'smm-mak': return tekil(firma?.smmMakMuhSmmBelgesi || asansor?.smmMakMuhSmmBelgesi);
     default: return [];
   }
 }

@@ -703,6 +703,7 @@ const doldurmaSecenegi = ({ denetim, asansor }, kalem) => ({
     const yamali = icindekilerSayfaKirilimi(wordSayfaKirilimlari(hucreIciKonumlariDuzelt(birlesikSatirlariTekle(bosDolguTablolariniKaldir(checklistYamasi(xml))))));
     if (kalem?.kod === 'module-g-certificate') return bosParagraflariKucult(yamali);
     if (kalem?.kod === 'deviation-report') return uzunSatirlariEsnet(yamali);
+    if (kalem?.kod === 'application-form') return basvuruBosParagraflariniKaldir(yamali, 'I declare that:');
     return yamali;
   },
 });
@@ -879,6 +880,23 @@ function wordSayfaKirilimlari(xml) {
   });
 }
 
+// 1.APPLICATION FROM: 1. sayfa LibreOffice'te tam doluyor; tablodan sonraki boş paragraflar 2. sayfaya
+// taşıyıp boş bir sayfa oluşturuyor ("I declare that:" zaten sayfa başına alınıyor). O paragraflar atılır.
+function basvuruBosParagraflariniKaldir(xml, hedefMetin) {
+  const hedef = xml.indexOf(hedefMetin);
+  if (hedef === -1) return xml;
+  let bas = xml.lastIndexOf('<w:p ', hedef);
+  if (bas === -1) bas = xml.lastIndexOf('<w:p>', hedef);
+  let onceki = xml.slice(0, bas);
+  const bosParagraf = /<w:p(?: [^>]*)?>(?:(?!<\/w:p>)[\s\S])*<\/w:p>\s*$/;
+  for (;;) {
+    const m = bosParagraf.exec(onceki);
+    if (!m || /<w:t[ >]|<w:drawing|<w:pict|<w:br|<w:sectPr|<w:tbl/.test(m[0])) break;
+    onceki = onceki.slice(0, m.index);
+  }
+  return onceki + xml.slice(bas);
+}
+
 function checklistYamasi(xml) {
   const y = [
     ['{durak_sayisi}  (-2', '{durak_sayisi}  ({durak_listesi})  /   {as_seyir_mes} m / {makine_konum}'],
@@ -936,10 +954,11 @@ function dosyaKalemi(kalem, { denetim, firma, asansor }) {
     case 'type-projects': return denetim.tipProjeler ?? [];
     // 9.1: firmanın SMM bilgilerinde yüklü sözleşme (yoksa "eksik")
     case 'project-service-contract': return tekil(firma?.smmSozlesme);
-    // 9.2: SMM firmasındaki mühendislerin SMM belgeleri + imza sirküleri
+    // 9.2: SMM firmasındaki mühendislerin SMM belgeleri + imza sirküleri + büro tescil belgesi.
+    // SMM bilgileri firma kaydından gelir (eski asansör kopyaları yedek); yüklü olmayan belge atlanır
     case 'engineers-competency':
-      return ['smmMakMuhSmmBelgesi', 'smmMakMuhImzaSirkusu', 'smmElkMuhSmmBelgesi', 'smmElkMuhImzaSirkusu']
-        .flatMap((alan) => tekil(asansor?.[alan] || firma?.[alan]));
+      return ['smmMakMuhSmmBelgesi', 'smmMakMuhImzaSirkusu', 'smmElkMuhSmmBelgesi', 'smmElkMuhImzaSirkusu', 'smmBuroTescilBelgesi']
+        .flatMap((alan) => tekil(firma?.[alan] || asansor?.[alan]));
     default: return [];
   }
 }
@@ -1116,6 +1135,9 @@ router.get('/:id/yazdir', async (req, res) => {
       teknikDosyaSeti: setSecimi(baglam.denetim.teknikDosyaSeti, TEKNIK_DOSYA_SETLERI, CE),
       tuvFormsSeti: setSecimi(baglam.denetim.tuvFormsSeti, TUV_FORMS_SETLERI, TUV),
       kalemler: await kalemListesi(baglam),
+      // İndirilen ZIP adı: "<Modül> <Firma adı> Denetim dosyası"
+      zipAdi: [YAZDIR_MODUL_ETIKETI[ceModulKodu(baglam.denetim.modul)], baglam.firma?.ad, 'Denetim dosyası']
+        .filter(Boolean).join(' ').replace(/[\\/:*?"<>|]+/g, ' ').replace(/\s+/g, ' ').trim(),
     });
   } catch (err) {
     res.status(500).json({ message: err.message });
