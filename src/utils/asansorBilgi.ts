@@ -160,7 +160,7 @@ export function asansorBolumleri(a: Asansor): BilgiBolumu[] {
         ['Kapı Adedi', sayi(g.adet)]],
       [['Panel Sayısı', sayi(g.panel)], ['Açılış Yönü', etiket(YON_ETIKETLERI, g.yon)]],
       [['Konum', etiket(KONUM_ETIKETLERI, g.konum)], ['Panel Malzemesi', etiket(PANEL_MALZEME_ETIKETLERI, g.malzeme)]],
-      [['Düşük Kapı Durakları', (g.dusuk ?? []).join(', ')], ['Panel Markası', g.marka]],
+      [['Düşük Kapı Durakları', (g.dusuk ?? []).join(', ')]],
     ];
     if (g.duraklar) satirlar.push([['2. Giriş Durakları', g.duraklar.join(', ')]]);
     return satirlar;
@@ -187,12 +187,12 @@ export function asansorBolumleri(a: Asansor): BilgiBolumu[] {
     {
       baslik: 'Teknik Özellikler',
       satirlar: [
-        [['Tahrik', etiket(TAHRIK_ETIKETLERI, a.tahrikTipi)], ['Sınıf', etiket(SINIF_ETIKETLERI, a.sinif)]],
+        [['Tahrik', etiket(TAHRIK_ETIKETLERI, a.tahrikTipi ?? 'elektrikli')], ['Sınıf', etiket(SINIF_ETIKETLERI, a.sinif)]],
         [['Makina Konumu', etiket(MAKINA_KONUMU_ETIKETLERI, a.makinaKonumu)], ['Askı Tipi', a.askiTipi ?? '']],
         [['Durak Sayısı', sayi(a.durakSayisi)], ['Kat Sayısı', sayi(a.katSayisi)]],
         [['Beyan Yükü', sayi(a.beyanYuku, ' kg')], ['Kişi Sayısı', sayi(a.kisiSayisi)]],
         [['Hız', sayi(a.hiz, ' m/s')], ['Seyir Mesafesi', sayi(a.seyirMesafesi, ' mm')]],
-        [['Son Kat Yüksekliği', sayi(a.sonKatYukseklik, ' mm')], ['Karşı Ağırlık Konumu', etiket(AGIRLIK_KONUMU_ETIKETLERI, a.karsiAgirlikKonumu)]],
+        [['Son Kat Yüksekliği', sayi(a.sonKatYukseklik ?? a.kuyuUstSonKat, ' mm')], ['Karşı Ağırlık Konumu', etiket(AGIRLIK_KONUMU_ETIKETLERI, a.karsiAgirlikKonumu)]],
       ],
     },
     {
@@ -220,15 +220,23 @@ export function asansorBolumleri(a: Asansor): BilgiBolumu[] {
     liste.push({ baslik: 'Giriş 2 Kapısı', satirlar: girisSatirlari(2) });
   }
 
+  // 1:1 askıda tahrik + saptırma kasnağı; 2:1 ve üzerinde tahrik kasnağı + palangalar gösterilir
+  const kasnakSatirlari: Satir[] = a.askiTipi === '1:1'
+    ? [
+        [['Saptırma Kasnağı Çapı', sayi(a.halatSapturmaKasnagiCapi, ' mm')], ['Askı–Halat Mesafesi', sayi(a.askiHalatArasiMesafe, ' mm')]],
+      ]
+    : [
+        [['Palanga 1 Çapı', sayi(a.halatPalanga1Capi, ' mm')], ['Palanga 2 Çapı', sayi(a.halatPalanga2Capi, ' mm')]],
+        [['Palanga 3 Çapı', sayi(a.halatPalanga3Capi, ' mm')], ['Palanga–Halat Mesafesi (en uzak halatlar arası)', sayi(a.palangaHalatArasiMesafe, ' mm')]],
+      ];
+
   liste.push(
     {
       baslik: 'Halat & Kasnaklar',
       satirlar: [
         [['Halat', [sayi(a.halatAdet), a.halatTipi].filter(Boolean).join(' × ')], ['Halat Şekli', etiket(HALAT_SEKLI_ETIKETLERI, a.halatSekli)]],
         [['Halat Markası', a.halatMarka], ['Tahrik Kasnak Çapı', sayi(a.tahrikKasnakCapi, ' mm')]],
-        [['Saptırma Kasnağı Çapı', sayi(a.halatSapturmaKasnagiCapi, ' mm')], ['Palanga 1 Çapı', sayi(a.halatPalanga1Capi, ' mm')]],
-        [['Palanga 2 Çapı', sayi(a.halatPalanga2Capi, ' mm')], ['Palanga 3 Çapı', sayi(a.halatPalanga3Capi, ' mm')]],
-        [['Askı–Halat Mesafesi', sayi(a.askiHalatArasiMesafe, ' mm')], ['Palanga–Halat Mesafesi', sayi(a.palangaHalatArasiMesafe, ' mm')]],
+        ...kasnakSatirlari,
         [['Kasnaklar Yatay Mesafe', sayi(a.kasnaklarArasiYatayMesafe, ' mm')], ['Kasnaklar Dikey Mesafe', sayi(a.kasnaklarArasiDikeyMesafe, ' mm')]],
         [['Sarım Açısı', sayi(a.sarimAcisi, '°')]],
       ],
@@ -238,8 +246,8 @@ export function asansorBolumleri(a: Asansor): BilgiBolumu[] {
       satirlar: [
         [['Kabin Ray Tipi', rayTipiEtiketi(a.kabinRayTipi)], ['Kabin Ray Arası', sayi(a.kabinRayArasi, ' mm')]],
         [['K.A. Ray Tipi', rayTipiEtiketi(a.karsiAgirlikRayTipi)], ['K.A. Ray Arası', sayi(a.karsiAgirlikRayArasi, ' mm')]],
-        [['Kabin Ray–Durak Kapısı', sayi(a.kabinRayDurakKapisiArasi, ' mm')], ['Kabin Ray–K.A. Ray', sayi(a.kabinRayKarsiAgirlikRayArasi, ' mm')]],
-        [['K.A. Ray–Durak Kapısı', sayi(a.karsiAgirlikRayDurakKapisiArasi, ' mm')], ['Ray Markası', a.rayMarka]],
+        [['Kabin Ray–Durak Kapısı', sayi(a.kabinRayDurakKapisiArasi ?? a.rayRK, ' mm')], ['Kabin Ray–K.A. Ray', sayi(a.kabinRayKarsiAgirlikRayArasi ?? a.rayRR, ' mm')]],
+        [['K.A. Ray–Durak Kapısı', sayi(a.karsiAgirlikRayDurakKapisiArasi ?? (a.rayRR != null && a.rayRK != null ? a.rayRR + a.rayRK : null), ' mm')], ['Ray Markası', a.rayMarka]],
         [['Regülatör Konumu', etiket(REGULATOR_KONUM_ETIKETLERI, a.regulatorKonumu)]],
       ],
     },
@@ -309,6 +317,7 @@ export function asansorRiskGruplari(a: Asansor) {
     { baslik: 'Kuyu Dibi Risk Analizi', maddeler: a.kuyuDibiRiskMaddeleri ?? [] },
     { baslik: 'Kuyu Üstü Risk Analizi', maddeler: a.kuyuUstuRiskMaddeleri ?? [] },
     { baslik: 'Makine Dairesi Risk Analizi', maddeler: a.makineDairesiRiskMaddeleri ?? [] },
+    { baslik: 'Alçak Durak Kapıları Risk Analizi', maddeler: a.alcakKapiRiskMaddeleri ?? [] },
   ].filter((g) => g.maddeler.length);
 }
 

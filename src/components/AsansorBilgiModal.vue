@@ -4,6 +4,8 @@ import { useRouter } from 'vue-router';
 import { getAsansor, type Asansor } from '@/services/asansorService';
 import { getAksamBelgesi } from '@/services/aksamBelgesiService';
 import { getDosyaUrl, getDosyaIndirUrl, type BelgeSlot } from '@/services/dosyaService';
+import LinkPopup from '@/components/LinkPopup.vue';
+import { useAsansorPdf } from '@/composables/useAsansorPdf';
 import { useFileViewer, fileViewerTypeFromMime } from '@/composables/useFileViewer';
 import {
   asansorBolumleri, asansorRiskGruplari, asansorBelgeSatirlari, asansorFotoGruplari,
@@ -25,6 +27,8 @@ function duzenle() {
   acik.value = false;
   router.push(`/asansor/${props.asansorId}`);
 }
+
+const { pdfAcik, pdfUrl, pdfHata, pdfDosyaAdi, pdfOlustur } = useAsansorPdf();
 
 const asansor = ref<Asansor | null>(null);
 const yukleniyor = ref(false);
@@ -134,6 +138,14 @@ const katYukseklikleri = computed(() =>
           {{ asansor?.seriNo || asansor?.yapiRuhsatNo || 'Asansör Bilgileri' }}
         </h2>
         <div class="flex shrink-0 items-center gap-1.5">
+          <button v-if="asansor" type="button" @click="pdfOlustur(asansor)"
+            class="flex h-8 items-center gap-1 bg-[#2b5c3d] px-2.5 text-[11px] font-semibold text-ink ring-1 ring-white/10 active:bg-[#346e4a]">
+            <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+              <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+            </svg>
+            PDF
+          </button>
           <button v-if="asansorId" type="button" @click="duzenle"
             class="flex h-8 items-center gap-1 bg-[#2b5c3d] px-2.5 text-[11px] font-semibold text-ink ring-1 ring-white/10 active:bg-[#346e4a]">
             <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -187,6 +199,11 @@ const katYukseklikleri = computed(() =>
                   <tr v-for="k in katYukseklikleri" :key="k.kat" class="border-t border-white/5">
                     <th class="w-24 bg-surface-900 px-2 py-1.5 font-medium text-ink-muted">{{ k.kat }}. Kat</th>
                     <td class="px-2 py-1.5 text-ink">{{ k.yukseklik }} mm</td>
+                    <!-- Kapı yüksekliği: 2000 mm altı kırmızı (alçak durak kapıları risk analizi) -->
+                    <td class="px-2 py-1.5"
+                      :class="(k.kapiYuksekligi ?? asansor?.giris1KapiYukseklik ?? 0) > 0 && (k.kapiYuksekligi ?? asansor?.giris1KapiYukseklik ?? 0) < 2000 ? 'font-semibold text-red-300' : 'text-ink'">
+                      Kapı: {{ k.kapiYuksekligi ?? asansor?.giris1KapiYukseklik ?? '—' }}{{ (k.kapiYuksekligi ?? asansor?.giris1KapiYukseklik) != null ? ' mm' : '' }}
+                    </td>
                   </tr>
                 </tbody>
               </table>
@@ -312,4 +329,9 @@ const katYukseklikleri = computed(() =>
       </div>
     </div>
   </Teleport>
+
+  <LinkPopup v-model:acik="pdfAcik" :url="pdfUrl" :hata="pdfHata"
+    bekleme-metni="Asansör bilgileri PDF'i oluşturuluyor…"
+    aciklama="Asansörün tüm bilgileri, şemaları ve dosya linkleri PDF'te toplandı."
+    goruntule-tip="pdf" :goruntule-ad="pdfDosyaAdi" />
 </template>

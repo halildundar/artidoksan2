@@ -79,6 +79,7 @@ export const KALEMLER = [
   { no: 36, kod: 'risk-analiz-dip', ad: 'Risk Analiz Formu - Kuyu Dibi', tip: 'sablon', riskGrup: 'dip' },
   { no: 37, kod: 'risk-analiz-ust', ad: 'Risk Analiz Formu - Kuyu Üstü', tip: 'sablon', riskGrup: 'ust' },
   { no: 38, kod: 'risk-analiz-makine', ad: 'Risk Analiz Formu - Makine Dairesi', tip: 'sablon', riskGrup: 'makine' },
+  { no: 39, kod: 'risk-analiz-kapi', ad: 'Risk Analiz Formu - Alçak Durak Kapıları', tip: 'sablon', riskGrup: 'kapi' },
 ];
 
 // Risk formu kalemi, asansörde o risk analizi gerekiyorsa etkindir (diğer kalemler her zaman)
@@ -144,7 +145,6 @@ function halatCapMM(halatTipi) {
   return m ? m[1] : halatTipi;
 }
 
-const TAHRIK_ETIKET = { elektrikli: 'Elektrikli', hidrolik: 'Hidrolik' };
 const SINIF_ETIKET = { insan_ve_yuk: 'İnsan ve Yük', yuk: 'Yük' };
 export const MAKINA_KONUMU_ETIKET = { MR: 'Makine Daireli', MRL: 'Makine Dairesiz' };
 
@@ -303,22 +303,20 @@ export async function sablonVerisi({ tescil, firma, asansor }) {
     kapasite: kapasiteKg,
     hiz: bos(asansor?.hiz),
     sinif: asansor?.sinif ? SINIF_ETIKET[asansor.sinif] ?? asansor.sinif : '',
-    // Tahrik/asansör tipi girilmemişse (varsayılan) Elektrikli basılır
-    tahrik_tip: asansor?.tahrikTipi ? TAHRIK_ETIKET[asansor.tahrikTipi] ?? asansor.tahrikTipi : 'Elektrikli',
+    // Tahrik tipi yazdırılan belgelerde her zaman Elektrikli basılır (kayıttaki değerden bağımsız)
+    tahrik_tip: 'Elektrikli',
     aski_oran: bos(asansor?.askiTipi),
     seyir_mesafesi: bos(asansor?.seyirMesafesi),
     mak_dairesi: asansor?.makinaKonumu
       ? MAKINA_KONUMU_ETIKET[asansor.makinaKonumu] ?? asansor.makinaKonumu
       : '',
-    // "Asansörün Tipi" satırı: hidrolikse Hidrolik, değilse makine konumu
+    // "Asansörün Tipi" satırı: makine konumu (tahrik her zaman elektrikli)
     asansor_tipi:
-      asansor?.tahrikTipi === 'hidrolik'
-        ? 'Hidrolik'
-        : asansor?.makinaKonumu === 'MR'
-          ? 'Makine Daireli (MR)'
-          : asansor?.makinaKonumu === 'MRL'
-            ? 'Makine Dairesiz (MRL)'
-            : '',
+      asansor?.makinaKonumu === 'MR'
+        ? 'Makine Daireli (MR)'
+        : asansor?.makinaKonumu === 'MRL'
+          ? 'Makine Dairesiz (MRL)'
+          : '',
     halat_adet: bos(asansor?.halatAdet),
     halat_mm: halatCapMM(asansor?.halatTipi),
     kab_gen: bos(asansor?.kabinGenislik),

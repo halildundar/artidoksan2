@@ -5,6 +5,7 @@ import { useRoute, useRouter } from 'vue-router';
 import { createAsansor, getAsansor, updateAsansor, type YeniAsansor, type GuvenlikAksami } from '@/services/asansorService';
 import { getFirmalar } from '@/services/firmaService';
 import { getAksamBelgeleri, type AksamBelgesi } from '@/services/aksamBelgesiService';
+import { markaEtiketi, tipEtiketi } from '@/components/sema/kapiKilitleriTipleri';
 import { uploadDosya, type BelgeSlot } from '@/services/dosyaService';
 import AdresSecici from '@/components/AdresSecici.vue';
 import AramaliSelect from '@/components/AramaliSelect.vue';
@@ -70,7 +71,7 @@ const form = ref({
   kabinRayKarsiAgirlikRayArasi: '' as Sayi,
   karsiAgirlikRayDurakKapisiArasi: '' as Sayi,
   kuyuDipYukseklik: '' as Sayi,
-  katYukseklikleri: [] as { kat: Sayi; yukseklik: Sayi }[],
+  katYukseklikleri: [] as { kat: Sayi; yukseklik: Sayi; kapiYuksekligi?: Sayi }[],
   sonKatYukseklik: '' as Sayi,
   seyirMesafesi: '' as Sayi,
   kuyuGenislik: '' as Sayi, kuyuDerinlik: '' as Sayi,
@@ -141,12 +142,13 @@ const firmaModel = computed<string | number | null>({
 
 function belgelerKod(kod: string | string[]) {
   const kodlar = Array.isArray(kod) ? kod : [kod];
-  return belgeler.value.filter((b) => kodlar.includes(b.bilesenTipiKodu) && b.durum === 'aktif');
+  return belgeler.value.filter((b) => kodlar.includes(b.bilesenTipiKodu));
 }
 
 function markaSecenekleri(kod: string) {
   const markalar = [...new Set(belgelerKod(kod).map((b) => b.marka).filter(Boolean))];
-  return markalar.sort((a, b) => a.localeCompare(b, 'tr')).map((m) => ({ label: m, value: m }));
+  const belgeListesi = belgelerKod(kod);
+  return markalar.sort((a, b) => a.localeCompare(b, 'tr')).map((m) => ({ label: markaEtiketi(belgeListesi, m), value: m }));
 }
 
 function strModel(al: () => string, ata: (v: string) => void) {
@@ -182,19 +184,19 @@ const halatTipiSecenekleri = computed(() => {
   const kaynak = belgelerKod('halat').filter((b) => !form.value.halatMarka || b.marka === form.value.halatMarka);
   // Standart halat tipi listesi her zaman sunulur; katalogdan gelenler eklenir.
   const tipler = [...new Set([...HALAT_TIPI_DEGERLERI, ...kaynak.flatMap((b) => b.tipler)])];
-  return tipler.map((t) => ({ label: t, value: t }));
+  return tipler.map((t) => ({ label: tipEtiketi(kaynak, null, t), value: t }));
 });
 
 // Motor: katalogdan sertifika seçilir, tip o sertifikanın tipler listesinden
 const motorBelgeSecenekleri = computed(() =>
   belgelerKod(['motor_dislisiz', 'motor_dislili']).map((b) => ({
-    label: `${b.marka}${b.bilesenTipiKodu === 'motor_dislili' ? ' (Dişlili)' : ' (Dişlisiz)'}${b.belgeTipi ? ` — ${b.belgeTipi}` : ''}`,
+    label: `${b.marka}${b.bilesenTipiKodu === 'motor_dislili' ? ' (Dişlili)' : ' (Dişlisiz)'}${b.belgeTipi ? ` — ${b.belgeTipi}` : ''}${b.durum === 'pasif' ? ' (Pasif)' : ''}`,
     value: b._id,
   }))
 );
 const motorModel = strModel(() => form.value.motorAksamBelgesiId, (v) => { form.value.motorAksamBelgesiId = v; form.value.motorTip = ''; });
 const seciliMotorBelgesi = computed(() => belgeler.value.find((b) => b._id === form.value.motorAksamBelgesiId) ?? null);
-const motorTipSecenekleri = computed(() => (seciliMotorBelgesi.value?.tipler ?? []).map((t) => ({ label: t, value: t })));
+const motorTipSecenekleri = computed(() => (seciliMotorBelgesi.value?.tipler ?? []).map((t) => ({ label: seciliMotorBelgesi.value?.durum === 'pasif' ? `${t} (Pasif)` : t, value: t })));
 const motorTipModel = strModel(() => form.value.motorTip, (v) => (form.value.motorTip = v));
 const motorDislili = computed(() => seciliMotorBelgesi.value?.bilesenTipiKodu === 'motor_dislili');
 
@@ -230,13 +232,13 @@ function slotToggle(slot: string, aktifMi: boolean) {
 }
 function slotBelgeSecenekleri(kod: string) {
   return belgelerKod(kod).map((b) => ({
-    label: [b.marka, b.sertifikaNo].filter(Boolean).join(' — ') || b.bilesenTipiAdi,
+    label: ([b.marka, b.sertifikaNo].filter(Boolean).join(' — ') || b.bilesenTipiAdi) + (b.durum === 'pasif' ? ' (Pasif)' : ''),
     value: b._id,
   }));
 }
 function satirTipSecenekleri(satir: AksamSatiri) {
   const belge = belgeler.value.find((b) => b._id === satir.aksamBelgesiId);
-  return (belge?.tipler ?? []).map((t) => ({ label: t, value: t }));
+  return (belge?.tipler ?? []).map((t) => ({ label: belge?.durum === 'pasif' ? `${t} (Pasif)` : t, value: t }));
 }
 function satirBelgeModel(satir: AksamSatiri) {
   return computed<string | number | null>({
@@ -411,7 +413,7 @@ function kayitVerisi(): YeniAsansor {
   veri.abUygunlukBeyaniTarihi = f.abUygunlukBeyaniTarihi ? new Date(f.abUygunlukBeyaniTarihi).toISOString() : null;
   veri.katYukseklikleri = f.katYukseklikleri
     .filter((k) => s(k.kat) !== null && s(k.yukseklik) !== null)
-    .map((k) => ({ kat: s(k.kat), yukseklik: s(k.yukseklik) }));
+    .map((k) => ({ kat: s(k.kat), yukseklik: s(k.yukseklik), kapiYuksekligi: s(k.kapiYuksekligi ?? '') }));
   veri.agirlikBloklari = f.agirlikBloklari
     .filter((b) => s(b.adet) !== null && s(b.birimAgirlik) !== null)
     .map((b) => ({ adet: s(b.adet), birimAgirlik: s(b.birimAgirlik) }));
@@ -692,7 +694,7 @@ async function kaydet() {
                   class="w-full bg-surface-900 px-2 py-1.5 text-xs text-ink ring-1 ring-white/10 outline-none focus:ring-white/30" />
               </label>
               <label v-else-if="form.askiTipi" class="block space-y-0.5">
-                <span class="text-xs font-medium text-ink-muted">Palanga-Halat Arası (mm)</span>
+                <span class="text-xs font-medium text-ink-muted">Palanga-Halat Arası (en uzak halatlar arası, mm)</span>
                 <input v-model.number="form.palangaHalatArasiMesafe" type="number"
                   class="w-full bg-surface-900 px-2 py-1.5 text-xs text-ink ring-1 ring-white/10 outline-none focus:ring-white/30" />
               </label>
@@ -871,7 +873,12 @@ async function kaydet() {
                 <input v-model.number="kat.kat" type="number" placeholder="Kat"
                   class="w-16 bg-surface-900 px-2 py-1.5 text-xs text-ink ring-1 ring-white/10 outline-none focus:ring-white/30" />
                 <input v-model.number="kat.yukseklik" type="number" placeholder="Yükseklik (mm)"
-                  class="flex-1 bg-surface-900 px-2 py-1.5 text-xs text-ink ring-1 ring-white/10 outline-none focus:ring-white/30" />
+                  class="min-w-0 flex-1 bg-surface-900 px-2 py-1.5 text-xs text-ink ring-1 ring-white/10 outline-none focus:ring-white/30" />
+                <input v-model.number="kat.kapiYuksekligi" type="number" placeholder="Kapı (mm)"
+                  class="min-w-0 flex-1 px-2 py-1.5 text-xs outline-none ring-1"
+                  :class="typeof kat.kapiYuksekligi === 'number' && kat.kapiYuksekligi < 2000
+                    ? 'bg-red-950/60 font-semibold text-red-300 ring-red-500/50'
+                    : 'bg-surface-900 text-ink ring-white/10 focus:ring-white/30'" />
                 <button type="button" @click="katSil(i)"
                   class="grid h-7 w-7 shrink-0 place-items-center bg-surface-900 text-red-300/80 ring-1 ring-red-500/20">✕</button>
               </div>

@@ -101,6 +101,18 @@ async function denetimSetiKaydet(alan: 'teknikDosyaSeti' | 'tuvFormsSeti', event
   }
 }
 
+// Yazdırma öncesi sorulan seçenek (ör. Modül B sertifikası ürün açıklaması: makine daireli / dairesiz / her ikisi)
+async function secimKaydet(kalem: YazdirKalemi, event: Event) {
+  if (!props.denetimId || !kalem.secim) return;
+  const deger = (event.target as HTMLSelectElement).value;
+  try {
+    await updateDenetim(props.denetimId, { [kalem.secim.alan]: deger } as never);
+    yukle(true);
+  } catch (e) {
+    hata.value = e instanceof Error ? e.message : 'Kaydedilemedi';
+  }
+}
+
 // ---- Yazdırma işleri: üretim SUNUCUDA bir kuyrukta çalışır; burada yalnız
 // istek gönderilir ve ilerleme sorgulanır. Sayfadan/uygulamadan çıkılsa da
 // iş sürer, geri dönünce ilerleme kaldığı yerden görünür. Tescildeki diğer
@@ -532,6 +544,15 @@ async function tumunuIndir() {
                   </span>
                 </template>
               </div>
+
+              <!-- Yazdırmadan önce sorulan seçenek -->
+              <label v-if="kalem.secim" class="flex items-center gap-2">
+                <span class="shrink-0 text-[11px] font-medium text-ink-muted">{{ kalem.secim.etiket }}:</span>
+                <select :value="kalem.secim.deger" :disabled="yazdirmaMesgul" @change="secimKaydet(kalem, $event)"
+                  class="min-w-0 flex-1 bg-surface-900 px-2 py-1.5 text-[11px] text-ink ring-1 ring-white/10 outline-none focus:ring-white/30">
+                  <option v-for="o in kalem.secim.secenekler" :key="o.deger" :value="o.deger">{{ o.etiket }}</option>
+                </select>
+              </label>
 
               <!-- Şablon: üretilmiş PDF/DOCX aksiyonları (DOCX yalnız indirilir) -->
               <div v-if="kalem.tip === 'sablon' && kalem.uretilen" class="flex flex-wrap gap-1.5">

@@ -5,6 +5,8 @@ import { useRoute, useRouter } from 'vue-router';
 import { getAsansor, updateAsansor, type Asansor, type AsansorGuncelleme, type GuvenlikAksami } from '@/services/asansorService';
 import { getAksamBelgeleri, type AksamBelgesi } from '@/services/aksamBelgesiService';
 import { getDosyaUrl, getDosyaIndirUrl, uploadDosya, type BelgeSlot } from '@/services/dosyaService';
+import LinkPopup from '@/components/LinkPopup.vue';
+import { useAsansorPdf } from '@/composables/useAsansorPdf';
 import FotoCekModal from '@/components/FotoCekModal.vue';
 import SilmeOnayi from '@/components/SilmeOnayi.vue';
 import type { AdresKaydi } from '@/services/adresService';
@@ -56,6 +58,7 @@ import {
 // bilgi kartı ve her bölümün başlık + metin ÖZET kartları listelenir.
 const route = useRoute();
 const router = useRouter();
+const { pdfAcik, pdfUrl, pdfHata, pdfDosyaAdi, pdfOlustur } = useAsansorPdf();
 
 const id = computed(() => route.params.id as string);
 
@@ -149,7 +152,7 @@ async function yukle() {
     yukleniyor.value = false;
   }
 
-  getAksamBelgeleri({ durum: 'aktif' })
+  getAksamBelgeleri()
     .then((belgeler) => (katalogBelgeler.value = belgeler))
     .catch(() => { /* katalog çekilemezse sabit listelerle devam edilir */ });
 
@@ -820,6 +823,7 @@ const agirlikKabinAgirligi = computed(
 const kabinAcik = ref(false);
 const kabinGenislikL = ref<Num>(null);
 const kabinDerinlikL = ref<Num>(null);
+const kabinYukseklikL = ref<Num>(null);
 const kabinIciAydinlatmaL = ref<Num>(null);
 const kabinGirisTipiL = ref<string | null>(null);
 const kabinPanelMalzemesiL = ref<'paslanmaz' | 'cam' | null>(null);
@@ -978,6 +982,7 @@ function bolumAc(bolum: Bolum) {
     // Varsayılan 1350×1350 mm (kare kabin).
     kabinGenislikL.value = a.kabinGenislik ?? 1350;
     kabinDerinlikL.value = a.kabinDerinlik ?? 1350;
+    kabinYukseklikL.value = a.kabinYukseklik ?? 2200;
     kabinIciAydinlatmaL.value = a.kabinIciAydinlatma ?? null;
     kabinGirisTipiL.value = a.kabinGirisTipi ?? 'tek';
     kabinPanelMalzemesiL.value = a.kabinPanelMalzemesi ?? 'paslanmaz';
@@ -1046,8 +1051,8 @@ function bolumAc(bolum: Bolum) {
   if (bolum.key === 'duraklar') {
     // Kayıt yoksa durak sayısı adedince 0,1,2… duraklar; mesafe 3000 mm.
     durakSatirlariL.value = a.katYukseklikleri?.length
-      ? a.katYukseklikleri.map((k) => ({ kat: k.kat, yukseklik: k.yukseklik }))
-      : Array.from({ length: Math.max(a.durakSayisi ?? 0, 0) }, (_, i) => ({ kat: i, yukseklik: 3000 }));
+      ? a.katYukseklikleri.map((k) => ({ kat: k.kat, yukseklik: k.yukseklik, kapiYukseklik: k.kapiYuksekligi ?? a.giris1KapiYukseklik ?? 2000 }))
+      : Array.from({ length: Math.max(a.durakSayisi ?? 0, 0) }, (_, i) => ({ kat: i, yukseklik: 3000, kapiYukseklik: a.giris1KapiYukseklik ?? 2000 }));
     duraklarFotolariL.value = [...(a.duraklarFotolari ?? [])];
     duraklarAcik.value = true;
     return;
@@ -1130,6 +1135,7 @@ watch(kabinAcik, (acik, onceki) => {
   guncelle({
     kabinGenislik: sayi(kabinGenislikL.value),
     kabinDerinlik: sayi(kabinDerinlikL.value),
+    kabinYukseklik: sayi(kabinYukseklikL.value),
     kabinIciAydinlatma: sayi(kabinIciAydinlatmaL.value),
     kabinGirisTipi: (kabinGirisTipiL.value as 'tek' | 'cift' | null) ?? 'tek',
     kabinPanelMalzemesi: kabinPanelMalzemesiL.value,
@@ -1212,7 +1218,7 @@ watch(duraklarAcik, (acik, onceki) => {
   // toplamıdır; kuyu boyu = dip + seyir + son kat.
   const kayit = durakSatirlariL.value
     .filter((s) => sayi(s.kat) !== null)
-    .map((s) => ({ kat: sayi(s.kat) ?? 0, yukseklik: sayi(s.yukseklik) ?? 0 }))
+    .map((s) => ({ kat: sayi(s.kat) ?? 0, yukseklik: sayi(s.yukseklik) ?? 0, kapiYuksekligi: sayi(s.kapiYukseklik ?? null) }))
     .sort((x, y) => x.kat - y.kat);
   const seyir = kayit.slice(0, -1).reduce((toplam, s) => toplam + s.yukseklik, 0);
   const veri: AsansorGuncelleme = {
@@ -1539,8 +1545,13 @@ const makineDairesiRiskVar = computed(() => {
 const kapiRiskVar = computed(() => {
   const a = asansor.value;
   if (!a) return false;
-  const dusuk = (y: number | null) => y != null && y < 2000;
-  return dusuk(a.giris1KapiYukseklik) || (a.kabinGirisTipi === 'cift' && dusuk(a.giris2KapiYukseklik));
+  // Herhangi bir durağın kapı yüksekliği 2000 mm altındaysa (durakta değer yoksa giriş kapısı esas alınır)
+  const dusuk = (y: number | null | undefined) => y != null && y < 2000;
+  const duraklar = a.katYukseklikleri ?? [];
+  const yukseklikler = duraklar.length
+    ? duraklar.map((d) => d.kapiYuksekligi ?? a.giris1KapiYukseklik)
+    : [a.giris1KapiYukseklik];
+  return yukseklikler.some(dusuk);
 });
 
 // Risk satırlarının alt listeleri açılır/kapanır (varsayılan kapalı)
@@ -1551,7 +1562,24 @@ function riskToggle(key: string) {
 
 // Risk analizi popup'ları — içerikleri daha sonra doldurulacak
 const ustRiskAnaliziAcik = ref(false);
+// Alçak durak kapıları risk analizi (aynı madde sistemi, grup: alcak-durak-kapilari)
 const kapiRiskAnaliziAcik = ref(false);
+const kapiRiskSecimL = ref<RiskMaddesiSecim[]>([]);
+const kapiRiskResimL = ref<BelgeSlot[]>([]);
+
+function kapiRiskAnaliziAc() {
+  blurActive();
+  const a = asansor.value;
+  if (!a) return;
+  kapiRiskSecimL.value = (a.alcakKapiRiskMaddeleri ?? []).map((s) => ({
+    maddeId: s.maddeId,
+    metin: s.metin,
+    resim: s.resim ?? null,
+    fotolar: [...(s.fotolar ?? [])],
+  }));
+  kapiRiskResimL.value = [...(a.alcakKapiRiskResimleri ?? [])];
+  kapiRiskAnaliziAcik.value = true;
+}
 
 // Makine dairesi risk analizi: hazır maddeler katalogdan çoktan seçmeli
 // seçilir; seçim snapshot'la asansöre kaydedilir.
@@ -1619,6 +1647,15 @@ watch(dipRiskAnaliziAcik, (acik, onceki) => {
   guncelle({ kuyuDibiRiskMaddeleri: dipRiskSecimL.value, kuyuDibiRiskResimleri: dipRiskResimL.value });
 });
 
+watch(kapiRiskAnaliziAcik, (acik, onceki) => {
+  if (acik || !onceki) return;
+  if (iptalEdildi.value) {
+    iptalEdildi.value = false;
+    return;
+  }
+  guncelle({ alcakKapiRiskMaddeleri: kapiRiskSecimL.value, alcakKapiRiskResimleri: kapiRiskResimL.value });
+});
+
 watch(ustRiskAnaliziAcik, (acik, onceki) => {
   if (acik || !onceki) return;
   if (iptalEdildi.value) {
@@ -1642,6 +1679,8 @@ const onBilgi = computed(() => {
   const a = asansor.value;
   if (!a) return [];
   return [
+    // Tahrik her zaman elektrikli (kayıtta boşsa da)
+    ['Tahrik', 'Elektrikli'],
     ['Sınıf', SINIF_ETIKETLERI[a.sinif ?? ''] ?? '—'],
     ['Hız', a.hiz != null ? `${a.hiz.toFixed(2)} m/s` : '—'],
     ['Makine Konumu', MAKINA_KONUMU_ETIKETLERI[a.makinaKonumu ?? ''] ?? '—'],
@@ -1680,6 +1719,15 @@ const onBilgi = computed(() => {
             </h1>
             <p v-if="firmaAdi" class="truncate text-[11px] text-ink-muted">{{ firmaAdi }}</p>
           </div>
+          <!-- Asansör bilgileri PDF'i: oluşturulur ve paylaşılabilir indirme linki verilir -->
+          <button v-if="asansor" type="button" @click="pdfOlustur(asansor)"
+            class="flex h-8 shrink-0 items-center gap-1 bg-[#2b5c3d] px-2.5 text-[11px] font-semibold text-ink ring-1 ring-white/10 active:bg-[#346e4a]">
+            <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+              <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+            </svg>
+            PDF
+          </button>
         </header>
       </div>
     </ion-header>
@@ -2018,24 +2066,37 @@ const onBilgi = computed(() => {
               class="mt-1.5" :maddeler="asansor.makineDairesiRiskMaddeleri"
               @guncelle="guncelle({ makineDairesiRiskMaddeleri: $event })" />
             <div v-if="kapiRiskVar" @click="riskToggle('kapi')"
-              class="flex cursor-pointer items-center justify-between gap-2 bg-red-950/60 px-3 py-2 ring-1 ring-red-500/20"
-              :class="kuyuDipRiskVar || kuyuUstRiskVar || makineDairesiRiskVar ? 'mt-1.5' : ''">
-              <span class="min-w-0 flex-1 text-xs font-semibold text-red-300">
-                Kapı yüksekliği risk analizi gerekli
+              class="flex cursor-pointer items-center justify-between gap-2 px-3 py-2 ring-1"
+              :class="[
+                kuyuDipRiskVar || kuyuUstRiskVar || makineDairesiRiskVar ? 'mt-1.5' : '',
+                asansor.alcakKapiRiskMaddeleri?.length
+                  ? 'bg-[#1d3a28] ring-[#2b5c3d]'
+                  : 'bg-red-950/60 ring-red-500/20',
+              ]">
+              <span class="min-w-0 flex-1 text-xs font-semibold"
+                :class="asansor.alcakKapiRiskMaddeleri?.length ? 'text-[#6fcf97]' : 'text-red-300'">
+                Alçak durak kapıları risk analizi gerekli
               </span>
-              <svg class="h-3.5 w-3.5 shrink-0 text-red-300 transition-transform"
-                :class="acikRiskler['kapi'] ? 'rotate-180' : ''" viewBox="0 0 24 24" fill="none"
+              <svg class="h-3.5 w-3.5 shrink-0 transition-transform"
+                :class="[
+                  acikRiskler['kapi'] ? 'rotate-180' : '',
+                  asansor.alcakKapiRiskMaddeleri?.length ? 'text-[#6fcf97]' : 'text-red-300',
+                ]" viewBox="0 0 24 24" fill="none"
                 stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <path d="m6 9 6 6 6-6" />
               </svg>
-              <button type="button" @click.stop="kapiRiskAnaliziAcik = true"
+              <button type="button" @click.stop="kapiRiskAnaliziAc"
                 class="shrink-0 bg-surface-900 px-2.5 py-1.5 text-[11px] font-semibold text-ink ring-1 ring-white/10 active:bg-[#1a2a20]">
                 Risk Analizi
               </button>
             </div>
+            <SecilenRiskMaddeleri
+              v-if="acikRiskler['kapi'] && asansor.alcakKapiRiskMaddeleri?.length"
+              class="mt-1.5" :maddeler="asansor.alcakKapiRiskMaddeleri"
+              @guncelle="guncelle({ alcakKapiRiskMaddeleri: $event })" />
             <p v-if="!kuyuDipRiskVar && !kuyuUstRiskVar && !makineDairesiRiskVar && !kapiRiskVar
               && !asansor.makineDairesiRiskMaddeleri?.length && !asansor.kuyuUstuRiskMaddeleri?.length
-              && !asansor.kuyuDibiRiskMaddeleri?.length"
+              && !asansor.kuyuDibiRiskMaddeleri?.length && !asansor.alcakKapiRiskMaddeleri?.length"
               class="text-xs text-ink-muted">
               Risk durumu tespit edilmedi.
             </p>
@@ -2075,10 +2136,12 @@ const onBilgi = computed(() => {
       v-model:resimler="makineRiskResimL"
       baslik="Makine Dairesi Risk Analizi" grup="makine-dairesi" />
 
-    <!-- Kapı yüksekliği risk analizi popup'ı — içeriği daha sonra doldurulacak -->
-    <SemaModal v-model:open="kapiRiskAnaliziAcik" title="Kapı Yüksekliği Risk Analizi">
-      <p class="py-4 text-center text-xs text-ink-muted">Bu bölümün içeriği daha sonra eklenecek.</p>
-    </SemaModal>
+    <!-- Alçak durak kapıları risk analizi — hazır maddelerden çoktan seçmeli;
+    kapanınca seçim asansöre kaydedilir -->
+    <RiskAnaliziModal v-model:open="kapiRiskAnaliziAcik" @iptal="iptalEdildi = true"
+      v-model:secilen="kapiRiskSecimL"
+      v-model:resimler="kapiRiskResimL"
+      baslik="Alçak Durak Kapıları Risk Analizi" grup="alcak-durak-kapilari" />
 
     <!-- Makine Dairesi — çalışma/geçiş/kapı yükseklikleri (yalnız MR);
     kapanınca kaydedilir -->
@@ -2151,7 +2214,8 @@ const onBilgi = computed(() => {
 
     <KabinOlculeriModal v-model:open="kabinAcik" @iptal="iptalEdildi = true"
       v-model:kabin-genislik="kabinGenislikL"
-      v-model:kabin-derinlik="kabinDerinlikL" v-model:kabin-ici-aydinlatma="kabinIciAydinlatmaL"
+      v-model:kabin-derinlik="kabinDerinlikL" v-model:kabin-yukseklik="kabinYukseklikL"
+      v-model:kabin-ici-aydinlatma="kabinIciAydinlatmaL"
       v-model:giris-tipi="kabinGirisTipiL" v-model:panel-malzemesi="kabinPanelMalzemesiL"
       v-model:cam-belgesi="kabinCamBelgesiL" v-model:fotolar="kabinFotolariL" />
 
@@ -2284,5 +2348,9 @@ const onBilgi = computed(() => {
         ? `${asansor?.kurumEvraklari?.[kurumEvrakSilinecek]?.dosyaAdi || 'Kurum evrakı'}`
         : ''"
       @vazgec="kurumEvrakSilinecek = null" @onayla="kurumEvrakSilOnayla" />
+    <LinkPopup v-model:acik="pdfAcik" :url="pdfUrl" :hata="pdfHata"
+      bekleme-metni="Asansör bilgileri PDF'i oluşturuluyor…"
+      aciklama="Asansörün tüm bilgileri, şemaları ve dosya linkleri PDF'te toplandı."
+      goruntule-tip="pdf" :goruntule-ad="pdfDosyaAdi" />
   </ion-page>
 </template>

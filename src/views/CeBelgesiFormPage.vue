@@ -10,6 +10,7 @@ import { uploadDosya, getDosyaUrl, getDosyaIndirUrl, type BelgeSlot } from '@/se
 import { useFileViewer, fileViewerTypeFromMime } from '@/composables/useFileViewer';
 import AramaliSelect from '@/components/AramaliSelect.vue';
 import { blurActive } from '@/utils/blurActive';
+import { aksamDonus } from '@/utils/aksamDonus';
 
 const route = useRoute();
 const router = useRouter();
@@ -72,8 +73,13 @@ const kurumModel = computed<string | number | null>({
   set(v) { form.value.onayliKurumId = typeof v === 'string' ? v : ''; },
 });
 
+// Denetim sayfasından geldiyse (?donKod=<komponent>) komponent tipi seçili gelir ve
+// Geri / Kaydet denetim sayfasına döner; orada seçim penceresi yeniden açılır
+const donKod = computed(() => (route.query.donKod as string | undefined) ?? '');
+
 function geri() {
   blurActive();
+  if (donKod.value) aksamDonus.value = { kod: donKod.value };
   router.back();
 }
 
@@ -136,6 +142,10 @@ onMounted(async () => {
     tipler.value = tipListesi;
     kurumlar.value = kurumListesi;
 
+    // Denetimden gelen komponent tipi (varsa) önceden seçilir
+    const onTip = route.query.tip as string | undefined;
+    if (!duzenlenenId.value && onTip && tipListesi.some((t) => t.kod === onTip)) form.value.bilesenTipiKodu = onTip;
+
     if (duzenlenenId.value) {
       const b = await getAksamBelgesi(duzenlenenId.value);
       tipSatirlari.value = b.tipler.map((t) => ({ deger: t }));
@@ -182,10 +192,16 @@ async function kaydet() {
       durum: form.value.durum,
       dosya: form.value.dosya,
     };
+    let kayitId = duzenlenenId.value;
     if (duzenlenenId.value) await updateAksamBelgesi(duzenlenenId.value, payload);
-    else await createAksamBelgesi(payload);
+    else kayitId = (await createAksamBelgesi(payload))._id;
     blurActive();
-    router.replace('/ayarlar/guvenlik-aksamlari');
+    if (donKod.value) {
+      aksamDonus.value = { kod: donKod.value, yeniBelgeId: kayitId };
+      router.back();
+    } else {
+      router.replace('/ayarlar/guvenlik-aksamlari');
+    }
   } catch (e) {
     hata.value = e instanceof Error ? e.message : 'Kayıt başarısız';
   } finally {

@@ -213,6 +213,147 @@ function semaIcerigi(svgler: string[] | undefined): Content[] {
   }));
 }
 
+// Firma bölümleri — FirmaBilgiModal ile aynı sıra (denetim/tescil raporu ve asansör raporu ortak kullanır)
+function firmaIcerigi(firma: Firma, linkler: Record<string, string>): Content[] {
+  const icerik: Content[] = [];
+  icerik.push(araBaslik(`Asansör Firması — ${firma.ad}`));
+  icerik.push(bolumTablosu('Firma Bilgileri', firmaKimlikSatirlari(firma)));
+  icerik.push(bolumTablosu('Belge Bilgileri', firmaResmiBelgeSatirlari(firma)));
+  icerik.push(belgeTablosu('Belgeler', firmaBelgeSatirlari(firma), linkler));
+
+  if (firma.ceBelgeleri?.length) {
+    icerik.push(ceTablosu('CE Belgeleri', firma.ceBelgeleri, linkler));
+  }
+
+  if (firma.smmFirmaId || firma.smmKisaAd) {
+    icerik.push(bolumTablosu('SMM Bilgileri', firmaSmmSatirlari(firma)));
+    icerik.push(belgeTablosu('SMM Belgeleri', firmaSmmBelgeSatirlari(firma), linkler));
+  }
+
+  // Personel: sabit görevliler + mühendisler (belgeleriyle) + SGK dökümü
+  icerik.push(bolumTablosu('Personel', firmaPersonelSatirlari(firma)));
+
+  if (firma.muhendisler?.length) {
+    icerik.push({
+      table: {
+        widths: ['auto', '*', '*'],
+        body: [
+          [{ text: 'MÜHENDİSLER', colSpan: 3, bold: true, color: 'white', fillColor: YESIL }, {}, {}],
+          [etiketHucre('Tür'), etiketHucre('Ad Soyad'), etiketHucre('Belgeler')],
+          ...firma.muhendisler.map((m) => [
+            degerHucre(MUHENDIS_TUR_ETIKETLERI[m.tur] ?? m.tur),
+            degerHucre(m.adSoyad),
+            belgeLinkHucresi(m.belgeler ?? [], linkler),
+          ]),
+        ],
+      },
+      layout: tabloDuzeni(),
+      margin: [0, 0, 0, 10],
+    });
+  }
+
+  if (firma.sgkDokumleri?.length) {
+    icerik.push({
+      table: {
+        widths: [140, '*'],
+        body: [
+          [{ text: 'SGK DÖKÜMÜ', colSpan: 2, bold: true, color: 'white', fillColor: YESIL }, {}],
+          ...firma.sgkDokumleri.map((s, i) => [etiketHucre(`Döküm ${i + 1}`), dosyaHucre(s, linkler)]),
+        ],
+      },
+      layout: tabloDuzeni(),
+      margin: [0, 0, 0, 10],
+    });
+  }
+  return icerik;
+}
+
+// Asansör bölümleri — AsansorBilgiModal ile aynı sıra (denetim/tescil raporu ve asansör raporu ortak kullanır)
+function asansorIcerigi(asansor: Asansor, linkler: Record<string, string>, semalar?: Record<string, string[]>): Content[] {
+  const icerik: Content[] = [];
+  icerik.push(araBaslik(`Asansör — ${asansor.seriNo || asansor.yapiRuhsatNo || ''}`));
+  for (const bolum of asansorBolumleri(asansor)) {
+    icerik.push(bolumTablosu(bolum.baslik, bolum.satirlar));
+    // İlgili bölümün şeması (kabin, kapı, halat, ray, kuyu dip/üst) tablonun altına
+    icerik.push(...semaIcerigi(semalar?.[bolum.baslik]));
+  }
+
+  // Duraklar binadaki gibi yüksekten alçağa sıralanır
+  const katlar = [...(asansor.katYukseklikleri ?? [])].sort((a, b) => b.kat - a.kat);
+  if (katlar.length) {
+    icerik.push(bolumTablosu(
+      'Kat Yükseklikleri',
+      katlar.map((k): Satir => {
+        const kapi = k.kapiYuksekligi ?? asansor.giris1KapiYukseklik;
+        return [[`${k.kat}. Kat`, `${k.yukseklik} mm${kapi != null ? `  ·  Kapı: ${kapi} mm${kapi < 2000 ? ' (2000 altı — risk analizi)' : ''}` : ''}`]];
+      })
+    ));
+  }
+
+  // Aynı aksamın seri noları tek satırda virgülle birleşik (tekilleştirilmiş)
+  const aksamGruplar = asansorAksamGruplari(asansor);
+  if (aksamGruplar.length) {
+    icerik.push({
+      table: {
+        widths: ['auto', '*', '*', '*', '*', 'auto'],
+        body: [
+          [{ text: 'GÜVENLİK AKSAMLARI', colSpan: 6, bold: true, color: 'white', fillColor: YESIL }, {}, {}, {}, {}, {}],
+          [etiketHucre('Aksam'), etiketHucre('Marka'), etiketHucre('Tip'), etiketHucre('Seri No'), etiketHucre('Sertifika'), etiketHucre('Geçerlilik')],
+          ...aksamGruplar.map((g) => [
+            degerHucre(g.etiket),
+            degerHucre(g.marka),
+            degerHucre(g.tip),
+            degerHucre(g.seriNolar.join(', ')),
+            degerHucre(g.sertifikaNo),
+            degerHucre(`${bilgiTarih(g.gecerlilikBaslangic)} – ${bilgiTarih(g.gecerlilikBitis)}`),
+          ]),
+        ],
+      },
+      layout: tabloDuzeni(),
+      fontSize: 7.5,
+      margin: [0, 0, 0, 10],
+    });
+  }
+
+  for (const grup of asansorRiskGruplari(asansor)) {
+    icerik.push({
+      table: {
+        widths: ['*'],
+        body: [
+          [{ text: grup.baslik.toLocaleUpperCase('tr'), bold: true, color: 'white', fillColor: YESIL }],
+          ...grup.maddeler.map((m) => {
+            const fotolar = [m.resim, ...(m.fotolar ?? [])].filter((s): s is BelgeSlot => !!s);
+            const hucre: Content[] = [{ text: m.metin || '—' }];
+            if (fotolar.length) hucre.push({ ...fotoLinkleri(fotolar, linkler) as object, margin: [0, 2, 0, 0] } as Content);
+            return [hucre as unknown as TableCell];
+          }),
+        ],
+      },
+      layout: tabloDuzeni(),
+      margin: [0, 0, 0, 10],
+    });
+  }
+
+  const belgeler = asansorBelgeSatirlari(asansor);
+  if (belgeler.length) icerik.push(belgeTablosu('Belgeler', belgeler, linkler));
+
+  const fotoGruplari = asansorFotoGruplari(asansor);
+  if (fotoGruplari.length) {
+    icerik.push({
+      table: {
+        widths: [140, '*'],
+        body: [
+          [{ text: 'FOTOĞRAFLAR', colSpan: 2, bold: true, color: 'white', fillColor: YESIL }, {}],
+          ...fotoGruplari.map((g) => [etiketHucre(g.baslik), fotoLinkleri(g.fotolar, linkler) as TableCell]),
+        ],
+      },
+      layout: tabloDuzeni(),
+      margin: [0, 0, 0, 10],
+    });
+  }
+  return icerik;
+}
+
 export function denetimPdfTanimi(veri: DenetimPdfVeri): TDocumentDefinitions {
   const { denetim, firma, asansor, linkler, semalar } = veri;
   const icerik: Content[] = [];
@@ -302,55 +443,7 @@ export function denetimPdfTanimi(veri: DenetimPdfVeri): TDocumentDefinitions {
 
   // Firma bölümleri — FirmaBilgiModal ile aynı sıra
   if (firma) {
-    icerik.push(araBaslik(`Asansör Firması — ${firma.ad}`));
-    icerik.push(bolumTablosu('Firma Bilgileri', firmaKimlikSatirlari(firma)));
-    icerik.push(bolumTablosu('Belge Bilgileri', firmaResmiBelgeSatirlari(firma)));
-    icerik.push(belgeTablosu('Belgeler', firmaBelgeSatirlari(firma), linkler));
-
-    if (firma.ceBelgeleri?.length) {
-      icerik.push(ceTablosu('CE Belgeleri', firma.ceBelgeleri, linkler));
-    }
-
-    if (firma.smmFirmaId || firma.smmKisaAd) {
-      icerik.push(bolumTablosu('SMM Bilgileri', firmaSmmSatirlari(firma)));
-      icerik.push(belgeTablosu('SMM Belgeleri', firmaSmmBelgeSatirlari(firma), linkler));
-    }
-
-    // Personel: sabit görevliler + mühendisler (belgeleriyle) + SGK dökümü
-    icerik.push(bolumTablosu('Personel', firmaPersonelSatirlari(firma)));
-
-    if (firma.muhendisler?.length) {
-      icerik.push({
-        table: {
-          widths: ['auto', '*', '*'],
-          body: [
-            [{ text: 'MÜHENDİSLER', colSpan: 3, bold: true, color: 'white', fillColor: YESIL }, {}, {}],
-            [etiketHucre('Tür'), etiketHucre('Ad Soyad'), etiketHucre('Belgeler')],
-            ...firma.muhendisler.map((m) => [
-              degerHucre(MUHENDIS_TUR_ETIKETLERI[m.tur] ?? m.tur),
-              degerHucre(m.adSoyad),
-              belgeLinkHucresi(m.belgeler ?? [], linkler),
-            ]),
-          ],
-        },
-        layout: tabloDuzeni(),
-        margin: [0, 0, 0, 10],
-      });
-    }
-
-    if (firma.sgkDokumleri?.length) {
-      icerik.push({
-        table: {
-          widths: [140, '*'],
-          body: [
-            [{ text: 'SGK DÖKÜMÜ', colSpan: 2, bold: true, color: 'white', fillColor: YESIL }, {}],
-            ...firma.sgkDokumleri.map((s, i) => [etiketHucre(`Döküm ${i + 1}`), dosyaHucre(s, linkler)]),
-          ],
-        },
-        layout: tabloDuzeni(),
-        margin: [0, 0, 0, 10],
-      });
-    }
+    icerik.push(...firmaIcerigi(firma, linkler));
 
     // Modul E / H1: firmanın kalibrasyon (Cihazlar) dosyaları linkleriyle
     if (KALIBRASYONLU_MODULLER.includes(denetim.modul) && firma.cihazDosyalari?.length) {
@@ -363,85 +456,7 @@ export function denetimPdfTanimi(veri: DenetimPdfVeri): TDocumentDefinitions {
   }
 
   // Asansör bölümleri — AsansorBilgiModal ile aynı sıra
-  if (asansor) {
-    icerik.push(araBaslik(`Asansör — ${asansor.seriNo || asansor.yapiRuhsatNo || ''}`));
-    for (const bolum of asansorBolumleri(asansor)) {
-      icerik.push(bolumTablosu(bolum.baslik, bolum.satirlar));
-      // İlgili bölümün şeması (kabin, kapı, halat, ray, kuyu dip/üst) tablonun altına
-      icerik.push(...semaIcerigi(semalar?.[bolum.baslik]));
-    }
-
-    // Duraklar binadaki gibi yüksekten alçağa sıralanır
-    const katlar = [...(asansor.katYukseklikleri ?? [])].sort((a, b) => b.kat - a.kat);
-    if (katlar.length) {
-      icerik.push(bolumTablosu(
-        'Kat Yükseklikleri',
-        katlar.map((k): Satir => [[`${k.kat}. Kat`, `${k.yukseklik} mm`]])
-      ));
-    }
-
-    // Aynı aksamın seri noları tek satırda virgülle birleşik (tekilleştirilmiş)
-    const aksamGruplar = asansorAksamGruplari(asansor);
-    if (aksamGruplar.length) {
-      icerik.push({
-        table: {
-          widths: ['auto', '*', '*', '*', '*', 'auto'],
-          body: [
-            [{ text: 'GÜVENLİK AKSAMLARI', colSpan: 6, bold: true, color: 'white', fillColor: YESIL }, {}, {}, {}, {}, {}],
-            [etiketHucre('Aksam'), etiketHucre('Marka'), etiketHucre('Tip'), etiketHucre('Seri No'), etiketHucre('Sertifika'), etiketHucre('Geçerlilik')],
-            ...aksamGruplar.map((g) => [
-              degerHucre(g.etiket),
-              degerHucre(g.marka),
-              degerHucre(g.tip),
-              degerHucre(g.seriNolar.join(', ')),
-              degerHucre(g.sertifikaNo),
-              degerHucre(`${bilgiTarih(g.gecerlilikBaslangic)} – ${bilgiTarih(g.gecerlilikBitis)}`),
-            ]),
-          ],
-        },
-        layout: tabloDuzeni(),
-        fontSize: 7.5,
-        margin: [0, 0, 0, 10],
-      });
-    }
-
-    for (const grup of asansorRiskGruplari(asansor)) {
-      icerik.push({
-        table: {
-          widths: ['*'],
-          body: [
-            [{ text: grup.baslik.toLocaleUpperCase('tr'), bold: true, color: 'white', fillColor: YESIL }],
-            ...grup.maddeler.map((m) => {
-              const fotolar = [m.resim, ...(m.fotolar ?? [])].filter((s): s is BelgeSlot => !!s);
-              const hucre: Content[] = [{ text: m.metin || '—' }];
-              if (fotolar.length) hucre.push({ ...fotoLinkleri(fotolar, linkler) as object, margin: [0, 2, 0, 0] } as Content);
-              return [hucre as unknown as TableCell];
-            }),
-          ],
-        },
-        layout: tabloDuzeni(),
-        margin: [0, 0, 0, 10],
-      });
-    }
-
-    const belgeler = asansorBelgeSatirlari(asansor);
-    if (belgeler.length) icerik.push(belgeTablosu('Belgeler', belgeler, linkler));
-
-    const fotoGruplari = asansorFotoGruplari(asansor);
-    if (fotoGruplari.length) {
-      icerik.push({
-        table: {
-          widths: [140, '*'],
-          body: [
-            [{ text: 'FOTOĞRAFLAR', colSpan: 2, bold: true, color: 'white', fillColor: YESIL }, {}],
-            ...fotoGruplari.map((g) => [etiketHucre(g.baslik), fotoLinkleri(g.fotolar, linkler) as TableCell]),
-          ],
-        },
-        layout: tabloDuzeni(),
-        margin: [0, 0, 0, 10],
-      });
-    }
-  }
+  if (asansor) icerik.push(...asansorIcerigi(asansor, linkler, semalar));
 
   return {
     pageSize: 'A4',
@@ -463,7 +478,7 @@ interface PdfMakeStatic {
 }
 
 // pdfmake yalnız ihtiyaç anında (dinamik import) yüklenir — ana pakete girmez
-export async function denetimPdfBlob(veri: DenetimPdfVeri): Promise<Blob> {
+async function pdfBlobOlustur(tanim: TDocumentDefinitions): Promise<Blob> {
   const [pdfMakeMod, vfsMod] = await Promise.all([
     import('pdfmake/build/pdfmake'),
     import('pdfmake/build/vfs_fonts'),
@@ -474,7 +489,7 @@ export async function denetimPdfBlob(veri: DenetimPdfVeri): Promise<Blob> {
   if (typeof pdfMake.addVirtualFileSystem === 'function') pdfMake.addVirtualFileSystem(vfs);
   else pdfMake.vfs = vfs;
 
-  const pdf = pdfMake.createPdf(denetimPdfTanimi(veri));
+  const pdf = pdfMake.createPdf(tanim);
   return new Promise<Blob>((resolve, reject) => {
     try {
       // 0.2'de callback, 0.3'te Promise döner — ikisi de karşılanır
@@ -486,4 +501,55 @@ export async function denetimPdfBlob(veri: DenetimPdfVeri): Promise<Blob> {
       reject(e);
     }
   });
+}
+
+export function denetimPdfBlob(veri: DenetimPdfVeri): Promise<Blob> {
+  return pdfBlobOlustur(denetimPdfTanimi(veri));
+}
+
+// ---- Asansör bilgi raporu: asansör bilgi popup'ındaki tüm bölümler tablo düzeniyle ----
+export interface AsansorPdfVeri {
+  asansor: Asansor;
+  // Asansörün firması (firma + SMM bilgileri raporda yer alır)
+  firma?: Firma | null;
+  // dosyaAnahtari → 7 gün geçerli indirme linki
+  linkler: Record<string, string>;
+  semalar?: Record<string, string[]>;
+}
+
+// PDF'e link gömülecek asansör dosya slotları
+export function asansorDosyaSlotlari(asansor: Asansor, firma?: Firma | null): BelgeSlot[] {
+  return denetimDosyaSlotlari({ modul: '' } as Denetim, firma ?? null, asansor);
+}
+
+export function asansorPdfTanimi(veri: AsansorPdfVeri): TDocumentDefinitions {
+  const { asansor, firma, linkler, semalar } = veri;
+  const firmaAdi = firma?.ad ?? (typeof asansor.firmaId === 'object' && asansor.firmaId ? asansor.firmaId.ad : '');
+  const seri = asansor.seriNo || asansor.yapiRuhsatNo || '';
+  const konum = [asansor.ilce, asansor.il].filter(Boolean).join('/');
+  const raporAdi = `Asansör Bilgileri${seri ? ` — ${seri}` : ''}`;
+  const bugun = new Date().toLocaleDateString('tr-TR');
+  return {
+    pageSize: 'A4',
+    pageMargins: [32, 36, 32, 40],
+    defaultStyle: { fontSize: 8.5 },
+    footer: (sayfa, toplam) => ({
+      text: `${raporAdi}  •  Sayfa ${sayfa}/${toplam}`,
+      alignment: 'center', fontSize: 7.5, color: GRI, margin: [0, 12, 0, 0],
+    }),
+    content: [
+      { text: raporAdi, fontSize: 16, bold: true, color: YESIL },
+      {
+        text: [firmaAdi, konum, `Rapor tarihi: ${bugun}`].filter(Boolean).join('  •  '),
+        color: GRI, margin: [0, 2, 0, 12],
+      },
+      // Firma bilgileri (kimlik, belgeler, CE, SMM, personel) asansör bölümlerinden önce
+      ...(firma ? firmaIcerigi(firma, linkler) : []),
+      ...asansorIcerigi(asansor, linkler, semalar).slice(1), // ilk eleman asansör ara başlığıdır (rapor başlığı zaten var)
+    ],
+  };
+}
+
+export function asansorPdfBlob(veri: AsansorPdfVeri): Promise<Blob> {
+  return pdfBlobOlustur(asansorPdfTanimi(veri));
 }

@@ -7,6 +7,7 @@ export interface KilitBelgeSecenek {
   marka: string;
   sertifikaNo?: string;
   tipler: string[];
+  durum?: 'aktif' | 'pasif';
   bilesenTipiAdi?: string;
   belgeTipi?: string;
   gecerlilikBaslangic?: string | null;
@@ -61,6 +62,8 @@ export interface AksamBolum {
 export interface DurakSatiri {
   kat: number | '' | null;
   yukseklik: number | '' | null;
+  // Bu durağın kapı yüksekliği (mm)
+  kapiYukseklik?: number | '' | null;
 }
 
 // Kapı ve Ölçüleri modalının giriş başına durumu: panel sayısı (2/3/4),
@@ -110,3 +113,10 @@ export function kilitBelgesiBul<T extends KilitBelgeSecenek>(
   const adaylar = belgeler.filter((b) => b.marka === marka);
   return adaylar.find((b) => !!tip && b.tipler.includes(tip)) ?? adaylar[0] ?? null;
 }
+
+// Seçim listelerinde pasif belgeler de görünür; yalnız pasif belgelere dayanan marka/tip "(Pasif)" notuyla etiketlenir
+const hepsiPasif = (liste: KilitBelgeSecenek[]) => liste.length > 0 && liste.every((b) => b.durum === 'pasif');
+export const markaEtiketi = (belgeler: KilitBelgeSecenek[], marka: string) =>
+  hepsiPasif(belgeler.filter((b) => b.marka === marka)) ? `${marka} (Pasif)` : marka;
+export const tipEtiketi = (belgeler: KilitBelgeSecenek[], marka: string | null, tip: string) =>
+  hepsiPasif(belgeler.filter((b) => (!marka || b.marka === marka) && b.tipler.includes(tip))) ? `${tip} (Pasif)` : tip;

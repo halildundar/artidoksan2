@@ -49,6 +49,8 @@ export interface YazdirKalemi {
   // Şablonun alan eşlemesi henüz hazır değil (listede görünür, yazdırılamaz)
   hazirDegil?: boolean;
   altBilgi?: string;
+  // Yazdırma öncesi sorulan seçenek (ör. Modül B sertifikasında makine tipi)
+  secim?: { alan: string; etiket: string; deger: string; secenekler: { deger: string; etiket: string }[] };
 }
 
 export interface YazdirListesi {

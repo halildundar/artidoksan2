@@ -180,6 +180,9 @@ onIonViewWillEnter(yukle);
               <span class="block truncate text-xs text-ink-muted">
                 {{ [belge.marka, belge.sertifikaNo, belge.belgeTipi].filter(Boolean).join(' • ') || 'Bilgi girilmedi' }}
               </span>
+              <span v-if="belge.tipler?.length" class="mt-0.5 block break-words text-xs text-ink-muted">
+                <span class="font-semibold text-ink-muted/90">Tip:</span> {{ belge.tipler.join(', ') }}
+              </span>
               <span v-if="belge.gecerlilikBitis" class="mt-0.5 block text-[11px] text-ink-muted/80">
                 Geçerlilik: {{ tarih(belge.gecerlilikBaslangic) }} — {{ tarih(belge.gecerlilikBitis) }}
               </span>

@@ -6,7 +6,7 @@ import FotoEkleCek from '@/components/FotoEkleCek.vue';
 import AramaliSelect from '@/components/AramaliSelect.vue';
 import { getDosyaUrl, getDosyaIndirUrl, uploadDosya, type BelgeSlot } from '@/services/dosyaService';
 import { useFileViewer, fileViewerTypeFromMime } from '@/composables/useFileViewer';
-import { kilitBelgesiBul, type KilitBelgeSecenek, type TamponBolum } from './kapiKilitleriTipleri';
+import { kilitBelgesiBul, markaEtiketi, tipEtiketi, type KilitBelgeSecenek, type TamponBolum } from './kapiKilitleriTipleri';
 
 // Tamponlar popup'ı: Kabin Tamponu ve Karşı Ağırlık Tamponu bölümleri. Her
 // bölümde adet girilir; adet kadar Marka/Tip/Seri No satırı oluşur. Altta
@@ -181,13 +181,13 @@ const bolumler = [
           <label class="block space-y-0.5">
             <span v-if="i === 0" class="text-xs font-medium text-ink-muted">Marka</span>
             <AramaliSelect :model-value="satir.marka" placeholder="Seçiniz"
-              :options="markalar().map((m) => ({ label: m, value: m }))"
+              :options="markalar().map((m) => ({ label: markaEtiketi(props.tamponBelgeleri, m), value: m }))"
               @update:model-value="satir.marka = ($event as string | null) || null; satir.tip = null" />
           </label>
           <label class="block space-y-0.5">
             <span v-if="i === 0" class="text-xs font-medium text-ink-muted">Tip</span>
             <AramaliSelect :model-value="satir.tip" placeholder="Tip seçiniz" :disabled="!satir.marka"
-              :options="markaTipleri(satir.marka).map((t) => ({ label: t, value: t }))"
+              :options="markaTipleri(satir.marka).map((t) => ({ label: tipEtiketi(props.tamponBelgeleri, satir.marka, t), value: t }))"
               @update:model-value="satir.tip = ($event as string | null) || null" />
           </label>
           <label class="block space-y-0.5">

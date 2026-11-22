@@ -57,6 +57,7 @@ export interface Denetim {
   ceBelgeIdleri?: string[];
   teknikDosyaSeti?: string;
   tuvFormsSeti?: string;
+  makineTipi?: 'daireli' | 'dairesiz' | 'her-ikisi' | null;
   modul: string;
   denetimTarihi: string;
   // Modul G detayı
@@ -70,6 +71,7 @@ export interface Denetim {
   guvenlikAksamlari?: DenetimAksam[];
   // Modul E detayı: montaj sözleşmesi ve malzeme faturası dosya/fotoğrafları
   montajSozlesmeleri?: BelgeSlot[];
+  markaListesiDosyalari?: BelgeSlot[];
   malzemeFaturalari?: BelgeSlot[];
   createdAt: string;
   updatedAt: string;
@@ -85,6 +87,7 @@ export interface YeniDenetim {
 
 // Kısmi güncelleme — yalnızca gönderilen alanlar değişir
 export type DenetimGuncelleme = Partial<YeniDenetim> & {
+  makineTipi?: 'daireli' | 'dairesiz' | 'her-ikisi' | null;
   ceBelgeIdleri?: string[];
   teknikDosyaSeti?: string;
   tuvFormsSeti?: string;
@@ -95,6 +98,7 @@ export type DenetimGuncelleme = Partial<YeniDenetim> & {
   certificateAnnexler?: string[];
   guvenlikAksamlari?: DenetimAksam[];
   montajSozlesmeleri?: BelgeSlot[];
+  markaListesiDosyalari?: BelgeSlot[];
   malzemeFaturalari?: BelgeSlot[];
 };
 

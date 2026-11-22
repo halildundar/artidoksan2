@@ -6,7 +6,7 @@ import FotoEkleCek from '@/components/FotoEkleCek.vue';
 import AramaliSelect from '@/components/AramaliSelect.vue';
 import { getDosyaUrl, getDosyaIndirUrl, uploadDosya, type BelgeSlot } from '@/services/dosyaService';
 import { useFileViewer, fileViewerTypeFromMime } from '@/composables/useFileViewer';
-import { kilitBelgesiBul, type KilitBelgeSecenek, type MotorBilgi } from './kapiKilitleriTipleri';
+import { kilitBelgesiBul, markaEtiketi, tipEtiketi, type KilitBelgeSecenek, type MotorBilgi } from './kapiKilitleriTipleri';
 
 // Motor popup'ı: Dişlisiz/Dişlili seçimi — seçime göre marka/tip, katalogdaki
 // motor_dislisiz / motor_dislili belgelerinden gelir. Ortak alanlar: seri no,
@@ -152,13 +152,13 @@ async function fotoAc(foto: BelgeSlot) {
         <label class="block space-y-0.5">
           <span class="text-xs font-medium text-ink-muted">Marka</span>
           <AramaliSelect :model-value="motor.marka" placeholder="Seçiniz"
-            :options="markalar().map((m) => ({ label: m, value: m }))"
+            :options="markalar().map((m) => ({ label: markaEtiketi(aktifBelgeler, m), value: m }))"
             @update:model-value="motor.marka = ($event as string | null) || null; motor.tip = null" />
         </label>
         <label class="block space-y-0.5">
           <span class="text-xs font-medium text-ink-muted">Tip</span>
           <AramaliSelect :model-value="motor.tip" placeholder="Tip seçiniz" :disabled="!motor.marka"
-            :options="markaTipleri(motor.marka).map((t) => ({ label: t, value: t }))"
+            :options="markaTipleri(motor.marka).map((t) => ({ label: tipEtiketi(aktifBelgeler, motor.marka, t), value: t }))"
             @update:model-value="motor.tip = ($event as string | null) || null" />
         </label>
       </div>

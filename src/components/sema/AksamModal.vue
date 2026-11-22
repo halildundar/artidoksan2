@@ -6,7 +6,7 @@ import FotoEkleCek from '@/components/FotoEkleCek.vue';
 import AramaliSelect from '@/components/AramaliSelect.vue';
 import { getDosyaUrl, getDosyaIndirUrl, uploadDosya, type BelgeSlot } from '@/services/dosyaService';
 import { useFileViewer, fileViewerTypeFromMime } from '@/composables/useFileViewer';
-import { kilitBelgesiBul, type KilitBelgeSecenek, type AksamBolum } from './kapiKilitleriTipleri';
+import { kilitBelgesiBul, markaEtiketi, tipEtiketi, type KilitBelgeSecenek, type AksamBolum } from './kapiKilitleriTipleri';
 
 // Tek satırlı aksam popup'ı (Hız Regülatörü, Kontrol Kartı): Marka/Tip seçimi
 // (aramalı), tipe göre belge görüntüleme, seri no ve montaj fotoğrafları.
@@ -148,13 +148,13 @@ async function fotoAc(foto: BelgeSlot) {
         <label class="block space-y-0.5">
           <span class="text-xs font-medium text-ink-muted">Marka</span>
           <AramaliSelect :model-value="bolum.marka" placeholder="Seçiniz"
-            :options="markalar().map((m) => ({ label: m, value: m }))"
+            :options="markalar().map((m) => ({ label: markaEtiketi(props.belgeler, m), value: m }))"
             @update:model-value="bolum.marka = ($event as string | null) || null; bolum.tip = null" />
         </label>
         <label class="block space-y-0.5">
           <span class="text-xs font-medium text-ink-muted">Tip</span>
           <AramaliSelect :model-value="bolum.tip" placeholder="Tip seçiniz" :disabled="!bolum.marka"
-            :options="markaTipleri(bolum.marka).map((t) => ({ label: t, value: t }))"
+            :options="markaTipleri(bolum.marka).map((t) => ({ label: tipEtiketi(props.belgeler, bolum.marka, t), value: t }))"
             @update:model-value="bolum.tip = ($event as string | null) || null" />
         </label>
       </div>

@@ -17,6 +17,7 @@ const open = defineModel<boolean>('open', { default: false });
 const kabinGenislik = defineModel<Num>('kabinGenislik', { default: null });
 const kabinDerinlik = defineModel<Num>('kabinDerinlik', { default: null });
 const kabinIciAydinlatma = defineModel<Num>('kabinIciAydinlatma', { default: null });
+const kabinYukseklik = defineModel<Num>('kabinYukseklik', { default: null });
 // Kabin giriş tipi ('tek' | 'cift') — popup'ın en altındaki seçim.
 const girisTipi = defineModel<string | null>('girisTipi', { default: null });
 // Kabin paneli malzemesi; cam seçilirse cam belgesi yüklenir + montaj fotoğrafları.
@@ -275,16 +276,23 @@ onBeforeUnmount(() => document.removeEventListener('mousedown', onDocumentMoused
           class="w-full bg-surface-900 px-2.5 py-1.5 text-xs text-ink ring-1 ring-white/10 outline-none focus:ring-white/30" />
       </label>
 
-      <!-- Giriş tipi seçimi — tek / çift -->
-      <label class="block space-y-0.5">
-        <span class="text-xs font-medium text-ink-muted">Giriş Tipi</span>
-        <select v-model="girisTipi"
-          class="w-full bg-surface-900 px-2.5 py-1.5 text-xs text-ink ring-1 ring-white/10 outline-none focus:ring-white/30">
-          <option :value="null" disabled>Seçiniz</option>
-          <option value="tek">Tek Giriş</option>
-          <option value="cift">Çift Giriş</option>
-        </select>
-      </label>
+      <!-- Giriş tipi seçimi (tek / çift) ve kabin yüksekliği yan yana -->
+      <div class="grid grid-cols-2 gap-2">
+        <label class="block space-y-0.5">
+          <span class="text-xs font-medium text-ink-muted">Giriş Tipi</span>
+          <select v-model="girisTipi"
+            class="w-full bg-surface-900 px-2.5 py-1.5 text-xs text-ink ring-1 ring-white/10 outline-none focus:ring-white/30">
+            <option :value="null" disabled>Seçiniz</option>
+            <option value="tek">Tek Giriş</option>
+            <option value="cift">Çift Giriş</option>
+          </select>
+        </label>
+        <label class="block space-y-0.5">
+          <span class="text-xs font-medium text-ink-muted">Kabin Yüksekliği (mm)</span>
+          <input v-model.number="kabinYukseklik" type="text" inputmode="numeric" placeholder="mm"
+            class="w-full bg-surface-900 px-2.5 py-1.5 text-xs text-ink ring-1 ring-white/10 outline-none placeholder:text-ink-muted/40 focus:ring-white/30" />
+        </label>
+      </div>
 
       <!-- Panel malzemesi -->
       <div class="block space-y-0.5">

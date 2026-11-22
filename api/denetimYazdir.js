@@ -38,8 +38,8 @@ function abBeyaniDosyasi({ denetim }) {
 // (AsansorDetayPage'deki kuyuDipRiskVar / kuyuUstRiskVar / makineDairesiRiskVar ile aynı kurallar).
 // Ölçüler değişip risk ortadan kalkarsa o analizin seçili maddeleri de rapordan çıkar.
 function riskDurumu(a) {
-  const nedenler = { dip: [], ust: [], makine: [] };
-  const sonuc = () => ({ dip: nedenler.dip.length > 0, ust: nedenler.ust.length > 0, makine: nedenler.makine.length > 0, nedenler });
+  const nedenler = { dip: [], ust: [], makine: [], kapi: [] };
+  const sonuc = () => ({ dip: nedenler.dip.length > 0, ust: nedenler.ust.length > 0, makine: nedenler.makine.length > 0, kapi: nedenler.kapi.length > 0, nedenler });
   if (!a) return sonuc();
   const sayi = (v) => (v === null || v === undefined || v === '' ? null : Number(v));
   const hiz = sayi(a.hiz);
@@ -63,6 +63,17 @@ function riskDurumu(a) {
     if (kork !== null && kork - sh < 300) nedenler.ust.push('korkuluk');
     if (susp !== null && susp - sh < 500) nedenler.ust.push('susp');
     if (ustDurma !== null && Number.isFinite(durmaSonMm) && ustDurma - sh - durmaSonMm < 0) nedenler.ust.push('durma');
+  }
+
+  // Alçak durak kapıları: herhangi bir durağın kapı yüksekliği 2000 mm altındaysa (durakta değer yoksa giriş kapısı
+  // yüksekliği esas alınır)
+  {
+    const giris = sayi(a.giris1KapiYukseklik);
+    const duraklar = a.katYukseklikleri ?? [];
+    const yukseklikler = duraklar.length
+      ? duraklar.map((d) => sayi(d.kapiYuksekligi) ?? giris)
+      : [giris];
+    if (yukseklikler.some((y) => y !== null && y < 2000)) nedenler.kapi.push('alcak');
   }
 
   if (a.makinaKonumu === 'MR') {
@@ -108,6 +119,13 @@ const RISK_METINLERI = {
       kapi: ["Makine dairesi giriş kapısı yüksekliğinin 2,00 m'den düşük olması", 'Machine room access door height is lower than 2,00 m'],
     },
     etki: { calisma: 'makine', gecis: 'makine', kapi: 'makine' },
+  },
+  kapi: {
+    baslik: ['Alçak durak kapıları risk analizi', 'Low landing doors risk analysis'],
+    nedenler: {
+      alcak: ["Durak kapılarının net yüksekliğinin 2,00 m'den düşük olması", 'Landing door clear height is lower than 2,00 m'],
+    },
+    etki: { alcak: 'bas' },
   },
 };
 
@@ -159,13 +177,14 @@ function riskFormMetinleri(asansor, grup) {
 }
 
 // Asansörde risk analizi gerekli olan gruplarının seçili maddeleri
-const riskSecimleri = (asansor, gruplar = ['dip', 'ust', 'makine']) => {
+const riskSecimleri = (asansor, gruplar = ['dip', 'ust', 'makine', 'kapi']) => {
   const r = riskDurumu(asansor);
   const var_ = (g) => r[g] && gruplar.includes(g);
   return [
     ...(var_('dip') ? asansor.kuyuDibiRiskMaddeleri ?? [] : []),
     ...(var_('ust') ? asansor.kuyuUstuRiskMaddeleri ?? [] : []),
     ...(var_('makine') ? asansor.makineDairesiRiskMaddeleri ?? [] : []),
+    ...(var_('kapi') ? asansor.alcakKapiRiskMaddeleri ?? [] : []),
   ].filter((m) => m?.metin);
 };
 
@@ -190,9 +209,12 @@ function annexKalemleri(baglam) {
 
 // 12.11 UCM/ACOP: asansörde seçili çözüm türüne göre ilgili tüm aksam belgeleri
 // 12.11.1, 12.11.2, ... olarak (adlarıyla) art arda eklenir
+// UCM/ACOP çözüm türü: kayıtlı değilse motor freni satırı varsa "kart-motor-fren", yoksa "kart-reg-fren"
+const ucmTuru = (asansor) => asansor?.ucmAcopTuru
+  ?? (asansor?.ucmAcopHizRegulatoruFrenIle === false && (asansor?.guvenlikAksamlari ?? []).some((s) => s.slot === 'ucm_acop') ? 'kart-motor-fren' : 'kart-reg-fren');
+
 function ucmKalemleri(asansor) {
-  const tur = asansor?.ucmAcopTuru
-    ?? (asansor?.ucmAcopHizRegulatoruFrenIle === false && (asansor?.guvenlikAksamlari ?? []).some((s) => s.slot === 'ucm_acop') ? 'kart-motor-fren' : 'kart-reg-fren');
+  const tur = ucmTuru(asansor);
   const parcalar = tur === 'kart-motor-fren'
     ? [['MAIN BOARD', ['kontrol_karti']], ['MOTOR BRAKE', ['ucm_acop']]]
     : [['MAIN BOARD', ['kontrol_karti']], ['OVERSPEED GOVERNER', ['hiz_regulatoru']], ['BRAKE', ['fren']]];
@@ -245,11 +267,27 @@ export const DENETIM_G_KALEMLERI = [
   { no: '14', kod: 'module-g-certificate', ad: 'MODULE G CERTIFICATE', tip: 'sablon', klasor: TUV, dosya: 'MODULE G xxxxxx CERTIFICATE.docx', kosul: ({ denetim }) => gKodu(denetim) },
   // Standarttan sapma raporu: yalnız asansörde risk analizi (kuyu dibi/üstü/makine dairesi) varsa listelenir
   // Risk analiz formu (kabin üstü / kuyu üstü): kuyu üstü risk analizi gerekiyorsa listelenir
+  // Modül B: TYPE APPROVAL CERTIFICATE (AB tip incelemesi sertifikası); ürün açıklaması makine tipi seçimine göre
+  { no: '14', kod: 'module-b-certificate', ad: 'TYPE APPROVAL CERTIFICATE MODULE B', tip: 'sablon', klasor: TUV, dosya: 'TYPE APPROVAL CERTIFICATE xxxxx MODULE B.docx', kosul: ({ denetim }) => ceModulKodu(denetim.modul) === 'B', secim: 'makineTipi' },
   { no: '20.1', kod: 'risk-analysis-dip', ad: 'Risk Analiz Formu - Kuyu Dibi', tip: 'sablon', klasor: CE, dosya: '20.Risk Analiz Formu.docx', riskGrup: 'dip', kosul: ({ asansor }) => riskDurumu(asansor).dip },
   { no: '20.2', kod: 'risk-analysis-ust', ad: 'Risk Analiz Formu - Kuyu Üstü', tip: 'sablon', klasor: CE, dosya: '20.Risk Analiz Formu.docx', riskGrup: 'ust', kosul: ({ asansor }) => riskDurumu(asansor).ust },
   { no: '20.3', kod: 'risk-analysis-makine', ad: 'Risk Analiz Formu - Makine Dairesi', tip: 'sablon', klasor: CE, dosya: '20.Risk Analiz Formu.docx', riskGrup: 'makine', kosul: ({ asansor }) => riskDurumu(asansor).makine },
+  { no: '20.4', kod: 'risk-analysis-kapi', ad: 'Risk Analiz Formu - Alçak Durak Kapıları', tip: 'sablon', klasor: CE, dosya: '20.Risk Analiz Formu.docx', riskGrup: 'kapi', kosul: ({ asansor }) => riskDurumu(asansor).kapi },
   { no: '15', kod: 'deviation-report', ad: 'DEVIATION FROM STANDARD CONTROL AND CONFIRMITY REPORT', tip: 'sablon', klasor: TUV, dosya: 'DEVIATION FROM STANDARD CONTROL AND APPROVAL REPORT.docx', kosul: ({ asansor }) => riskSecimleri(asansor).length > 0 },
 ];
+
+// Modül B sertifikası "Product Description / Ürün Açıklaması": seçenekler yazdırma öncesi sorulur; seçim
+// yapılmadıysa asansörün makine konumundan (MR → daireli, MRL → dairesiz) gelir
+const MAKINE_TIPI_SECENEKLERI = [
+  { deger: 'her-ikisi', etiket: 'Makine daireli ve makine dairesiz', en: 'Machine room and machine room less traction drive lift for persons and goods', tr: 'Makine daireli ve makine dairesiz sürtünme tahrikli asansör, insan ve yük için.' },
+  { deger: 'daireli', etiket: 'Makine daireli', en: 'Machine room traction drive lift for persons and goods', tr: 'Makine daireli sürtünme tahrikli asansör, insan ve yük için.' },
+  { deger: 'dairesiz', etiket: 'Makine dairesiz', en: 'Machine room less traction drive lift for persons and goods', tr: 'Makine dairesiz sürtünme tahrikli asansör, insan ve yük için.' },
+];
+const makineTipiDegeri = (denetim, asansor) => denetim?.makineTipi ?? (asansor?.makinaKonumu === 'MR' ? 'daireli' : 'dairesiz');
+function makineTipiAlanlari(denetim, asansor) {
+  const s = MAKINE_TIPI_SECENEKLERI.find((x) => x.deger === makineTipiDegeri(denetim, asansor)) ?? MAKINE_TIPI_SECENEKLERI[2];
+  return { urun_aciklama_en: s.en, urun_aciklama_tr: s.tr };
+}
 
 // ce-td-temp1 içindeki "Certificate Annex For Modul B ( 800 kg 1.6 ms 1-1 askı ).docx" şablonları:
 // parantez içi etiket seçenek olur ("800 kg 1.6 ms 1-1 askı")
@@ -438,6 +476,7 @@ function kalemVerisiTemel(veri, kalem, baglam) {
   const { asansor, denetim, denetci } = baglam;
   if (kalem.kod.startsWith('certificate-annex-')) return { ...veri, ...annexAciklamasi(asansor, kalem, veri) };
   if (kalem.kod === 'checklist') return { ...veri, ...checklistVerisi(asansor, String(denetim._id)) };
+  if (kalem.kod === 'module-b-certificate') return { ...veri, ...makineTipiAlanlari(denetim, asansor) };
   if (kalem.kod === 'module-g-certificate') {
     return { ...veri, ...teknikVerisi(asansor, denetim, denetci), ...ornekTabloVerisi(asansor), 'kişi_sayisi': bos(asansor?.kisiSayisi) };
   }
@@ -548,10 +587,11 @@ function checklistVerisi(asansor, tohum) {
     kabin_ray_arasi: bos(asansor?.kabinRayArasi),
     kar_ray_arasi: bos(asansor?.karsiAgirlikRayArasi),
     // Aydınlatma (lux): ölçüm kaydı yok; denetime göre sabit aralıktan değer
-    kab_lux: String(tohumluAralik(tohum, 'kab', 100, 162)),
-    kab_ust_lux: String(tohumluAralik(tohum, 'ust', 50, 84)),
-    kuyu_dibi_lux: String(tohumluAralik(tohum, 'pit', 50, 84)),
-    mak_alani_lux: String(tohumluAralik(tohum, 'mak', 200, 280)),
+    // (asansör kaydında kayıtlı değer varsa o, yoksa denetime göre sabit değer)
+    kab_lux: String(asansor?.kabinIciAydinlatma ?? tohumluAralik(tohum, 'kab', 100, 162)),
+    kab_ust_lux: String(asansor?.kabinUstuAydinlatma ?? tohumluAralik(tohum, 'ust', 50, 84)),
+    kuyu_dibi_lux: String(asansor?.kuyuDibiAydinlatma ?? tohumluAralik(tohum, 'pit', 50, 84)),
+    mak_alani_lux: String(asansor?.makineAlaniAydinlatma ?? tohumluAralik(tohum, 'mak', 200, 280)),
     durak_listesi: durakListesi(asansor),
     kabin_ray_turu: rayTuru(asansor?.kabinRayTipi), kabin_ray_olcu: rayOlcusu(asansor?.kabinRayTipi),
     kar_ray_turu: rayTuru(asansor?.karsiAgirlikRayTipi), kar_ray_olcu: rayOlcusu(asansor?.karsiAgirlikRayTipi),
@@ -587,6 +627,7 @@ async function riskVerisi(asansor) {
     risk_cozum_dip: cozum('dip'),
     risk_cozum_ust: cozum('ust'),
     risk_cozum_makine: cozum('makine'),
+    risk_cozum_kapi: cozum('kapi'),
     risk_standart_maddeleri: birlestir(secimler.filter(standartMi)),
     risk_uygulama_maddeleri: birlestir(secimler.filter((m) => !standartMi(m))),
   };
@@ -662,7 +703,7 @@ const MUHENDIS_ETIKET = { elektrik: 'Elektrik Mühendisi', makine: 'Makine Mühe
 
 // Beyan formundaki modül onay kutuları denetimin modülüne göre işaretlenir
 // Risk analizinin uygulama resimleri (madde bazlı değil, analiz başına)
-const RISK_RESIM_ALANLARI = { dip: 'kuyuDibiRiskResimleri', ust: 'kuyuUstuRiskResimleri', makine: 'makineDairesiRiskResimleri' };
+const RISK_RESIM_ALANLARI = { dip: 'kuyuDibiRiskResimleri', ust: 'kuyuUstuRiskResimleri', makine: 'makineDairesiRiskResimleri', kapi: 'alcakKapiRiskResimleri' };
 const riskResimAnahtarlari = (asansor, grup) => [...new Set(
   (asansor?.[RISK_RESIM_ALANLARI[grup]] ?? []).map((r) => r?.dosyaAnahtari).filter(Boolean)
 )];
@@ -708,6 +749,11 @@ const doldurmaSecenegi = ({ denetim, asansor }, kalem) => ({
     if (kalem?.kod === 'module-g-certificate') return bosParagraflariKucult(yamali);
     if (kalem?.kod === 'deviation-report') return uzunSatirlariEsnet(yamali);
     if (kalem?.kod === 'application-form') return basvuruBosParagraflariniKaldir(yamali, 'I declare that:');
+    // Sabit ürün açıklaması satırları etikete çevrilir (makine tipi seçimine göre doldurulur)
+    if (kalem?.kod === 'module-b-certificate') {
+      return paragrafiDegistir(paragrafiDegistir(yamali, 'traction drive lift for persons and goods', '{urun_aciklama_en}'), 'sürtünme tahrikli asansör, insan ve yük için', '{urun_aciklama_tr}');
+    }
+    if (kalem?.kod?.startsWith('certificate-annex-')) return annexUcmNotu(yamali, asansor);
     return yamali;
   },
 });
@@ -901,6 +947,39 @@ function basvuruBosParagraflariniKaldir(xml, hedefMetin) {
   return onceki + xml.slice(bas);
 }
 
+// Certificate Annex Modul B "Ascending car overspeed protection" alanı. Bazı annex şablonlarında
+// alan {ucm_acop_ozet} etiketi, bazılarında sabit cümle ("The control board and speed regulator
+// components are included in this area.") olarak durur. Çözüm "Kart + Hız Reg. + Fren" ise alan,
+// küçük / eğik / koyu gri (siyahın bir alt tonu) İngilizce açıklama notuyla değiştirilir; diğer
+// çözümlerde sabit cümle yerine {ucm_acop_ozet} (seçilen UCM/ACOP belgeleri) yazılır.
+const UCM_KART_REG_FREN_NOTU = '* The ascending car overspeed protection (UCM/ACOP) is achieved through the combined selection of the control card, overspeed governor and brake (safety gear) components.';
+const UCM_SABIT_CUMLE = 'The control board and speed regulator components are included in this area.';
+function annexUcmNotu(xml, asansor) {
+  const notVar = ucmTuru(asansor) === 'kart-reg-fren';
+  let islendi = false;
+  return xml.replace(/<w:p[ >][\s\S]*?<\/w:p>/g, (p) => {
+    if (islendi) return p;
+    const metin = p.replace(/<[^>]+>/g, '');
+    const etiketli = metin.includes('{ucm_acop_ozet}');
+    const sabit = metin.includes(UCM_SABIT_CUMLE);
+    if (!etiketli && !sabit) return p;
+    islendi = true;
+    const ppr = /<w:pPr>[\s\S]*?<\/w:pPr>/.exec(p)?.[0] ?? '<w:pPr></w:pPr>';
+    const acilis = /^<w:p[^>]*>/.exec(p)[0];
+    const fonts = /<w:rFonts[^>]*\/>/.exec(p)?.[0] ?? '';
+    if (notVar) {
+      const yeniPpr = ppr.replace(/<w:numPr>[\s\S]*?<\/w:numPr>/, '').replace(/<w:rPr>[\s\S]*?<\/w:rPr>/, '');
+      return `${acilis}${yeniPpr}<w:r><w:rPr>${fonts}<w:i/><w:iCs/><w:color w:val="404040"/><w:sz w:val="15"/><w:szCs w:val="15"/></w:rPr><w:t xml:space="preserve">${UCM_KART_REG_FREN_NOTU}</w:t></w:r></w:p>`;
+    }
+    if (sabit) {
+      const run = (p.match(/<w:r[ >][\s\S]*?<\/w:r>/g) ?? []).find((r) => r.includes('<w:t'));
+      const rpr = run ? (/<w:rPr>[\s\S]*?<\/w:rPr>/.exec(run)?.[0] ?? '') : '';
+      return `${acilis}${ppr}<w:r>${rpr}<w:t xml:space="preserve">{ucm_acop_ozet}</w:t></w:r></w:p>`;
+    }
+    return p;
+  });
+}
+
 function checklistYamasi(xml) {
   const y = [
     ['{durak_sayisi}  (-2', '{durak_sayisi}  ({durak_listesi})  /   {as_seyir_mes} m / {makine_konum}'],
@@ -981,6 +1060,15 @@ async function kalemListesi(baglam) {
   const sonuc = [];
   for (const k of aktifKalemler(baglam)) {
     const satir = { no: k.no, kod: k.kod, ad: k.ad, tip: k.tip };
+    // Yazdırma öncesi sorulan seçenek (örn. Modül B sertifikasında makine tipi)
+    if (k.secim === 'makineTipi') {
+      satir.secim = {
+        alan: 'makineTipi',
+        etiket: 'Ürün açıklaması',
+        deger: makineTipiDegeri(baglam.denetim, baglam.asansor),
+        secenekler: MAKINE_TIPI_SECENEKLERI.map(({ deger, etiket }) => ({ deger, etiket })),
+      };
+    }
     if (k.tip === 'sablon') {
       if (k.hazir === false) {
         satir.hazirDegil = true;

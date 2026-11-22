@@ -18,6 +18,10 @@ const props = defineProps<{
 }>();
 
 const emit = defineEmits<{ iptal: [] }>();
+
+// Kapı yüksekliği 2000 mm altındaki duraklar kırmızı işaretlenir (alçak durak kapıları risk analizi)
+const KAPI_ALT_SINIR = 2000;
+const kapiDusuk = (v: number | '' | null | undefined) => typeof v === 'number' && Number.isFinite(v) && v < KAPI_ALT_SINIR;
 const open = defineModel<boolean>('open', { default: false });
 const fotolar = defineModel<BelgeSlot[]>('fotolar', { default: () => [] });
 const satirlar = defineModel<DurakSatiri[]>('satirlar', { default: () => [] });
@@ -112,18 +116,30 @@ function yukariKaydir() {
       </div>
 
       <div v-if="satirlar.length" class="flex items-center gap-1.5">
-        <span class="w-16 text-xs font-medium text-ink-muted">Durak</span>
+        <span class="w-12 text-xs font-medium text-ink-muted">Durak</span>
         <span class="flex-1 text-xs font-medium text-ink-muted">Durak Arası Mesafe (mm)</span>
+        <span class="flex-1 text-xs font-medium text-ink-muted">Kapı Yüksekliği (mm)</span>
       </div>
 
       <div v-for="(satir, i) in gosterilen" :key="i" class="flex items-center gap-1.5">
         <!-- Durak numarası salt okunur — Bodrum/Kat butonlarıyla kaydırılır -->
         <input :value="satir.kat" readonly tabindex="-1"
-          class="w-16 bg-surface-900/50 px-2 py-1.5 text-xs text-ink-muted ring-1 ring-white/5 outline-none" />
+          class="w-12 bg-surface-900/50 px-2 py-1.5 text-xs text-ink-muted ring-1 ring-white/5 outline-none" />
         <input v-model.number="satir.yukseklik" type="number" min="0" inputmode="numeric"
           placeholder="3000"
-          class="flex-1 bg-surface-900 px-2 py-1.5 text-xs text-ink ring-1 ring-white/10 outline-none placeholder:text-ink-muted/40 focus:ring-white/30" />
+          class="min-w-0 flex-1 bg-surface-900 px-2 py-1.5 text-xs text-ink ring-1 ring-white/10 outline-none placeholder:text-ink-muted/40 focus:ring-white/30" />
+        <!-- Kapı yüksekliği: 2000 mm altı kırmızı (risk analizi gerekir) -->
+        <input v-model.number="satir.kapiYukseklik" type="number" min="0" inputmode="numeric" placeholder="2000"
+          class="min-w-0 flex-1 px-2 py-1.5 text-xs outline-none ring-1"
+          :class="kapiDusuk(satir.kapiYukseklik)
+            ? 'bg-red-950/60 font-semibold text-red-300 ring-red-500/50'
+            : 'bg-surface-900 text-ink ring-white/10 placeholder:text-ink-muted/40 focus:ring-white/30'" />
       </div>
+
+      <p v-if="satirlar.some((s) => kapiDusuk(s.kapiYukseklik))"
+        class="bg-red-950/60 px-2.5 py-2 text-[11px] font-semibold text-red-300 ring-1 ring-red-500/30">
+        Kapı yüksekliği 2000 mm altında olan durak var — "Alçak durak kapıları" risk analizi gerekli (Risk Durumları bölümünden yapılır).
+      </p>
 
       <!-- Hesaplanan değerler -->
       <div v-if="satirlar.length" class="space-y-0.5 border-t border-white/5 pt-2 text-xs">

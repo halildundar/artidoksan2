@@ -11,6 +11,8 @@ import {
   type KilitBelgeSecenek,
   type FrenKabin,
   type FrenKarsiAgirlik,
+  markaEtiketi,
+  tipEtiketi,
 } from './kapiKilitleriTipleri';
 
 // Fren popup'ı: Kabin Fren (marka/tip/seri + kabin altı-üstü konum) ve Karşı
@@ -146,13 +148,13 @@ async function belgeAc(belge: KilitBelgeSecenek | null) {
           <label class="block space-y-0.5">
             <span class="text-xs font-medium text-ink-muted">Marka</span>
             <AramaliSelect :model-value="kabin.marka" placeholder="Seçiniz"
-              :options="markalar().map((m) => ({ label: m, value: m }))"
+              :options="markalar().map((m) => ({ label: markaEtiketi(props.frenBelgeleri, m), value: m }))"
               @update:model-value="kabin.marka = ($event as string | null) || null; kabin.tip = null" />
           </label>
           <label class="block space-y-0.5">
             <span class="text-xs font-medium text-ink-muted">Tip</span>
             <AramaliSelect :model-value="kabin.tip" placeholder="Tip seçiniz" :disabled="!kabin.marka"
-              :options="markaTipleri(kabin.marka).map((t) => ({ label: t, value: t }))"
+              :options="markaTipleri(kabin.marka).map((t) => ({ label: tipEtiketi(props.frenBelgeleri, kabin.marka, t), value: t }))"
               @update:model-value="kabin.tip = ($event as string | null) || null" />
           </label>
         </div>
@@ -246,13 +248,13 @@ async function belgeAc(belge: KilitBelgeSecenek | null) {
             <label class="block space-y-0.5">
               <span class="text-xs font-medium text-ink-muted">Marka</span>
               <AramaliSelect :model-value="karsiAgirlik.marka" placeholder="Seçiniz"
-                :options="markalar().map((m) => ({ label: m, value: m }))"
+                :options="markalar().map((m) => ({ label: markaEtiketi(props.frenBelgeleri, m), value: m }))"
                 @update:model-value="karsiAgirlik.marka = ($event as string | null) || null; karsiAgirlik.tip = null" />
             </label>
             <label class="block space-y-0.5">
               <span class="text-xs font-medium text-ink-muted">Tip</span>
               <AramaliSelect :model-value="karsiAgirlik.tip" placeholder="Tip seçiniz" :disabled="!karsiAgirlik.marka"
-                :options="markaTipleri(karsiAgirlik.marka).map((t) => ({ label: t, value: t }))"
+                :options="markaTipleri(karsiAgirlik.marka).map((t) => ({ label: tipEtiketi(props.frenBelgeleri, karsiAgirlik.marka, t), value: t }))"
                 @update:model-value="karsiAgirlik.tip = ($event as string | null) || null" />
             </label>
           </div>

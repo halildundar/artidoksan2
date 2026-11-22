@@ -8,7 +8,7 @@ import RaporBelgeEkleModal from '@/components/sema/RaporBelgeEkleModal.vue';
 import { getDosyaUrl, getDosyaIndirUrl, uploadDosya, type BelgeSlot } from '@/services/dosyaService';
 import { useFileViewer, fileViewerTypeFromMime } from '@/composables/useFileViewer';
 import type { AksamBelgesi } from '@/services/aksamBelgesiService';
-import { kilitBelgesiBul, type KilitBelgeSecenek, type KapiGiris } from './kapiKilitleriTipleri';
+import { kilitBelgesiBul, markaEtiketi, tipEtiketi, type KilitBelgeSecenek, type KapiGiris } from './kapiKilitleriTipleri';
 
 // Kapı popup'ı: her giriş için Durak Kapı Kilidi (marka → tip → birden fazla
 // seri no) ve Kabin Kapı Kilidi (marka → tip → tek seri no). Çift girişli
@@ -170,13 +170,13 @@ async function fotoAc(foto: BelgeSlot) {
             <label class="block space-y-0.5">
               <span class="text-xs font-medium text-ink-muted">Marka</span>
               <AramaliSelect :model-value="g.durakMarka" placeholder="Seçiniz"
-                :options="markalar(props.durakBelgeleri).map((m) => ({ label: m, value: m }))"
+                :options="markalar(props.durakBelgeleri).map((m) => ({ label: markaEtiketi(props.durakBelgeleri, m), value: m }))"
                 @update:model-value="g.durakMarka = ($event as string | null) || null; g.durakTip = null" />
             </label>
             <label class="block space-y-0.5">
               <span class="text-xs font-medium text-ink-muted">Tip</span>
               <AramaliSelect :model-value="g.durakTip" placeholder="Tip seçiniz" :disabled="!g.durakMarka"
-                :options="markaTipleri(props.durakBelgeleri, g.durakMarka).map((t) => ({ label: t, value: t }))"
+                :options="markaTipleri(props.durakBelgeleri, g.durakMarka).map((t) => ({ label: tipEtiketi(props.durakBelgeleri, g.durakMarka, t), value: t }))"
                 @update:model-value="g.durakTip = ($event as string | null) || null" />
             </label>
           </div>
@@ -280,13 +280,13 @@ async function fotoAc(foto: BelgeSlot) {
             <label class="block space-y-0.5">
               <span class="text-xs font-medium text-ink-muted">Marka</span>
               <AramaliSelect :model-value="g.kabinMarka" placeholder="Seçiniz"
-                :options="markalar(props.kabinBelgeleri).map((m) => ({ label: m, value: m }))"
+                :options="markalar(props.kabinBelgeleri).map((m) => ({ label: markaEtiketi(props.kabinBelgeleri, m), value: m }))"
                 @update:model-value="g.kabinMarka = ($event as string | null) || null; g.kabinTip = null" />
             </label>
             <label class="block space-y-0.5">
               <span class="text-xs font-medium text-ink-muted">Tip</span>
               <AramaliSelect :model-value="g.kabinTip" placeholder="Tip seçiniz" :disabled="!g.kabinMarka"
-                :options="markaTipleri(props.kabinBelgeleri, g.kabinMarka).map((t) => ({ label: t, value: t }))"
+                :options="markaTipleri(props.kabinBelgeleri, g.kabinMarka).map((t) => ({ label: tipEtiketi(props.kabinBelgeleri, g.kabinMarka, t), value: t }))"
                 @update:model-value="g.kabinTip = ($event as string | null) || null" />
             </label>
           </div>

@@ -16,7 +16,12 @@ const dosyaSlotSchema = new mongoose.Schema(
 );
 
 const katYuksekligiSchema = new mongoose.Schema(
-  { kat: { type: Number, required: true }, yukseklik: { type: Number, required: true } },
+  {
+    kat: { type: Number, required: true },
+    yukseklik: { type: Number, required: true },
+    // Bu durağın kapı yüksekliği (mm); 2000 altı "Alçak durak kapıları" risk analizi gerektirir
+    kapiYuksekligi: { type: Number, default: null },
+  },
   { _id: false }
 );
 
@@ -95,7 +100,7 @@ const asansorSchema = new mongoose.Schema(
     adres: { type: String, trim: true, default: '' },
     ada: { type: String, trim: true, default: '' },
     parsel: { type: String, trim: true, default: '' },
-    tahrikTipi: { type: String, enum: ['elektrikli', 'hidrolik', null], default: null },
+    tahrikTipi: { type: String, enum: ['elektrikli', 'hidrolik', null], default: 'elektrikli' },
     sinif: { type: String, enum: ['insan_ve_yuk', 'yuk', null], default: null },
     makinaKonumu: { type: String, enum: ['MR', 'MRL', null], default: null },
     askiTipi: { type: String, enum: ['1:1', '2:1', '3:1', '4:1', null], default: null },
@@ -174,6 +179,9 @@ const asansorSchema = new mongoose.Schema(
     kuyuUstuRiskMaddeleri: { type: [riskMaddeSecimSchema], default: [] },
     // Risk analizi uygulama resimleri (madde bazlı değil, analiz başına genel liste)
     kuyuDibiRiskResimleri: { type: [dosyaSlotSchema], default: [] },
+    // Alçak durak kapıları risk analizi
+    alcakKapiRiskMaddeleri: { type: [riskMaddeSecimSchema], default: [] },
+    alcakKapiRiskResimleri: { type: [dosyaSlotSchema], default: [] },
     kuyuUstuRiskResimleri: { type: [dosyaSlotSchema], default: [] },
     makineDairesiRiskResimleri: { type: [dosyaSlotSchema], default: [] },
     // Kuyu dibi risk analizinde seçilen maddeler (id + snapshot)
@@ -310,9 +318,12 @@ export function varsayilanEksikleri(a) {
   const d = {};
   const yoksa = (alan, deger) => { if (bosMu(a[alan])) d[alan] = deger; };
   const giris2 = a.kabinGirisTipi === 'cift';
+  // Tahrik her zaman elektrikli
+  yoksa('tahrikTipi', 'elektrikli');
   // Kabin
   yoksa('kabinGenislik', 1350);
   yoksa('kabinDerinlik', 1350);
+  yoksa('kabinYukseklik', 2200);
   yoksa('kabinGirisTipi', 'tek');
   yoksa('kabinPanelMalzemesi', 'paslanmaz');
   // Kapılar: 2 panel teleskopik sol, paslanmaz
@@ -349,7 +360,32 @@ export function varsayilanEksikleri(a) {
   yoksa('kuyuUstKabinUstDurma', 1250); yoksa('kuyuUstSonKat', 4250); yoksa('kuyuUstDurmaAlani', '50x70x100');
   // Hız regülatörü devreye girme hızı
   yoksa('regulatorDevreyeGirmeHizi', 1.3);
+  // Son kat yüksekliği: kuyu üstü "Son Kat" ölçüsüyle aynı (ekranda da oradan gösterilir)
+  yoksa('sonKatYukseklik', bosMu(a.kuyuUstSonKat) ? 4250 : a.kuyuUstSonKat);
+  // Kapı adedi: kat yüksekliği listesindeki (yoksa durak sayısı) kat sayısı kadar
+  const katAdedi = (a.katYukseklikleri ?? []).length || a.durakSayisi;
+  if (katAdedi) yoksa('giris1KapiAdet', katAdedi);
+  if (giris2 && (a.giris2Duraklar ?? []).length) yoksa('giris2KapiAdet', a.giris2Duraklar.length);
+  // Ray mesafeleri: Ray Ölçüleri'ndeki RR (ray–ray) ve RK (ray–kapı) değerlerinden
+  const rr = Number(a.rayRR), rk = Number(a.rayRK);
+  if (rr > 0) yoksa('kabinRayKarsiAgirlikRayArasi', rr);
+  if (rk > 0) yoksa('kabinRayDurakKapisiArasi', rk);
+  if (rr > 0 && rk > 0) yoksa('karsiAgirlikRayDurakKapisiArasi', rr + rk);
+  // Aydınlatma (lux): ölçüm kaydı yoksa aralıktan sabit (asansöre göre tohumlu) değer yazılır;
+  // yazdırılan belgeler de bu kayıtlı değeri kullanır
+  const tohum = a._id ? String(a._id) : String(Math.random());
+  yoksa('kabinIciAydinlatma', tohumluAralik(tohum, 'kab', 100, 162));
+  yoksa('kabinUstuAydinlatma', tohumluAralik(tohum, 'ust', 50, 84));
+  yoksa('kuyuDibiAydinlatma', tohumluAralik(tohum, 'pit', 50, 84));
+  if (a.makinaKonumu === 'MR') yoksa('makineAlaniAydinlatma', tohumluAralik(tohum, 'mak', 200, 280));
   return d;
+}
+
+// Aynı tohum her zaman aynı değeri verir (FNV-1a)
+function tohumluAralik(tohum, ad, min, max) {
+  let h = 2166136261;
+  for (const c of `${tohum}:${ad}`) h = Math.imul(h ^ c.charCodeAt(0), 16777619);
+  return min + (Math.abs(h) % (max - min + 1));
 }
 
 // Mevcut kayıtlardaki eksik varsayılanları bir kez tamamlar (API açılışında)

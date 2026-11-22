@@ -4,6 +4,8 @@ import type { BelgeSlot } from './dosyaService';
 export interface KatYuksekligi {
   kat: number;
   yukseklik: number;
+  // Bu durağın kapı yüksekliği (mm); 2000 altı alçak durak kapıları risk analizi gerektirir
+  kapiYuksekligi?: number | null;
 }
 
 export interface AgirlikBlogu {
@@ -132,6 +134,13 @@ export interface Asansor {
     resim?: BelgeSlot | null;
     fotolar?: BelgeSlot[];
   }[];
+  // Alçak durak kapıları risk analizinde seçilen maddeler
+  alcakKapiRiskMaddeleri: {
+    maddeId: string | null;
+    metin: string;
+    resim?: BelgeSlot | null;
+    fotolar?: BelgeSlot[];
+  }[];
   // Kuyu dibi risk analizinde seçilen maddeler (id + snapshot + fotolar)
   kuyuDibiRiskMaddeleri: {
     maddeId: string | null;
@@ -206,6 +215,7 @@ export interface Asansor {
   kuyuDibiRiskResimleri?: BelgeSlot[];
   kuyuUstuRiskResimleri?: BelgeSlot[];
   makineDairesiRiskResimleri?: BelgeSlot[];
+  alcakKapiRiskResimleri?: BelgeSlot[];
   // Durak/kabin kapı kilidi montaj fotoğrafları (1. ve 2. giriş ayrı)
   durakKilitFotolari: BelgeSlot[];
   durakKilitFotolari2: BelgeSlot[];

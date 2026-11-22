@@ -39,6 +39,8 @@ const denetimSchema = new mongoose.Schema(
     // Yazdır: şablon klasörü seçimleri (Teknik Dosya 1 = ce-td-temp1, Tüv Forms 1 = tuv-temp1)
     teknikDosyaSeti: { type: String, trim: true, default: 'ce-td-temp1' },
     tuvFormsSeti: { type: String, trim: true, default: 'tuv-temp1' },
+    // Modül B "TYPE APPROVAL CERTIFICATE" ürün açıklaması: makine daireli / dairesiz / her ikisi (yazdırmadan önce seçilir)
+    makineTipi: { type: String, enum: ['daireli', 'dairesiz', 'her-ikisi', null], default: null },
     modul: { type: String, trim: true, default: '' },
     denetimTarihi: { type: Date, required: true },
     ekProje: { type: dosyaSlotSchema, default: null },
@@ -51,6 +53,8 @@ const denetimSchema = new mongoose.Schema(
     // Modul E: montaj sözleşmesi ve malzeme faturası dosya/fotoğrafları
     montajSozlesmeleri: { type: [dosyaSlotSchema], default: [] },
     malzemeFaturalari: { type: [dosyaSlotSchema], default: [] },
+    // Modül B: firmanın doldurduğu marka listesi (dosya/fotoğraf)
+    markaListesiDosyalari: { type: [dosyaSlotSchema], default: [] },
     // Yazdır: şablondan üretilen DOCX+PDF çiftleri (denetimYazdir.js yönetir)
     uretilenBelgeler: {
       type: [
@@ -123,17 +127,17 @@ router.post('/', async (req, res) => {
 router.put('/:id', async (req, res) => {
   try {
     const {
-      firmaId, asansorId, modul, denetimTarihi, denetciId, ceBelgeIdleri, teknikDosyaSeti, tuvFormsSeti,
+      firmaId, asansorId, modul, denetimTarihi, denetciId, ceBelgeIdleri, teknikDosyaSeti, tuvFormsSeti, makineTipi,
       ekProje, abUygunlukBeyaniTarihi, sonKontrolTarihi,
-      tipProjeler, certificateAnnexler, guvenlikAksamlari, montajSozlesmeleri, malzemeFaturalari,
+      tipProjeler, certificateAnnexler, guvenlikAksamlari, montajSozlesmeleri, malzemeFaturalari, markaListesiDosyalari,
     } = req.body ?? {};
     // undefined alanlar Mongoose tarafından ayıklanır — kısmi PUT
     const denetim = await Denetim.findByIdAndUpdate(
       req.params.id,
       {
-        firmaId, asansorId, modul, denetimTarihi, denetciId, ceBelgeIdleri, teknikDosyaSeti, tuvFormsSeti,
+        firmaId, asansorId, modul, denetimTarihi, denetciId, ceBelgeIdleri, teknikDosyaSeti, tuvFormsSeti, makineTipi,
         ekProje, abUygunlukBeyaniTarihi, sonKontrolTarihi,
-        tipProjeler, certificateAnnexler, guvenlikAksamlari, montajSozlesmeleri, malzemeFaturalari,
+        tipProjeler, certificateAnnexler, guvenlikAksamlari, montajSozlesmeleri, malzemeFaturalari, markaListesiDosyalari,
       },
       { new: true, runValidators: true }
     ).populate(POPULATE);
