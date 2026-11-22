@@ -43,6 +43,9 @@ export interface FirmaOzet {
 
 export interface Asansor {
   _id: string;
+  // Kaydı ekleyen kullanıcı (sunucu yazar) ve atanan danışman
+  olusturanId?: string | null;
+  danismanIdler?: string[];
   firmaId: string | FirmaOzet | null;
   yapiRuhsatNo: string;
   yapiSahibiAdi: string;

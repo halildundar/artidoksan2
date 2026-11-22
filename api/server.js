@@ -16,9 +16,11 @@ import asansorRouter, { varsayilanlariTamamla } from './asansor.js';
 import denetimRouter from './denetim.js';
 import denetimYazdirRouter from './denetimYazdir.js';
 import denetciRouter from './denetciler.js';
-import kullaniciRouter from './kullanicilar.js';
+import kullaniciRouter, { izinleriTamamla } from './kullanicilar.js';
 import istatistikRouter from './istatistik.js';
 import authRouter, { girisGerekli } from './auth.js';
+import { izinGerekli } from './izinler.js';
+import { gorunurlukFiltresi, kayitKorumasiMw, olusturanAlani, danismanAlani } from './gorunurluk.js';
 import tescilRouter from './tescil.js';
 import yazdirRouter from './yazdir.js';
 import smmFirmalariRouter from './smmFirmalari.js';
@@ -33,6 +35,28 @@ const PORT = process.env.PORT ?? 3000;
 const app = express();
 app.use(cors()); // mobil uygulamalar farklı origin'den gelir
 app.use(express.json({ limit: '10mb' })); // KYS verisi (doküman listesi + uygulama kayıtları) büyük olabilir
+
+// Kimlik doğrulama: AUTH_ZORUNLU=1 iken /api/auth ve /api/health dışındaki tüm uçlar giriş ister
+// (kapalıyken uçlar açık kalır; jeton varsa kullanıcı isteğe eklenir). Tüm rotalardan ÖNCE tanımlanır.
+app.get('/api/health', (_req, res) => {
+  res.json({ ok: true });
+});
+app.use('/api/auth', authRouter);
+app.use('/api', (req, res, next) => (req.path === '/health' ? next() : girisGerekli()(req, res, next)));
+
+// İzinler (api/izinler.js): HTTP yöntemi → eylem (GET okuma, POST ekleme, PUT düzenleme, DELETE silme).
+// Admin tüm izinlere sahiptir. Yazdırma rotaları (/:id/yazdir...) ayrı "yazdırma" modülüne bağlıdır.
+const yazdirmaYolu = (req) => /^\/[^/]+\/yazdir(\/|$)/.test(req.path);
+app.use('/api/firmalar', izinGerekli('firmalar'));
+app.use('/api/asansorler', izinGerekli('asansorler'));
+app.use('/api/denetimler', izinGerekli((req) => (yazdirmaYolu(req) ? 'yazdirma' : 'denetimler')));
+app.use('/api/tesciller', izinGerekli((req) => (yazdirmaYolu(req) ? 'yazdirma' : 'tesciller')));
+app.use('/api/aksam-belgeleri', izinGerekli('guvenlik-aksamlari'));
+app.use('/api/onayli-kurumlar', izinGerekli('onayli-kurumlar'));
+app.use('/api/denetciler', izinGerekli('denetciler'));
+app.use('/api/danismanlar', izinGerekli('danismanlar'));
+app.use('/api/smm-firmalari', izinGerekli('smm-firmalari'));
+app.use('/api/risk-maddeleri', izinGerekli('risk-maddeleri'));
 
 // Tek bir yüklenmiş dosyanın kaydı (artidoksan1'deki belgeSlotSchema deseni)
 const belgeSlotSchema = new mongoose.Schema(
@@ -148,6 +172,9 @@ const firmaSchema = new mongoose.Schema(
     smmElkMuhTelefon: { type: String, trim: true, default: '' },
     smmElkMuhSmmBelgesi: { type: belgeSlotSchema, default: null },
     smmElkMuhImzaSirkusu: { type: belgeSlotSchema, default: null },
+    // Kayıt sahipliği (api/gorunurluk.js): ekleyen kullanıcı (yalnız sunucu yazar) ve atanan danışman
+    olusturanId: { type: mongoose.Schema.Types.ObjectId, ref: 'Kullanici', default: undefined, index: true },
+    danismanIdler: { type: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Danisman' }], default: [], index: true },
   },
   { timestamps: true, collection: 'firmalar' }
 );
@@ -343,14 +370,6 @@ app.delete('/api/danismanlar/:id', async (req, res) => {
   }
 });
 
-app.get('/api/health', (_req, res) => {
-  res.json({ ok: true });
-});
-
-// Kimlik doğrulama: AUTH_ZORUNLU=1 iken /api/auth ve /api/health dışındaki tüm uçlar giriş ister
-// (kapalıyken uçlar açık kalır; jeton varsa kullanıcı isteğe eklenir)
-app.use('/api/auth', authRouter);
-app.use('/api', (req, res, next) => (req.path === '/health' ? next() : girisGerekli()(req, res, next)));
 
 app.use('/api/adres', adresRouter);
 app.use('/api/adres-kayitlari', adresKayitlariRouter);
@@ -493,9 +512,12 @@ app.post('/api/zip-link', async (req, res) => {
   }
 });
 
-app.get('/api/firmalar', async (_req, res) => {
+// Tek firma rotaları (:id, /kys dahil): kullanıcı bu firmayı göremiyorsa 404
+app.use('/api/firmalar/:id', kayitKorumasiMw('firma'));
+
+app.get('/api/firmalar', async (req, res) => {
   try {
-    const firmalar = await Firma.find().sort({ createdAt: -1 });
+    const firmalar = await Firma.find(await gorunurlukFiltresi(req.kullanici, 'firma')).sort({ createdAt: -1 });
     res.json(firmalar);
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -524,6 +546,8 @@ app.post('/api/firmalar', async (req, res) => {
       smmTuru, smmFirmaId, smmYil, smmSozlesme, smmKisaAd, smmUnvan, smmAdres, smmBuroTescilBelgesi,
       smmMakMuhAdSoyad, smmMakMuhOdaSicilNo, smmMakMuhTelefon, smmMakMuhSmmBelgesi, smmMakMuhImzaSirkusu,
       smmElkMuhAdSoyad, smmElkMuhOdaSicilNo, smmElkMuhTelefon, smmElkMuhSmmBelgesi, smmElkMuhImzaSirkusu,
+      ...olusturanAlani(req),
+      ...danismanAlani(req, req.body, true),
     });
     res.status(201).json(firma);
   } catch (err) {
@@ -589,6 +613,7 @@ app.put('/api/firmalar/:id', async (req, res) => {
         smmTuru, smmFirmaId, smmYil, smmSozlesme, smmKisaAd, smmUnvan, smmAdres, smmBuroTescilBelgesi,
         smmMakMuhAdSoyad, smmMakMuhOdaSicilNo, smmMakMuhTelefon, smmMakMuhSmmBelgesi, smmMakMuhImzaSirkusu,
         smmElkMuhAdSoyad, smmElkMuhOdaSicilNo, smmElkMuhTelefon, smmElkMuhSmmBelgesi, smmElkMuhImzaSirkusu,
+        ...danismanAlani(req, req.body),
       },
       { new: true, runValidators: true }
     );
@@ -633,7 +658,11 @@ process.on('unhandledRejection', (neden) => {
 mongoose
   .connect(MONGODB_URI)
   .then(() => {
-    console.log(`MongoDB bağlandı: ${MONGODB_URI}`);
+    // Bağlantı adresindeki kullanıcı/şifre günlüğe yazılmaz
+    console.log(`MongoDB bağlandı: ${MONGODB_URI.replace(/\/\/[^@/]*@/, '//***@')}`);
+    izinleriTamamla()
+      .then((n) => n && console.log(`${n} kullanıcıya mevcut erişimi korumak için tüm izinler yazıldı`))
+      .catch((e) => console.error('Kullanıcı izinleri yazılamadı:', e.message));
     varsayilanlariTamamla()
       .then((n) => n && console.log(`${n} asansör kaydına varsayılan ölçüler yazıldı`))
       .catch((e) => console.error('Varsayılan ölçüler yazılamadı:', e.message));

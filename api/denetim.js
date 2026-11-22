@@ -1,6 +1,7 @@
 import express from 'express';
 import mongoose from 'mongoose';
 import { kaydiVeDosyalariniSil } from './depoTemizlik.js';
+import { gorunurlukFiltresi, kayitKorumasi, olusturanAlani, gorunurMu } from './gorunurluk.js';
 
 const dosyaSlotSchema = new mongoose.Schema(
   {
@@ -34,6 +35,8 @@ const denetimSchema = new mongoose.Schema(
     asansorId: { type: mongoose.Schema.Types.ObjectId, ref: 'Asansor', required: true },
     // Modül G: denetimi yapan denetçi (Ayarlar > Denetçiler)
     denetciId: { type: mongoose.Schema.Types.ObjectId, ref: 'Denetci', default: null },
+    // Kayıt sahipliği (api/gorunurluk.js): ekleyen kullanıcı (yalnız sunucu yazar)
+    olusturanId: { type: mongoose.Schema.Types.ObjectId, ref: 'Kullanici', default: undefined, index: true },
     // Onaylı kurum: firmanın seçilen CE belgeleri (boşsa modüle uyanlar otomatik)
     ceBelgeIdleri: { type: [String], default: [] },
     // Yazdır: şablon klasörü seçimleri (Teknik Dosya 1 = ce-td-temp1, Tüv Forms 1 = tuv-temp1)
@@ -86,10 +89,13 @@ const POPULATE = [
 
 const router = express.Router();
 
+// :id'li rotalarda kullanıcı bu denetimi göremiyorsa 404
+router.param('id', kayitKorumasi('denetim'));
+
 // GET /api/denetimler — firma ve asansör özetiyle, yeniden eskiye
-router.get('/', async (_req, res) => {
+router.get('/', async (req, res) => {
   try {
-    const denetimler = await Denetim.find()
+    const denetimler = await Denetim.find(await gorunurlukFiltresi(req.kullanici, 'denetim'))
       .sort({ denetimTarihi: -1, createdAt: -1 })
       .populate(POPULATE);
     res.json(denetimler);
@@ -117,7 +123,16 @@ router.post('/', async (req, res) => {
     if (!denetimTarihi) {
       return res.status(400).json({ message: 'Denetim tarihi zorunludur' });
     }
-    const denetim = await Denetim.create({ firmaId, asansorId, modul, denetimTarihi, denetciId: denetciId || null });
+    // Denetçi kullanıcı kendi adına denetim ekler (denetçi = kendi kaydı); başkası için ekleyemez
+    const k = req.kullanici;
+    const atananDenetci = k?.rol === 'denetci' ? (k.kaynakId ?? null) : (denetciId || null);
+    // Seçilen firma/asansör kullanıcının görebildiği kayıtlar olmalı
+    if (k && k.rol !== 'admin') {
+      if (!(await gorunurMu(k, 'firma', firmaId)) || !(await gorunurMu(k, 'asansor', asansorId))) {
+        return res.status(404).json({ message: 'Firma veya asansör bulunamadı' });
+      }
+    }
+    const denetim = await Denetim.create({ firmaId, asansorId, modul, denetimTarihi, denetciId: atananDenetci, ...olusturanAlani(req) });
     res.status(201).json(await denetim.populate(POPULATE));
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -132,10 +147,12 @@ router.put('/:id', async (req, res) => {
       tipProjeler, certificateAnnexler, guvenlikAksamlari, montajSozlesmeleri, malzemeFaturalari, markaListesiDosyalari,
     } = req.body ?? {};
     // undefined alanlar Mongoose tarafından ayıklanır — kısmi PUT
+    // (denetçi/danışman kullanıcı denetçi atamasını değiştiremez)
+    const atamaDegisebilir = !req.kullanici || req.kullanici.rol === 'admin';
     const denetim = await Denetim.findByIdAndUpdate(
       req.params.id,
       {
-        firmaId, asansorId, modul, denetimTarihi, denetciId, ceBelgeIdleri, teknikDosyaSeti, tuvFormsSeti, makineTipi,
+        firmaId, asansorId, modul, denetimTarihi, denetciId: atamaDegisebilir ? denetciId : undefined, ceBelgeIdleri, teknikDosyaSeti, tuvFormsSeti, makineTipi,
         ekProje, abUygunlukBeyaniTarihi, sonKontrolTarihi,
         tipProjeler, certificateAnnexler, guvenlikAksamlari, montajSozlesmeleri, malzemeFaturalari, markaListesiDosyalari,
       },

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { useAuth } from '@/composables/useAuth';
 import KullaniciMenusu from '@/components/KullaniciMenusu.vue';
 import { IonPage, IonContent, IonHeader, onIonViewWillEnter } from '@ionic/vue';
 import { computed, ref, watch } from 'vue';
@@ -13,6 +14,8 @@ import { useRouter } from 'vue-router';
 
 // Tescil listesi — Modul G denetim akışıyla aynı düzen: firma + asansör +
 // tarih ile kayıt açılır, satıra dokununca tescil detayına geçilir.
+// İzinler: düğmeler kullanıcının yetkisine göre gösterilir (gerçek denetim sunucuda yapılır)
+const { izinVar } = useAuth();
 const router = useRouter();
 
 const tesciller = ref<Tescil[]>([]);
@@ -151,7 +154,7 @@ async function silOnayla() {
         <header class="mx-auto flex max-w-lg items-center justify-between px-4 py-3">
           <h1 class="text-xl font-bold leading-8 tracking-wide text-ink">Tescil</h1>
           <div class="flex shrink-0 items-center gap-2">
-          <button type="button" @click="ekleAc"
+          <button v-if="izinVar('tesciller', 'olusturma')" type="button" @click="ekleAc"
             class="flex items-center gap-1.5 bg-[#2b5c3d] px-4 py-2.5 text-xs font-semibold text-ink ring-1 ring-white/10 active:bg-[#346e4a]">
             <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor"
               stroke-width="2.5" stroke-linecap="round">
@@ -202,7 +205,7 @@ async function silOnayla() {
               stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <path d="m9 18 6-6-6-6" />
             </svg>
-            <button type="button" @click="silinecek = t" aria-label="Tescili sil"
+            <button v-if="izinVar('tesciller', 'silme')" type="button" @click="silinecek = t" aria-label="Tescili sil"
               class="grid h-7 w-7 shrink-0 place-items-center bg-surface-900 text-red-300/80 ring-1 ring-red-500/20">
               ✕
             </button>

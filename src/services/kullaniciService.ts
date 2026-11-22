@@ -1,4 +1,5 @@
 import { request } from './api';
+import type { IzinHaritasi } from '@/utils/izinler';
 
 export type KullaniciRolu = 'admin' | 'denetci' | 'danisman';
 
@@ -29,6 +30,8 @@ export interface Kullanici {
   parolaAyarli?: boolean;
   aktif?: boolean;
   oturumSuresiDk?: number | null;
+  // Kaydedilmiş izinler (Admin için yok: tüm izinler)
+  izinler?: IzinHaritasi;
   sonGiris?: string | null;
   createdAt: string;
   updatedAt: string;
@@ -43,6 +46,7 @@ export interface YeniKullanici {
   oturumSuresiDk?: number | null;
   // Denetçi/Danışman rolünde mevcut kayıttan eklemek için
   kaynakId?: string;
+  izinler?: IzinHaritasi;
 }
 
 // Liste/form durum rozeti: Pasif > Doğrulanmadı (e-posta yok/doğrulanmamış) > Aktif

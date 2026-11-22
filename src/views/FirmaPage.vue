@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { useAuth } from '@/composables/useAuth';
 import KullaniciMenusu from '@/components/KullaniciMenusu.vue';
 import { IonPage, IonContent, IonHeader, onIonViewWillEnter } from '@ionic/vue';
 import { computed, defineAsyncComponent, ref, watch } from 'vue';
@@ -21,6 +22,8 @@ import LinkPopup from '@/components/LinkPopup.vue';
 import CeBelgeFormu from '@/components/CeBelgeFormu.vue';
 import { MUHENDIS_TUR_ETIKETLERI } from '@/utils/firmaBilgi';
 // KYS motoru büyük olduğu için yalnız açıldığında yüklenir
+// İzinler: düğmeler kullanıcının yetkisine göre gösterilir (gerçek denetim sunucuda yapılır)
+const { izinVar } = useAuth();
 const KysPanel = defineAsyncComponent(() => import('@/components/kys/KysPanel.vue'));
 
 const route = useRoute();
@@ -838,7 +841,7 @@ onIonViewWillEnter(yukle);
           </div>
 
           <div class="flex shrink-0 items-center gap-2">
-          <button v-if="!secili" type="button" @click="git('/firma/yeni')"
+          <button v-if="!secili && izinVar('firmalar', 'olusturma')" type="button" @click="git('/firma/yeni')"
             class="flex items-center gap-1.5 bg-[#2b5c3d] px-4 py-2.5 text-xs font-semibold text-ink ring-1 ring-white/10 active:bg-[#346e4a]">
             <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor"
               stroke-width="2.5" stroke-linecap="round">
@@ -911,7 +914,7 @@ onIonViewWillEnter(yukle);
             <div v-if="aktifMenu === 1" class="space-y-3">
               <!-- Düzenle yalnız bu bölümde görünür (kullanıcı isteği) -->
               <div class="flex justify-end gap-1.5">
-                <button type="button" @click="firmaSilOnayAcik = true"
+                <button v-if="izinVar('firmalar', 'silme')" type="button" @click="firmaSilOnayAcik = true"
                   class="flex shrink-0 items-center gap-1.5 bg-surface-800 px-4 py-2.5 text-xs font-semibold text-red-300/90 ring-1 ring-red-500/25 active:bg-[#1a2a20]">
                   <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                     stroke-width="2" stroke-linecap="round" stroke-linejoin="round">

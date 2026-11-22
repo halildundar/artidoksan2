@@ -20,6 +20,7 @@ export interface SmmFirmasi {
   elkMuhTelefon: string;
   elkMuhSmmBelgesi?: BelgeSlot | null;
   elkMuhImzaSirkusu?: BelgeSlot | null;
+  danismanIdler?: string[];
   createdAt: string;
   updatedAt: string;
 }

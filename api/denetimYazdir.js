@@ -3,6 +3,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import mongoose from 'mongoose';
 import { Denetim } from './denetim.js';
+import { kayitKorumasi } from './gorunurluk.js';
 import { Denetci } from './denetciler.js';
 import { AksamBelgesi } from './katalog.js';
 import { buildObjectKey, putObject } from './storage.js';
@@ -1204,7 +1205,9 @@ async function topluUret(denetimId, slot, { ctx }) {
 const calistir = (id) => (kod, slot, secenek) => (kod ? kalemUret(id, kod, slot, secenek) : topluUret(id, slot, secenek));
 
 // ---- Rotalar (/api/denetimler altına, denetim router'ından ÖNCE) ----
+// Denetim yazdırma rotaları (:id): kullanıcı bu denetimi göremiyorsa 404 (bellek içi iş rotaları dahil)
 const router = express.Router();
+router.param('id', kayitKorumasi('denetim'));
 
 // Modul B: Tip Projeler alanında seçilebilen Certificate Annex formları
 router.get('/annex-secenekleri', async (_req, res) => {

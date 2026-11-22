@@ -1,6 +1,7 @@
 import express from 'express';
 import mongoose from 'mongoose';
 import { kaydiVeDosyalariniSil } from './depoTemizlik.js';
+import { gorunurlukFiltresi, kayitKorumasi, olusturanAlani, gorunurMu } from './gorunurluk.js';
 
 const dosyaSlotSchema = new mongoose.Schema(
   {
@@ -21,6 +22,8 @@ const tescilSchema = new mongoose.Schema(
   {
     firmaId: { type: mongoose.Schema.Types.ObjectId, ref: 'Firma', required: true },
     asansorId: { type: mongoose.Schema.Types.ObjectId, ref: 'Asansor', required: true },
+    // Kayıt sahipliği (api/gorunurluk.js): ekleyen kullanıcı (yalnız sunucu yazar)
+    olusturanId: { type: mongoose.Schema.Types.ObjectId, ref: 'Kullanici', default: undefined, index: true },
     ekProje: { type: dosyaSlotSchema, default: null },
     // Yeşil etiket raporu (PDF)
     yesilEtiketRaporu: { type: dosyaSlotSchema, default: null },
@@ -71,10 +74,13 @@ const POPULATE = [
 
 const router = express.Router();
 
+// :id'li rotalarda kullanıcı bu tescili göremiyorsa 404
+router.param('id', kayitKorumasi('tescil'));
+
 // GET /api/tesciller — firma ve asansör özetiyle, yeniden eskiye
-router.get('/', async (_req, res) => {
+router.get('/', async (req, res) => {
   try {
-    const tesciller = await Tescil.find()
+    const tesciller = await Tescil.find(await gorunurlukFiltresi(req.kullanici, 'tescil'))
       .sort({ createdAt: -1 })
       .populate(POPULATE);
     res.json(tesciller);
@@ -99,7 +105,12 @@ router.post('/', async (req, res) => {
     if (!firmaId || !asansorId) {
       return res.status(400).json({ message: 'Firma ve asansör seçimi zorunludur' });
     }
-    const tescil = await Tescil.create({ firmaId, asansorId, abUygunlukBeyaniTarihi, sonKontrolTarihi });
+    // Seçilen firma/asansör kullanıcının görebildiği kayıtlar olmalı
+    if (req.kullanici && req.kullanici.rol !== 'admin'
+      && (!(await gorunurMu(req.kullanici, 'firma', firmaId)) || !(await gorunurMu(req.kullanici, 'asansor', asansorId)))) {
+      return res.status(404).json({ message: 'Firma veya asansör bulunamadı' });
+    }
+    const tescil = await Tescil.create({ firmaId, asansorId, abUygunlukBeyaniTarihi, sonKontrolTarihi, ...olusturanAlani(req) });
     res.status(201).json(await tescil.populate(POPULATE));
   } catch (err) {
     res.status(500).json({ message: err.message });

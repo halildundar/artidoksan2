@@ -1,10 +1,13 @@
 <script setup lang="ts">
+import { useAuth } from '@/composables/useAuth';
 import KullaniciMenusu from '@/components/KullaniciMenusu.vue';
 import { IonPage, IonContent, IonHeader } from '@ionic/vue';
 import { useRouter } from 'vue-router';
 import { blurActive } from '@/utils/blurActive';
 import { useTema } from '@/composables/useTema';
 
+// İzinler: düğmeler kullanıcının yetkisine göre gösterilir (gerçek denetim sunucuda yapılır)
+const { adminMi } = useAuth();
 const { tema, degistir } = useTema();
 
 const router = useRouter();
@@ -108,7 +111,7 @@ function git(path: string) {
         </button>
 
         <!-- Kullanıcılar -->
-        <button type="button" @click="git('/ayarlar/kullanicilar')"
+        <button v-if="adminMi" type="button" @click="git('/ayarlar/kullanicilar')"
           class="flex w-full items-center gap-3 bg-surface-800 p-3 text-left ring-1 ring-white/5 active:bg-[#1a2a20]">
           <span class="grid h-10 w-10 shrink-0 place-items-center bg-[#1c2a21] ring-1 ring-white/10">
             <!-- Kullanıcılar: iki kişi -->

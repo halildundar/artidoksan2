@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { useAuth } from '@/composables/useAuth';
 import KullaniciMenusu from '@/components/KullaniciMenusu.vue';
 import { IonPage, IonContent, IonHeader, onIonViewWillEnter } from '@ionic/vue';
 import { ref, watch } from 'vue';
@@ -7,6 +8,8 @@ import { getAsansorler, deleteAsansor, type Asansor } from '@/services/asansorSe
 import SilmeOnayi from '@/components/SilmeOnayi.vue';
 import { blurActive } from '@/utils/blurActive';
 
+// İzinler: düğmeler kullanıcının yetkisine göre gösterilir (gerçek denetim sunucuda yapılır)
+const { izinVar } = useAuth();
 const router = useRouter();
 
 const asansorler = ref<Asansor[]>([]);
@@ -89,7 +92,7 @@ onIonViewWillEnter(yukle);
         <header class="mx-auto flex max-w-lg items-center justify-between gap-2 px-4 py-3">
           <h1 class="truncate text-xl font-bold leading-8 tracking-wide text-ink">Asansörler</h1>
           <div class="flex shrink-0 items-center gap-2">
-          <button type="button" @click="git('/asansor/yeni')"
+          <button v-if="izinVar('asansorler', 'olusturma')" type="button" @click="git('/asansor/yeni')"
             class="flex shrink-0 items-center gap-1.5 bg-[#2b5c3d] px-4 py-2.5 text-xs font-semibold text-ink ring-1 ring-white/10 active:bg-[#346e4a]">
             <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor"
               stroke-width="2.5" stroke-linecap="round">
@@ -165,7 +168,7 @@ onIonViewWillEnter(yukle);
                 </span>
               </span>
             </button>
-            <button type="button" @click="sil(asansor)"
+            <button v-if="izinVar('asansorler', 'silme')" type="button" @click="sil(asansor)"
               class="grid h-8 w-8 shrink-0 place-items-center bg-surface-900 text-red-300/80 ring-1 ring-red-500/20 active:bg-red-950/40"
               aria-label="Sil">
               <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor"

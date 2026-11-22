@@ -151,8 +151,18 @@ export function useAuth() {
     temizle();
   }
 
+  // İzin kontrolü: Admin her şeyi yapabilir; diğerleri sunucunun gönderdiği etkin izinlere göre.
+  // (Gerçek denetim sunucuda yapılır; bu yalnız düğmeleri gizlemek/devre dışı bırakmak içindir.)
+  function izinVar(modul: string, eylem: 'okuma' | 'olusturma' | 'duzenleme' | 'silme'): boolean {
+    const k = kullanici.value;
+    if (!k) return false;
+    if (k.rol === 'admin') return true;
+    return !!k.izinler?.[modul]?.[eylem];
+  }
+  const adminMi = computed(() => kullanici.value?.rol === 'admin');
+
   return {
-    kullanici, hazir, girisliMi: computed(() => !!kullanici.value),
+    kullanici, hazir, girisliMi: computed(() => !!kullanici.value), izinVar, adminMi,
     uyariAcik, kalanSn,
     baslat, girisTamamla, cikis, geriDonusKontrolu,
   };

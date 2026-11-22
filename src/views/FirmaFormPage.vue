@@ -4,6 +4,7 @@ import { computed, onMounted, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { createFirma, getFirma, updateFirma, type FirmaBelgeleri } from '@/services/firmaService';
 import AdresSecici from '@/components/AdresSecici.vue';
+import DanismanSecici from '@/components/DanismanSecici.vue';
 import { blurActive } from '@/utils/blurActive';
 
 const route = useRoute();
@@ -16,7 +17,8 @@ const form = ref<{
   ad: string; unvan: string; telefon: string; email: string;
   il: string; ilce: string; mahalle: string; postaKodu: string; adres: string;
   yetkili: string; vergiDairesi: string; vergiNo: string; belgeler: FirmaBelgeleri;
-}>({ ad: '', unvan: '', telefon: '', email: '', il: '', ilce: '', mahalle: '', postaKodu: '', adres: '', yetkili: '', vergiDairesi: '', vergiNo: '', belgeler: {} });
+  danismanIdler: string[];
+}>({ ad: '', unvan: '', telefon: '', email: '', il: '', ilce: '', mahalle: '', postaKodu: '', adres: '', yetkili: '', vergiDairesi: '', vergiNo: '', belgeler: {}, danismanIdler: [] });
 
 // Logo, İmza & Kaşe ve kurum evrakları bu formda DEĞİL — Firmalar > Genel
 // Bilgiler'den sonradan yüklenir/görüntülenir (kullanıcı isteği). Mevcut
@@ -50,6 +52,7 @@ onMounted(async () => {
       vergiDairesi: firma.vergiDairesi ?? '',
       vergiNo: firma.vergiNo ?? '',
       belgeler: firma.belgeler ?? {},
+      danismanIdler: firma.danismanIdler ?? [],
     };
   } catch (e) {
     hata.value = e instanceof Error ? e.message : 'Firma yüklenemedi';
@@ -166,6 +169,9 @@ async function kaydet() {
                 placeholder="10 haneli vergi no" />
             </label>
           </div>
+
+          <!-- Danışman atama (yalnız Admin/Denetçi görür) -->
+          <DanismanSecici v-model="form.danismanIdler" />
 
         </form>
       </div>

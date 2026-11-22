@@ -8,6 +8,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import PizZip from 'pizzip';
+import { kayitKorumasi } from './gorunurluk.js';
 import Docxtemplater from 'docxtemplater';
 import ImageModule from 'docxtemplater-image-module-free';
 import { imageSize } from 'image-size';
@@ -898,7 +899,9 @@ async function kalemListesi(baglam) {
 }
 
 // ---- Rotalar (/api/tesciller altına monte edilir) ----
+// Tescil yazdırma rotaları (:id): kullanıcı bu tescili göremiyorsa 404 (bellek içi iş rotaları dahil)
 const router = express.Router();
+router.param('id', kayitKorumasi('tescil'));
 
 router.get('/:id/yazdir', async (req, res) => {
   try {

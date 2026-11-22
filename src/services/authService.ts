@@ -10,6 +10,10 @@ export interface AuthKullanici {
   soyad: string;
   rol: KullaniciRolu;
   email: string;
+  // Bağlı Denetçi/Danışman kaydının id'si (rol'e göre); veri görünürlüğü bu bağa dayanır
+  kaynakId?: string | null;
+  // Etkin izinler (modül × eylem); Admin için tamamı true
+  izinler?: Record<string, Partial<Record<'okuma' | 'olusturma' | 'duzenleme' | 'silme', boolean>>>;
 }
 
 export interface OturumYaniti {

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { useAuth } from '@/composables/useAuth';
 import KullaniciMenusu from '@/components/KullaniciMenusu.vue';
 import { IonPage, IonContent, IonHeader, onIonViewWillEnter } from '@ionic/vue';
 import { computed, ref, watch } from 'vue';
@@ -14,6 +15,10 @@ import SilmeOnayi from '@/components/SilmeOnayi.vue';
 import { blurActive } from '@/utils/blurActive';
 import { useRouter } from 'vue-router';
 
+// İzinler: düğmeler kullanıcının yetkisine göre gösterilir (gerçek denetim sunucuda yapılır)
+const { izinVar, kullanici } = useAuth();
+// Denetçi kullanıcı denetimi kendi adına ekler: denetçi seçimi kendi kaydına sabitlenir (sunucu da zorlar)
+const denetciKilitli = computed(() => kullanici.value?.rol === 'denetci');
 const router = useRouter();
 
 const denetimler = ref<Denetim[]>([]);
@@ -97,7 +102,7 @@ function ekleAc() {
   const bugun = new Date();
   // Yerel tarihi yyyy-MM-dd olarak kur (toISOString UTC kaymasına uğrar)
   const gun = `${bugun.getFullYear()}-${String(bugun.getMonth() + 1).padStart(2, '0')}-${String(bugun.getDate()).padStart(2, '0')}`;
-  form.value = { modul: 'Modul B', firmaId: null, asansorId: null, denetimTarihi: gun, denetciId: null };
+  form.value = { modul: 'Modul B', firmaId: null, asansorId: null, denetimTarihi: gun, denetciId: denetciKilitli.value ? (kullanici.value?.kaynakId ?? null) : null };
   asansorler.value = [];
   ekleAcik.value = true;
   getDenetciler().then((l) => (denetciler.value = l)).catch(() => { /* liste alınamazsa seçenek boş kalır */ });
@@ -178,7 +183,7 @@ async function silOnayla() {
         <header class="mx-auto flex max-w-lg items-center justify-between px-4 py-3">
           <h1 class="text-xl font-bold leading-8 tracking-wide text-ink">Denetim</h1>
           <div class="flex shrink-0 items-center gap-2">
-          <button type="button" @click="ekleAc"
+          <button v-if="izinVar('denetimler', 'olusturma')" type="button" @click="ekleAc"
             class="flex items-center gap-1.5 bg-[#2b5c3d] px-4 py-2.5 text-xs font-semibold text-ink ring-1 ring-white/10 active:bg-[#346e4a]">
             <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor"
               stroke-width="2.5" stroke-linecap="round">
@@ -228,7 +233,7 @@ async function silOnayla() {
               stroke-linecap="round" stroke-linejoin="round">
               <path d="m9 18 6-6-6-6" />
             </svg>
-            <button type="button" @click="silinecek = d" aria-label="Denetimi sil"
+            <button v-if="izinVar('denetimler', 'silme')" type="button" @click="silinecek = d" aria-label="Denetimi sil"
               class="grid h-7 w-7 shrink-0 place-items-center bg-surface-900 text-red-300/80 ring-1 ring-red-500/20">
               ✕
             </button>
@@ -268,7 +273,7 @@ async function silOnayla() {
             <!-- Modül G: denetimi yapan denetçi -->
             <label v-if="form.modul === 'Modul G'" class="block space-y-0.5">
               <span class="text-xs font-medium text-ink-muted">Denetçi</span>
-              <AramaliSelect v-model="form.denetciId" :options="denetciSecenekleri"
+              <AramaliSelect v-model="form.denetciId" :options="denetciSecenekleri" :disabled="denetciKilitli"
                 :placeholder="denetciler.length ? 'Denetçi seçiniz' : 'Önce Ayarlar > Denetçiler\'den ekleyin'" />
             </label>
 

@@ -5,6 +5,7 @@ import { useRoute, useRouter } from 'vue-router';
 import { createAsansor, getAsansor, updateAsansor } from '@/services/asansorService';
 import { getFirmalar } from '@/services/firmaService';
 import AramaliSelect from '@/components/AramaliSelect.vue';
+import DanismanSecici from '@/components/DanismanSecici.vue';
 import { blurActive } from '@/utils/blurActive';
 import {
   SINIF_SECENEKLERI,
@@ -32,6 +33,9 @@ type Sayi = number | '' | null;
 const firmaId = ref<string | null>((route.query.firma as string | undefined) ?? null);
 // Firmanın Montajlar bölümünden "Yeni Asansör" ile gelindiyse firma seçili ve değiştirilemez
 const firmaKilitli = !!route.query.firma && !route.params.id;
+// Atanan danışman (yalnız Admin/Denetçi seçer); yeni kayıtta firmanın danışmanı öneri olarak gelir
+const danismanIdler = ref<string[]>([]);
+const firmaDanismanlari = new Map<string, string[]>();
 const seriNo = ref('');
 const sinif = ref<string | null>('insan_ve_yuk');
 const hiz = ref<number | null>(1.0);
@@ -58,6 +62,12 @@ const montajYiliModel = computed<string | number | null>({
 const askiTipiSecenekleri = computed(() => askiTipiSecenekleriFor(makinaKonumu.value));
 
 // MRL seçilince 1:1 askı kurulamaz — seçiliyse 2:1'e çekilir.
+// Yeni asansörde firma değişince, danışman henüz elle seçilmediyse firmanın danışmanı önerilir
+watch(firmaId, (yeni) => {
+  if (duzenlenenId.value || !yeni || danismanIdler.value.length) return;
+  danismanIdler.value = [...(firmaDanismanlari.get(yeni) ?? [])];
+});
+
 watch(makinaKonumu, (yeni) => {
   if (yeni === 'MRL' && askiTipi.value === '1:1') askiTipi.value = '2:1';
 });
@@ -83,7 +93,12 @@ function geri() {
 onMounted(async () => {
   firmalarYukleniyor.value = true;
   getFirmalar()
-    .then((firmalar) => (firmaSecenekleri.value = firmalar.map((f) => ({ label: f.ad, value: f._id }))))
+    .then((firmalar) => {
+      firmaSecenekleri.value = firmalar.map((f) => ({ label: f.ad, value: f._id }));
+      for (const f of firmalar) firmaDanismanlari.set(f._id, f.danismanIdler ?? []);
+      // Yeni asansörde firma seçiliyse (örn. firma sayfasından) firmanın danışmanı önerilir
+      if (!duzenlenenId.value && firmaId.value && !danismanIdler.value.length) danismanIdler.value = [...(firmaDanismanlari.get(firmaId.value) ?? [])];
+    })
     .catch(() => { /* firma listesi çekilemezse seçenekler boş kalır */ })
     .finally(() => (firmalarYukleniyor.value = false));
 
@@ -92,6 +107,7 @@ onMounted(async () => {
   try {
     const a = await getAsansor(duzenlenenId.value);
     firmaId.value = typeof a.firmaId === 'object' && a.firmaId ? a.firmaId._id : ((a.firmaId as string | null) ?? null);
+    danismanIdler.value = a.danismanIdler ?? [];
     seriNo.value = a.seriNo ?? '';
     sinif.value = a.sinif ?? null;
     hiz.value = a.hiz ?? null;
@@ -118,6 +134,7 @@ async function kaydet() {
   try {
     const veri = {
       firmaId: firmaId.value,
+      danismanIdler: danismanIdler.value,
       seriNo: seriNo.value.trim(),
       sinif: (sinif.value as 'insan_ve_yuk' | 'yuk' | null) ?? null,
       hiz: hiz.value,
@@ -281,6 +298,9 @@ async function kaydet() {
                 class="w-full bg-surface-900 px-2.5 py-1.5 text-xs text-ink ring-1 ring-white/10 outline-none focus:ring-white/30" />
             </label>
           </div>
+
+          <!-- Danışman atama (yalnız Admin/Denetçi görür) -->
+          <DanismanSecici v-model="danismanIdler" />
         </form>
       </div>
     </ion-content>

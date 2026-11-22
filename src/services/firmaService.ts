@@ -47,6 +47,9 @@ export interface CeBelgesi {
 
 export interface Firma {
   _id: string;
+  // Kaydı ekleyen kullanıcı (sunucu yazar) ve atanan danışman
+  olusturanId?: string | null;
+  danismanIdler?: string[];
   ad: string;
   unvan: string;
   telefon: string;

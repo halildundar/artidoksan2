@@ -12,6 +12,7 @@ import { getDanismanlar, type Danisman } from '@/services/danismanService';
 import AramaliSelect from '@/components/AramaliSelect.vue';
 import SilmeOnayi from '@/components/SilmeOnayi.vue';
 import { blurActive } from '@/utils/blurActive';
+import { EYLEMLER, IZIN_MODULLERI, izinleriTamamla, varsayilanIzinler, tamIzinler, type Eylem, type IzinHaritasi } from '@/utils/izinler';
 
 const route = useRoute();
 const router = useRouter();
@@ -23,6 +24,29 @@ const baslik = computed(() => (duzenlenenId.value ? 'Kullanıcıyı Düzenle' : 
 const form = ref<{ adSoyad: string; rol: KullaniciRolu; email: string; aktif: boolean; oturumSuresiDk: number | null }>({
   adSoyad: '', rol: 'denetci', email: '', aktif: true, oturumSuresiDk: null,
 });
+// İzin matrisi (modül × eylem): Admin için tamamı açık ve değiştirilemez; diğer roller için Admin ayarlar
+const izinler = ref<IzinHaritasi>(varsayilanIzinler());
+const adminRolu = computed(() => form.value.rol === 'admin');
+const izinGruplari = computed(() => {
+  const gruplar = new Map<string, typeof IZIN_MODULLERI>();
+  for (const m of IZIN_MODULLERI) gruplar.set(m.grup, [...(gruplar.get(m.grup) ?? []), m]);
+  return [...gruplar];
+});
+const izinDegeri = (modul: string, eylem: Eylem) => adminRolu.value || !!izinler.value[modul]?.[eylem];
+function izinDegistir(modul: string, eylem: Eylem, deger: boolean) {
+  if (adminRolu.value) return;
+  izinler.value = { ...izinler.value, [modul]: { ...izinler.value[modul], [eylem]: deger } };
+}
+// Satır / sütun / tümü kısayolları
+function modulHepsi(modul: string, deger: boolean) {
+  if (adminRolu.value) return;
+  const m = IZIN_MODULLERI.find((x) => x.kod === modul);
+  izinler.value = { ...izinler.value, [modul]: Object.fromEntries(EYLEMLER.map((e) => [e.kod, e.kod === 'okuma' && m?.okumaSerbest ? true : deger])) };
+}
+function tumunuAyarla(tam: boolean) {
+  if (adminRolu.value) return;
+  izinler.value = tam ? tamIzinler() : varsayilanIzinler();
+}
 const kayit = ref<Kullanici | null>(null);
 const yukleniyor = ref(false);
 const kaydediliyor = ref(false);
@@ -85,6 +109,7 @@ function doldur(k: Kullanici) {
     adSoyad: `${k.ad} ${k.soyad}`.trim(), rol: k.rol, email: k.email ?? '', aktif: k.aktif !== false,
     oturumSuresiDk: k.oturumSuresiDk ?? null,
   };
+  izinler.value = izinleriTamamla(k.izinler);
 }
 
 async function oturumBilgisi() {
@@ -127,9 +152,10 @@ function veri() {
   const { rol, email, aktif, oturumSuresiDk } = form.value;
   const kaynak = kaynakli.value ? { kaynakId: kaynakId.value } : {};
   // tek kelime girilirse yalnız isim olarak kaydedilir
+  const izin = rol === 'admin' ? {} : { izinler: izinler.value };
   return w.length > 1
-    ? { ad: w.slice(0, -1).join(' '), soyad: w[w.length - 1], rol, email, aktif, oturumSuresiDk, ...kaynak }
-    : { ad: w[0], soyad: '', rol, email, aktif, oturumSuresiDk, ...kaynak };
+    ? { ad: w.slice(0, -1).join(' '), soyad: w[w.length - 1], rol, email, aktif, oturumSuresiDk, ...izin, ...kaynak }
+    : { ad: w[0], soyad: '', rol, email, aktif, oturumSuresiDk, ...izin, ...kaynak };
 }
 
 async function kaydet() {
@@ -255,6 +281,60 @@ const girdi = 'w-full bg-surface-900 px-2.5 py-1.5 text-xs text-ink ring-1 ring-
               <option v-for="o in OTURUM_SURELERI" :key="String(o.deger)" :value="o.deger">{{ o.etiket }}</option>
             </select>
           </label>
+
+          <!-- İzinler: modül × eylem. Admin tüm izinlere sahiptir; diğer kullanıcılar için kullanıcı eklendikten sonra buradan ayarlanır -->
+          <div class="space-y-1.5 bg-surface-800 p-2.5 ring-1 ring-white/5">
+            <div class="flex items-center justify-between gap-2">
+              <p class="text-xs font-bold text-ink">İzinler</p>
+              <div v-if="!adminRolu" class="flex gap-1.5">
+                <button type="button" @click="tumunuAyarla(true)"
+                  class="bg-surface-900 px-2 py-1 text-[10px] font-semibold text-ink ring-1 ring-white/10 active:bg-[#1a2a20]">Tümünü seç</button>
+                <button type="button" @click="tumunuAyarla(false)"
+                  class="bg-surface-900 px-2 py-1 text-[10px] font-semibold text-ink-muted ring-1 ring-white/10 active:bg-[#1a2a20]">Yalnız görüntüle</button>
+              </div>
+            </div>
+            <p v-if="adminRolu" class="text-[11px] text-[#6fcf97]">
+              Admin tüm izinlere sahiptir ve kullanıcı ekleme yalnız Admin tarafından yapılabilir.
+            </p>
+            <p v-else class="text-[11px] text-ink-muted">
+              Bu kullanıcının hangi bölümlerde neleri yapabileceğini işaretleyin. Kullanıcı ekleme yalnız Admin'dedir.
+            </p>
+            <template v-for="[grup, moduller] in izinGruplari" :key="grup">
+              <p class="pt-1 text-[10px] font-bold uppercase tracking-wide text-ink-muted/70">{{ grup }}</p>
+              <div class="overflow-x-auto">
+                <table class="w-full text-[11px]">
+                  <thead>
+                    <tr class="text-ink-muted">
+                      <th class="pb-1 text-left font-medium"></th>
+                      <th v-for="e in EYLEMLER" :key="e.kod" class="w-14 pb-1 text-center font-medium">{{ e.etiket }}</th>
+                      <th class="w-10 pb-1 text-center font-medium">Hepsi</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr v-for="m in moduller" :key="m.kod" class="border-t border-white/5">
+                      <td class="py-1.5 pr-1 text-ink">{{ m.ad }}</td>
+                      <td v-for="e in EYLEMLER" :key="e.kod" class="text-center">
+                        <input type="checkbox" class="h-4 w-4 accent-[#2b5c3d]"
+                          :checked="izinDegeri(m.kod, e.kod) || (e.kod === 'okuma' && !!m.okumaSerbest)"
+                          :disabled="adminRolu || (e.kod === 'okuma' && !!m.okumaSerbest)"
+                          @change="izinDegistir(m.kod, e.kod, ($event.target as HTMLInputElement).checked)" />
+                      </td>
+                      <td class="text-center">
+                        <button v-if="!adminRolu" type="button"
+                          class="text-[10px] font-semibold text-ink-muted underline active:text-ink"
+                          @click="modulHepsi(m.kod, !EYLEMLER.every((e) => izinDegeri(m.kod, e.kod)))">
+                          {{ EYLEMLER.every((e) => izinDegeri(m.kod, e.kod)) ? 'Kaldır' : 'Seç' }}
+                        </button>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </template>
+            <p class="pt-1 text-[10px] text-ink-muted/70">
+              Ayarlar altındaki katalog modüllerinde (Güvenlik Aksamları, Onaylı Kurumlar vb.) görüntüleme herkese açıktır; ekranların çalışması için gereklidir.
+            </p>
+          </div>
 
           <!-- Aktif / Pasif: pasif kullanıcı giriş yapamaz -->
           <label class="flex cursor-pointer items-center justify-between gap-3 bg-surface-800 px-3 py-2.5 ring-1 ring-white/5">

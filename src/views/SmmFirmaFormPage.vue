@@ -2,6 +2,7 @@
 import { IonPage, IonContent, IonHeader, IonFooter } from '@ionic/vue';
 import { computed, onMounted, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
+import DanismanSecici from '@/components/DanismanSecici.vue';
 import {
   createSmmFirmasi, getSmmFirmalari, updateSmmFirmasi, type YeniSmmFirmasi,
 } from '@/services/smmFirmaService';
@@ -30,6 +31,7 @@ const form = ref<Required<Omit<YeniSmmFirmasi, '_id'>>>({
   makMuhSmmBelgesi: null, makMuhImzaSirkusu: null,
   elkMuhAdSoyad: '', elkMuhOdaSicilNo: '', elkMuhTelefon: '',
   elkMuhSmmBelgesi: null, elkMuhImzaSirkusu: null,
+  danismanIdler: [],
 });
 
 const yukleniyor = ref(false);
@@ -55,6 +57,7 @@ onMounted(async () => {
       elkMuhTelefon: f.elkMuhTelefon,
       elkMuhSmmBelgesi: f.elkMuhSmmBelgesi ?? null,
       elkMuhImzaSirkusu: f.elkMuhImzaSirkusu ?? null,
+      danismanIdler: f.danismanIdler ?? [],
     };
   } catch (e) {
     hata.value = e instanceof Error ? e.message : 'SMM firması yüklenemedi';
@@ -179,6 +182,8 @@ async function kaydet() {
               <option v-for="y in YILLAR" :key="y" :value="y">{{ y }}</option>
             </select>
           </label>
+
+          <DanismanSecici v-model="form.danismanIdler" />
 
           <label class="block space-y-0.5">
             <span class="text-xs font-medium text-ink-muted">Kısa Adı *</span>

@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import mongoose from 'mongoose';
 import { kaydiVeDosyalariniSil } from './depoTemizlik.js';
+import { gorunurlukFiltresi, kayitKorumasi, olusturanAlani, danismanAlani } from './gorunurluk.js';
 
 // Asansör modeli — artidoksan1 Asansor.js'in uyarlaması (kullanıcı/rol,
 // danışman snapshot'ı ve tescil dosyası alanları bu projede yok).
@@ -143,6 +144,9 @@ const asansorSchema = new mongoose.Schema(
     kasnaklarArasiYatayMesafe: { type: Number, default: null },
     kasnaklarArasiDikeyMesafe: { type: Number, default: null },
     sarimAcisi: { type: Number, default: null },
+    // Kayıt sahipliği (api/gorunurluk.js): ekleyen kullanıcı (yalnız sunucu yazar) ve atanan danışman
+    olusturanId: { type: mongoose.Schema.Types.ObjectId, ref: 'Kullanici', default: undefined, index: true },
+    danismanIdler: { type: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Danisman' }], default: [], index: true },
     regulatorKonumu: { type: String, enum: ['sol-on', 'sol-arka', 'sag-on', 'sag-arka'], default: 'sag-arka' },
     karsiAgirlikKonumu: { type: String, enum: ['arka', 'sol', 'sag'], default: 'arka' },
     kabinPalangaKonumu: { type: String, enum: ['yok', 'kabin-ustu', 'kabin-alti'], default: 'yok' },
@@ -402,11 +406,15 @@ export async function varsayilanlariTamamla() {
 // İstemciden gelen gövdeden model dışı anahtarları ayıklar (strict şema
 // zaten bilinmeyenleri atar; _id/timestamps elle temizlenir).
 function temizle(body) {
-  const { _id, createdAt, updatedAt, __v, ...veri } = body ?? {};
+  // olusturanId/danismanIdler istemciden alınmaz (sunucuda danismanAlani/olusturanAlani yazar)
+  const { _id, createdAt, updatedAt, __v, olusturanId, danismanIdler, danismanId, ...veri } = body ?? {};
   return veri;
 }
 
 const router = Router();
+
+// :id'li rotalarda kullanıcı bu asansörü göremiyorsa 404
+router.param('id', kayitKorumasi('asansor'));
 
 router.get('/', async (req, res) => {
   try {
@@ -422,7 +430,8 @@ router.get('/', async (req, res) => {
         { ilce: { $regex: q, $options: 'i' } },
       ];
     }
-    const asansorler = await Asansor.find(filter)
+    const gorunur = await gorunurlukFiltresi(req.kullanici, 'asansor');
+    const asansorler = await Asansor.find(Object.keys(gorunur).length ? { $and: [filter, gorunur] } : filter)
       .sort({ createdAt: -1 })
       .populate('firmaId', 'ad')
       .lean();
@@ -456,7 +465,7 @@ router.post('/', async (req, res) => {
     if (!veri.seriNo || !String(veri.seriNo).trim()) {
       return res.status(400).json({ message: 'Asansör seri no zorunludur' });
     }
-    const asansor = await Asansor.create({ ...veri, ...varsayilanEksikleri(veri) });
+    const asansor = await Asansor.create({ ...veri, ...varsayilanEksikleri(veri), ...olusturanAlani(req), ...danismanAlani(req, req.body, true) });
     res.status(201).json(asansor);
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -473,7 +482,7 @@ router.put('/:id', async (req, res) => {
     if ('seriNo' in veri && (!veri.seriNo || !String(veri.seriNo).trim())) {
       return res.status(400).json({ message: 'Asansör seri no zorunludur' });
     }
-    const asansor = await Asansor.findByIdAndUpdate(req.params.id, veri, {
+    const asansor = await Asansor.findByIdAndUpdate(req.params.id, { ...veri, ...danismanAlani(req, req.body) }, {
       new: true,
       runValidators: true,
     });

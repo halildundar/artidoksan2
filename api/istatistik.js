@@ -1,17 +1,20 @@
 import express from 'express';
 import mongoose from 'mongoose';
 import { BILESEN_TIPLERI } from './katalog.js';
+import { gorunurlukFiltresi } from './gorunurluk.js';
 
 // Anasayfa istatistikleri: tek istekte sayılar (liste çekmeden, veritabanında sayılır)
 const router = express.Router();
 
-const say = (model) => mongoose.model(model).countDocuments();
-const dagilim = (model, alan) =>
-  mongoose.model(model).aggregate([{ $group: { _id: `$${alan}`, adet: { $sum: 1 } } }]);
+// Sayılar kullanıcının görebildiği kayıtlarla sınırlıdır (Admin: hepsi); filtre: api/gorunurluk.js
+const say = (model, filtre = {}) => mongoose.model(model).countDocuments(filtre);
+const dagilim = (model, alan, filtre = {}) =>
+  mongoose.model(model).aggregate([{ $match: filtre }, { $group: { _id: `$${alan}`, adet: { $sum: 1 } } }]);
 const harita = (liste) => Object.fromEntries(liste.filter((x) => x._id).map((x) => [x._id, x.adet]));
 
-router.get('/', async (_req, res) => {
+router.get('/', async (req, res) => {
   try {
+    const [fF, aF, dF, tF] = await Promise.all(['firma', 'asansor', 'denetim', 'tescil'].map((t) => gorunurlukFiltresi(req.kullanici, t)));
     const simdi = new Date();
     const doksanGun = new Date(simdi.getTime() + 90 * 86400_000);
     const Aksam = mongoose.model('AksamBelgesi');
@@ -20,18 +23,18 @@ router.get('/', async (_req, res) => {
       firma, asansor, denetim, tescil,
       makine, tahrik, denetimModul, aksamDagilim, yakinda, sonAsansorler, sonDenetimler, sonTescilKayitlari,
     ] = await Promise.all([
-      say('Firma'), say('Asansor'), say('Denetim'), say('Tescil'),
-      dagilim('Asansor', 'makinaKonumu'), dagilim('Asansor', 'tahrikTipi'), dagilim('Denetim', 'modul'),
+      say('Firma', fF), say('Asansor', aF), say('Denetim', dF), say('Tescil', tF),
+      dagilim('Asansor', 'makinaKonumu', aF), dagilim('Asansor', 'tahrikTipi', aF), dagilim('Denetim', 'modul', dF),
       Aksam.aggregate([{ $group: { _id: { kod: '$bilesenTipiKodu', durum: '$durum' }, adet: { $sum: 1 } } }]),
       // Aktif olup 90 gün içinde geçerliliği bitecek belgeler
       Aksam.countDocuments({ durum: 'aktif', gecerlilikBitis: { $ne: null, $gte: simdi, $lte: doksanGun } }),
       // Son eklenen 10 asansör ve 10 denetim
-      mongoose.model('Asansor').find().sort({ createdAt: -1 }).limit(10)
+      mongoose.model('Asansor').find(aF).sort({ createdAt: -1 }).limit(10)
         .select('seriNo yapiRuhsatNo il ilce makinaKonumu hiz beyanYuku kisiSayisi tahrikTipi askiTipi createdAt').lean(),
-      mongoose.model('Denetim').find().sort({ createdAt: -1 }).limit(10)
+      mongoose.model('Denetim').find(dF).sort({ createdAt: -1 }).limit(10)
         .select('modul denetimTarihi firmaId asansorId createdAt')
         .populate('firmaId', 'ad').populate('asansorId', 'seriNo yapiRuhsatNo').lean(),
-      mongoose.model('Tescil').find().sort({ createdAt: -1 }).limit(10)
+      mongoose.model('Tescil').find(tF).sort({ createdAt: -1 }).limit(10)
         .select('belediyeAdi dilekceTarihi firmaId asansorId createdAt')
         .populate('firmaId', 'ad')
         .populate('asansorId', 'seriNo yapiRuhsatNo makinaKonumu hiz beyanYuku tahrikTipi askiTipi').lean(),

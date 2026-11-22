@@ -1,5 +1,6 @@
 import express from 'express';
 import mongoose from 'mongoose';
+import { izinleriTemizle, varsayilanIzinler, tamIzinler } from './izinler.js';
 
 // Kullanıcılar (Ayarlar > Kullanıcılar): ad, soyad, rol (Admin / Denetçi / Danışman), e-posta, aktif/pasif.
 // Giriş, doğrulama ve oturum işleri api/auth.js'tedir. İzinler (rol bazlı erişim) sonraki aşamada tasarlanacak.
@@ -29,7 +30,7 @@ const kullaniciSchema = new mongoose.Schema(
     sonGiris: { type: Date, default: null },
     denemeSayaci: { type: Number, default: 0, select: false },
     kilitBitis: { type: Date, default: null, select: false },
-    // Gelecekteki izin alanları için ayrılmış yer
+    // İzinler: { [modul]: { okuma, olusturma, duzenleme, silme } } (api/izinler.js); Admin için tutulmaz (tüm izinler)
     izinler: { type: mongoose.Schema.Types.Mixed, default: undefined },
   },
   { timestamps: true, collection: 'kullanicilar' }
@@ -59,11 +60,12 @@ export async function oturumlariSifirla(kullaniciId) {
 }
 
 function temizle(body) {
-  const { ad, soyad, rol, email, aktif, oturumSuresiDk } = body ?? {};
+  const { ad, soyad, rol, email, aktif, oturumSuresiDk, izinler } = body ?? {};
   const v = { ad: String(ad ?? '').trim(), soyad: String(soyad ?? '').trim(), rol };
   if (email !== undefined) v.email = String(email ?? '').trim().toLowerCase();
   if (aktif !== undefined) v.aktif = !!aktif;
   if (oturumSuresiDk !== undefined) v.oturumSuresiDk = oturumSuresiDk ? Number(oturumSuresiDk) : null;
+  if (izinler !== undefined) v.izinler = izinleriTemizle(izinler);
   return v;
 }
 
@@ -100,8 +102,15 @@ router.post('/', async (req, res) => {
     const veri = temizle(req.body);
     const hata = dogrula(veri);
     if (hata) return res.status(400).json({ message: hata });
+    // Admin tüm izinlere sahiptir (kayıt tutulmaz); diğer roller ayarlanana kadar yalnız görüntüleme
+    if (veri.rol === 'admin') delete veri.izinler;
+    else if (!veri.izinler) veri.izinler = varsayilanIzinler();
     if (!veri.email) delete veri.email;
     else if (await Kullanici.exists({ email: veri.email })) return res.status(409).json({ message: 'Bu e-posta başka bir kullanıcıda kayıtlı' });
+    // Denetçi/Danışman kullanıcı bir Denetçi/Danışman kaydına bağlı olmalıdır (veri görünürlüğü bu bağa dayanır)
+    if (['denetci', 'danisman'].includes(veri.rol) && !req.body?.kaynakId) {
+      return res.status(400).json({ message: `${veri.rol === 'denetci' ? 'Denetçi' : 'Danışman'} kaydı seçilmelidir` });
+    }
     // Denetçi/Danışman rolü mevcut kayıttan seçilir: ad soyad kaynaktan gelir, aynı kayıt iki kez eklenemez
     if (['denetci', 'danisman'].includes(veri.rol) && req.body?.kaynakId) {
       if (!mongoose.isValidObjectId(req.body.kaynakId)) return res.status(400).json({ message: 'Geçersiz kayıt' });
@@ -129,7 +138,7 @@ router.post('/ice-aktar', async (req, res) => {
       if (!kaynak) continue;
       if (await Kullanici.exists({ kaynakId: kaynak._id, rol: k.tur })) continue; // zaten ekli
       const { ad, soyad } = adSoyadAyir(kaynak.adSoyad);
-      eklenen.push(await Kullanici.create({ ad, soyad, rol: k.tur, kaynakId: kaynak._id }));
+      eklenen.push(await Kullanici.create({ ad, soyad, rol: k.tur, kaynakId: kaynak._id, izinler: varsayilanIzinler() }));
     }
     res.status(201).json(eklenen);
   } catch (err) {
@@ -147,6 +156,9 @@ router.put('/:id', async (req, res) => {
 
     const guncelle = { ...veri };
     const unset = {};
+    // Admin'e izin kaydı tutulmaz; admin iken başka role geçen kullanıcıya varsayılan (yalnız görüntüleme) izinler verilir
+    if (veri.rol === 'admin') { delete guncelle.izinler; if (onceki.izinler) unset.izinler = ''; }
+    else if (!veri.izinler && !onceki.izinler) guncelle.izinler = varsayilanIzinler();
     let sifirla = false;
     if (veri.email !== undefined) {
       if (!veri.email) {
@@ -186,5 +198,15 @@ router.delete('/:id', async (req, res) => {
     res.status(500).json({ message: err.message });
   }
 });
+
+// Eski kullanıcıların (izin kaydı olmayan, Admin olmayan) mevcut erişimini korumak için açılışta tüm izinler yazılır;
+// Admin sonradan Ayarlar > Kullanıcılar'dan düzenler
+export async function izinleriTamamla() {
+  const sonuc = await Kullanici.updateMany(
+    { rol: { $ne: 'admin' }, izinler: { $exists: false } },
+    { $set: { izinler: tamIzinler() } }
+  );
+  return sonuc.modifiedCount ?? 0;
+}
 
 export default router;
