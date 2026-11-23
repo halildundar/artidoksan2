@@ -3,7 +3,7 @@ import { promisify } from 'node:util';
 import express from 'express';
 import mongoose from 'mongoose';
 import { Kullanici, oturumlariSifirla } from './kullanicilar.js';
-import { etkinIzinler } from './izinler.js';
+import { gorunumIzinleri } from './izinler.js';
 import { epostaGonder, konsolModu, sonKonsolEpostalari, EpostaHatasi } from './eposta.js';
 import {
   hesapDogrulamaSablonu, girisKoduSablonu, sifreSifirlamaSablonu, sifreDegistirmeSablonu, sifreDegistiBildirimiSablonu, YapilandirmaHatasi,
@@ -114,7 +114,7 @@ const parolaGecerli = (p) => typeof p === 'string' && p.length >= 8 && p.length 
 const kodUret = () => String(crypto.randomInt(0, 1_000_000)).padStart(6, '0');
 const maskele = (e) => String(e).replace(/^(.).*(@.*)$/, (_, a, b) => `${a}***${b}`);
 
-const genel = (k) => ({ _id: k._id, ad: k.ad, soyad: k.soyad, rol: k.rol, email: k.email ?? '', kaynakId: k.kaynakId ?? null, izinler: etkinIzinler(k) });
+const genel = (k) => ({ _id: k._id, ad: k.ad, soyad: k.soyad, rol: k.rol, email: k.email ?? '', kaynakId: k.kaynakId ?? null, izinler: gorunumIzinleri(k) });
 
 class HataKodu extends Error {
   constructor(durum, mesaj, ek = {}) { super(mesaj); this.durum = durum; this.ek = ek; }

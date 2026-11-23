@@ -7,7 +7,7 @@ import { blurActive } from '@/utils/blurActive';
 import { useTema } from '@/composables/useTema';
 
 // İzinler: düğmeler kullanıcının yetkisine göre gösterilir (gerçek denetim sunucuda yapılır)
-const { adminMi } = useAuth();
+const { adminMi, izinVar } = useAuth();
 const { tema, degistir } = useTema();
 
 const router = useRouter();
@@ -56,7 +56,7 @@ function git(path: string) {
     <ion-content>
       <div class="mx-auto max-w-lg space-y-2 px-4 py-4">
         <!-- Onaylı Kurumlar -->
-        <button type="button" @click="git('/ayarlar/onayli-kurumlar')"
+        <button v-if="izinVar('onayli-kurumlar', 'okuma')" type="button" @click="git('/ayarlar/onayli-kurumlar')"
           class="flex w-full items-center gap-3 bg-surface-800 p-3 text-left ring-1 ring-white/5 active:bg-[#1a2a20]">
           <span class="grid h-10 w-10 shrink-0 place-items-center bg-[#1c2a21] ring-1 ring-white/10">
             <!-- Onaylı kurum: rozet + onay -->
@@ -74,7 +74,7 @@ function git(path: string) {
         </button>
 
         <!-- Danışmanlar -->
-        <button type="button" @click="git('/ayarlar/danismanlar')"
+        <button v-if="izinVar('danismanlar', 'okuma')" type="button" @click="git('/ayarlar/danismanlar')"
           class="flex w-full items-center gap-3 bg-surface-800 p-3 text-left ring-1 ring-white/5 active:bg-[#1a2a20]">
           <span class="grid h-10 w-10 shrink-0 place-items-center bg-[#1c2a21] ring-1 ring-white/10">
             <!-- Danışman: kulaklıklı destek -->
@@ -93,7 +93,7 @@ function git(path: string) {
         </button>
 
         <!-- Denetçiler -->
-        <button type="button" @click="git('/ayarlar/denetciler')"
+        <button v-if="izinVar('denetciler', 'okuma')" type="button" @click="git('/ayarlar/denetciler')"
           class="flex w-full items-center gap-3 bg-surface-800 p-3 text-left ring-1 ring-white/5 active:bg-[#1a2a20]">
           <span class="grid h-10 w-10 shrink-0 place-items-center bg-[#1c2a21] ring-1 ring-white/10">
             <!-- Denetçi: onaylı kişi (kalkan + tik) -->
@@ -131,7 +131,7 @@ function git(path: string) {
         </button>
 
         <!-- CE Belgeleri (Aksam Kataloğu) -->
-        <button type="button" @click="git('/ayarlar/ce-belgeleri')"
+        <button v-if="izinVar('guvenlik-aksamlari', 'okuma')" type="button" @click="git('/ayarlar/ce-belgeleri')"
           class="flex w-full items-center gap-3 bg-surface-800 p-3 text-left ring-1 ring-white/5 active:bg-[#1a2a20]">
           <span class="grid h-10 w-10 shrink-0 place-items-center bg-[#1c2a21] ring-1 ring-white/10">
             <!-- CE belgesi: rozetli dosya -->
@@ -150,7 +150,7 @@ function git(path: string) {
         </button>
 
         <!-- SMM Firmaları -->
-        <button type="button" @click="git('/ayarlar/smm-firmalari')"
+        <button v-if="izinVar('smm-firmalari', 'okuma')" type="button" @click="git('/ayarlar/smm-firmalari')"
           class="flex w-full items-center gap-3 bg-surface-800 p-3 text-left ring-1 ring-white/5 active:bg-[#1a2a20]">
           <span class="grid h-10 w-10 shrink-0 place-items-center bg-[#1c2a21] ring-1 ring-white/10">
             <!-- SMM firması: bina + kişi -->
@@ -170,7 +170,7 @@ function git(path: string) {
         </button>
 
         <!-- Güvenlik Aksamları -->
-        <button type="button" @click="git('/ayarlar/guvenlik-aksamlari')"
+        <button v-if="izinVar('guvenlik-aksamlari', 'okuma')" type="button" @click="git('/ayarlar/guvenlik-aksamlari')"
           class="flex w-full items-center gap-3 bg-surface-800 p-3 text-left ring-1 ring-white/5 active:bg-[#1a2a20]">
           <span class="grid h-10 w-10 shrink-0 place-items-center bg-[#1c2a21] ring-1 ring-white/10">
             <!-- Güvenlik aksamı: kalkan -->

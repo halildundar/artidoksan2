@@ -2,6 +2,7 @@ import express from 'express';
 import mongoose from 'mongoose';
 import { BILESEN_TIPLERI } from './katalog.js';
 import { gorunurlukFiltresi } from './gorunurluk.js';
+import { izinVarMi } from './izinler.js';
 
 // Anasayfa istatistikleri: tek istekte sayılar (liste çekmeden, veritabanında sayılır)
 const router = express.Router();
@@ -14,7 +15,11 @@ const harita = (liste) => Object.fromEntries(liste.filter((x) => x._id).map((x) 
 
 router.get('/', async (req, res) => {
   try {
-    const [fF, aF, dF, tF] = await Promise.all(['firma', 'asansor', 'denetim', 'tescil'].map((t) => gorunurlukFiltresi(req.kullanici, t)));
+    // Okuma izni olmayan modülün sayıları/listesi boş döner (örn. Denetimler izni kapalı kullanıcı denetim görmez)
+    const MODUL = { firma: 'firmalar', asansor: 'asansorler', denetim: 'denetimler', tescil: 'tesciller' };
+    const [fF, aF, dF, tF] = await Promise.all(Object.keys(MODUL).map((t) => (
+      !req.kullanici || izinVarMi(req.kullanici, MODUL[t], 'okuma') ? gorunurlukFiltresi(req.kullanici, t) : { _id: { $in: [] } }
+    )));
     const simdi = new Date();
     const doksanGun = new Date(simdi.getTime() + 90 * 86400_000);
     const Aksam = mongoose.model('AksamBelgesi');

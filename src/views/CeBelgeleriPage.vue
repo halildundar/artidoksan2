@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { useAuth } from '@/composables/useAuth';
+const { izinVar } = useAuth();
 import { IonPage, IonContent, IonHeader, onIonViewWillEnter } from '@ionic/vue';
 import { ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
@@ -111,7 +113,7 @@ onIonViewWillEnter(yukle);
             </button>
             <h1 class="truncate text-base font-bold leading-8 tracking-wide text-ink">Güvenlik Aksamlar</h1>
           </div>
-          <button type="button" @click="git('/ayarlar/guvenlik-aksamlari/yeni')"
+          <button v-if="izinVar('guvenlik-aksamlari', 'olusturma')" type="button" @click="git('/ayarlar/guvenlik-aksamlari/yeni')"
             class="flex shrink-0 items-center gap-1.5 bg-[#2b5c3d] px-4 py-2.5 text-xs font-semibold text-ink ring-1 ring-white/10 active:bg-[#346e4a]">
             <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor"
               stroke-width="2.5" stroke-linecap="round">
@@ -187,7 +189,7 @@ onIonViewWillEnter(yukle);
                 Geçerlilik: {{ tarih(belge.gecerlilikBaslangic) }} — {{ tarih(belge.gecerlilikBitis) }}
               </span>
             </span>
-            <button type="button" @click="git(`/ayarlar/guvenlik-aksamlari/${belge._id}/duzenle`)"
+            <button v-if="izinVar('guvenlik-aksamlari', 'duzenleme')" type="button" @click="git(`/ayarlar/guvenlik-aksamlari/${belge._id}/duzenle`)"
               class="grid h-8 w-8 shrink-0 place-items-center bg-surface-900 text-ink-muted ring-1 ring-white/10 active:bg-[#1a2a20]"
               aria-label="Düzenle">
               <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor"
@@ -196,7 +198,7 @@ onIonViewWillEnter(yukle);
                 <path d="m15 5 4 4" />
               </svg>
             </button>
-            <button type="button" @click="sil(belge)"
+            <button v-if="izinVar('guvenlik-aksamlari', 'silme')" type="button" @click="sil(belge)"
               class="grid h-8 w-8 shrink-0 place-items-center bg-surface-900 text-red-300/80 ring-1 ring-red-500/20 active:bg-red-950/40"
               aria-label="Sil">
               <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor"

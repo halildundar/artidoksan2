@@ -40,8 +40,7 @@ function izinDegistir(modul: string, eylem: Eylem, deger: boolean) {
 // Satır / sütun / tümü kısayolları
 function modulHepsi(modul: string, deger: boolean) {
   if (adminRolu.value) return;
-  const m = IZIN_MODULLERI.find((x) => x.kod === modul);
-  izinler.value = { ...izinler.value, [modul]: Object.fromEntries(EYLEMLER.map((e) => [e.kod, e.kod === 'okuma' && m?.okumaSerbest ? true : deger])) };
+  izinler.value = { ...izinler.value, [modul]: Object.fromEntries(EYLEMLER.map((e) => [e.kod, deger])) };
 }
 function tumunuAyarla(tam: boolean) {
   if (adminRolu.value) return;
@@ -315,8 +314,8 @@ const girdi = 'w-full bg-surface-900 px-2.5 py-1.5 text-xs text-ink ring-1 ring-
                       <td class="py-1.5 pr-1 text-ink">{{ m.ad }}</td>
                       <td v-for="e in EYLEMLER" :key="e.kod" class="text-center">
                         <input type="checkbox" class="h-4 w-4 accent-[#2b5c3d]"
-                          :checked="izinDegeri(m.kod, e.kod) || (e.kod === 'okuma' && !!m.okumaSerbest)"
-                          :disabled="adminRolu || (e.kod === 'okuma' && !!m.okumaSerbest)"
+                          :checked="izinDegeri(m.kod, e.kod)"
+                          :disabled="adminRolu"
                           @change="izinDegistir(m.kod, e.kod, ($event.target as HTMLInputElement).checked)" />
                       </td>
                       <td class="text-center">
@@ -332,7 +331,7 @@ const girdi = 'w-full bg-surface-900 px-2.5 py-1.5 text-xs text-ink ring-1 ring-
               </div>
             </template>
             <p class="pt-1 text-[10px] text-ink-muted/70">
-              Ayarlar altındaki katalog modüllerinde (Güvenlik Aksamları, Onaylı Kurumlar vb.) görüntüleme herkese açıktır; ekranların çalışması için gereklidir.
+              Ayarlar altındaki modüllerde "Görüntüle" yalnız Ayarlar'daki yönetim ekranını açar/gizler; asansör, firma vb. formlardaki seçim listeleri her kullanıcıya açık kalır.
             </p>
           </div>
 

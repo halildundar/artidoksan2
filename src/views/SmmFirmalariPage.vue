@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { useAuth } from '@/composables/useAuth';
+const { izinVar } = useAuth();
 import { IonPage, IonContent, IonHeader, onIonViewWillEnter } from '@ionic/vue';
 import { ref } from 'vue';
 import { useRouter } from 'vue-router';
@@ -67,7 +69,7 @@ async function silOnayla() {
             </button>
             <h1 class="truncate text-base font-bold leading-8 tracking-wide text-ink">SMM Firmaları</h1>
           </div>
-          <button type="button" @click="git('/ayarlar/smm-firmalari/yeni')"
+          <button v-if="izinVar('smm-firmalari', 'olusturma')" type="button" @click="git('/ayarlar/smm-firmalari/yeni')"
             class="flex shrink-0 items-center gap-1.5 bg-[#2b5c3d] px-4 py-2.5 text-xs font-semibold text-ink ring-1 ring-white/10 active:bg-[#346e4a]">
             <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor"
               stroke-width="2.5" stroke-linecap="round">
@@ -112,7 +114,7 @@ async function silOnayla() {
                 {{ [f.makMuhAdSoyad, f.elkMuhAdSoyad].filter(Boolean).join(' • ') }}
               </span>
             </span>
-            <button type="button" @click="git(`/ayarlar/smm-firmalari/${f._id}/duzenle`)"
+            <button v-if="izinVar('smm-firmalari', 'duzenleme')" type="button" @click="git(`/ayarlar/smm-firmalari/${f._id}/duzenle`)"
               aria-label="Düzenle"
               class="grid h-7 w-7 shrink-0 place-items-center bg-surface-900 text-ink-muted ring-1 ring-white/10">
               <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor"
@@ -121,7 +123,7 @@ async function silOnayla() {
                 <path d="m15 5 4 4" />
               </svg>
             </button>
-            <button type="button" @click="silinecek = f" aria-label="SMM firmasını sil"
+            <button v-if="izinVar('smm-firmalari', 'silme')" type="button" @click="silinecek = f" aria-label="SMM firmasını sil"
               class="grid h-7 w-7 shrink-0 place-items-center bg-surface-900 text-red-300/80 ring-1 ring-red-500/20">
               ✕
             </button>

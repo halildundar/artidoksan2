@@ -10,7 +10,7 @@ import { blurActive } from '@/utils/blurActive';
 // Anasayfa: genel durum panelleri — firma / asansör / denetim / tescil sayıları ve
 // güvenlik komponentlerinin (CE-aksam belgeleri) aktif–pasif dağılımı
 const router = useRouter();
-const { kullanici } = useAuth();
+const { kullanici, izinVar } = useAuth();
 
 const veri = ref<Istatistik | null>(null);
 const yukleniyor = ref(false);
@@ -45,11 +45,11 @@ const selam = computed(() => {
 const kutular = computed(() => {
   const v = veri.value;
   return [
-    { ad: 'Firma', deger: v?.firma, yol: '/firma', ikon: 'firma' },
-    { ad: 'Asansör', deger: v?.asansor, yol: '/asansor', ikon: 'asansor' },
-    { ad: 'Denetim', deger: v?.denetim, yol: '/denetim', ikon: 'denetim' },
-    { ad: 'Tescil', deger: v?.tescil, yol: '/tescil', ikon: 'tescil' },
-  ];
+    { ad: 'Firma', deger: v?.firma, yol: '/firma', ikon: 'firma', modul: 'firmalar' },
+    { ad: 'Asansör', deger: v?.asansor, yol: '/asansor', ikon: 'asansor', modul: 'asansorler' },
+    { ad: 'Denetim', deger: v?.denetim, yol: '/denetim', ikon: 'denetim', modul: 'denetimler' },
+    { ad: 'Tescil', deger: v?.tescil, yol: '/tescil', ikon: 'tescil', modul: 'tesciller' },
+  ].filter((k) => izinVar(k.modul, 'okuma'));
 });
 
 // Aktif oranı (%)
@@ -172,7 +172,7 @@ const PASIF = '#8a978e';
           </div>
 
           <!-- Denetimler -->
-          <div class="min-w-0 space-y-2 bg-surface-800 p-3 ring-1 ring-white/5">
+          <div v-if="izinVar('denetimler', 'okuma')" class="min-w-0 space-y-2 bg-surface-800 p-3 ring-1 ring-white/5">
             <div class="flex items-start justify-between gap-1">
               <div class="min-w-0">
                 <h2 class="truncate text-[11px] font-bold uppercase tracking-wide text-ink">Denetimler</h2>

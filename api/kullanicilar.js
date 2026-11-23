@@ -206,7 +206,12 @@ export async function izinleriTamamla() {
     { rol: { $ne: 'admin' }, izinler: { $exists: false } },
     { $set: { izinler: tamIzinler() } }
   );
-  return sonuc.modifiedCount ?? 0;
+  // Sonradan eklenen modüller (rapor): izinleri kayıtlı mevcut kullanıcılar erişimlerini kaybetmesin
+  const rapor = await Kullanici.updateMany(
+    { rol: { $ne: 'admin' }, izinler: { $exists: true }, 'izinler.rapor': { $exists: false } },
+    { $set: { 'izinler.rapor': { okuma: true, olusturma: true, duzenleme: true, silme: true } } }
+  );
+  return (sonuc.modifiedCount ?? 0) + (rapor.modifiedCount ?? 0);
 }
 
 export default router;

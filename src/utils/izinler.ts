@@ -9,7 +9,8 @@ export const EYLEMLER: { kod: Eylem; etiket: string }[] = [
   { kod: 'silme', etiket: 'Sil' },
 ];
 
-// okumaSerbest: ekranların çalışması için görüntüleme herkese açıktır (yalnız ekleme/düzenleme/silme izne bağlı)
+// okumaSerbest: seçim listeleri (asansör/firma formları vb.) çalışsın diye API okuması herkese açıktır;
+// "Görüntüle" ise Ayarlar'daki yönetim ekranının görünürlüğünü belirler
 export interface IzinModulu { kod: string; ad: string; grup: string; okumaSerbest?: boolean }
 export const IZIN_MODULLERI: IzinModulu[] = [
   { kod: 'firmalar', ad: 'Firmalar', grup: 'Ana modüller' },
@@ -17,6 +18,7 @@ export const IZIN_MODULLERI: IzinModulu[] = [
   { kod: 'denetimler', ad: 'Denetimler', grup: 'Ana modüller' },
   { kod: 'tesciller', ad: 'Tescil', grup: 'Ana modüller' },
   { kod: 'yazdirma', ad: 'Yazdırma (belge üretimi)', grup: 'Ana modüller' },
+  { kod: 'rapor', ad: 'Rapor', grup: 'Ana modüller' },
   { kod: 'guvenlik-aksamlari', ad: 'Güvenlik Aksamları', grup: 'Ayarlar', okumaSerbest: true },
   { kod: 'onayli-kurumlar', ad: 'Onaylı Kurumlar', grup: 'Ayarlar', okumaSerbest: true },
   { kod: 'denetciler', ad: 'Denetçiler', grup: 'Ayarlar', okumaSerbest: true },
@@ -36,10 +38,11 @@ export function tamIzinler(): IzinHaritasi {
 
 // Sunucudan gelen (eksik olabilen) izin haritasını tüm modül/eylemleri içerecek şekilde tamamlar
 export function izinleriTamamla(h: IzinHaritasi | null | undefined): IzinHaritasi {
+  if (!h) return varsayilanIzinler();
   return Object.fromEntries(
     IZIN_MODULLERI.map((m) => [
       m.kod,
-      Object.fromEntries(EYLEMLER.map((e) => [e.kod, e.kod === 'okuma' && m.okumaSerbest ? true : !!h?.[m.kod]?.[e.kod]])),
+      Object.fromEntries(EYLEMLER.map((e) => [e.kod, !!h?.[m.kod]?.[e.kod]])),
     ])
   ) as IzinHaritasi;
 }

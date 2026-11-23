@@ -174,6 +174,29 @@ const router = createRouter({
   routes
 })
 
+// Yol → modül eşlemesi: sayfaya girmek için okuma, /yeni için ekleme, /duzenle için düzenleme izni gerekir
+// (sunucu zaten engeller; bu yalnız kullanıcıyı yetkisiz sayfada tutmamak içindir)
+const ROTA_MODULLERI: Array<[RegExp, string]> = [
+  [/^\/(firma)(\/|$)/, 'firmalar'],
+  [/^\/(asansor)(\/|$)/, 'asansorler'],
+  [/^\/(denetim)(\/|$)/, 'denetimler'],
+  [/^\/(tescil)(\/|$)/, 'tesciller'],
+  [/^\/rapor(\/|$)/, 'rapor'],
+  [/^\/ayarlar\/onayli-kurumlar(\/|$)/, 'onayli-kurumlar'],
+  [/^\/ayarlar\/denetciler(\/|$)/, 'denetciler'],
+  [/^\/ayarlar\/danismanlar(\/|$)/, 'danismanlar'],
+  [/^\/ayarlar\/smm-firmalari(\/|$)/, 'smm-firmalari'],
+  [/^\/ayarlar\/(guvenlik-aksamlari|ce-belgeleri)(\/|$)/, 'guvenlik-aksamlari'],
+];
+function rotaIzniVar(yol: string): boolean {
+  const { izinVar, adminMi } = useAuth();
+  if (/^\/ayarlar\/kullanicilar(\/|$)/.test(yol)) return adminMi.value; // kullanıcı yönetimi yalnız Admin
+  const eslesen = ROTA_MODULLERI.find(([re]) => re.test(yol));
+  if (!eslesen) return true;
+  const eylem = /\/yeni$/.test(yol) ? 'olusturma' : /\/duzenle$/.test(yol) ? 'duzenleme' : 'okuma';
+  return izinVar(eslesen[1], eylem);
+}
+
 // Rota koruması: giriş zorunluyken oturumsuz kullanıcı giriş sayfasına yönlendirilir
 router.beforeEach(async (to) => {
   if (!AUTH_ZORUNLU) return true;
@@ -184,6 +207,7 @@ router.beforeEach(async (to) => {
     return '/giris';
   }
   if (to.path === '/giris' && girisliMi.value) return '/';
+  if (!to.meta.acik && !rotaIzniVar(to.path)) return '/anasayfa';
   return true;
 });
 

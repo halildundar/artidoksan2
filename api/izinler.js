@@ -13,6 +13,7 @@ export const MODULLER = [
   { kod: 'denetimler', ad: 'Denetimler', grup: 'Ana modüller' },
   { kod: 'tesciller', ad: 'Tescil', grup: 'Ana modüller' },
   { kod: 'yazdirma', ad: 'Yazdırma (belge üretimi)', grup: 'Ana modüller' },
+  { kod: 'rapor', ad: 'Rapor', grup: 'Ana modüller' },
   { kod: 'guvenlik-aksamlari', ad: 'Güvenlik Aksamları', grup: 'Ayarlar', okumaSerbest: true },
   { kod: 'onayli-kurumlar', ad: 'Onaylı Kurumlar', grup: 'Ayarlar', okumaSerbest: true },
   { kod: 'denetciler', ad: 'Denetçiler', grup: 'Ayarlar', okumaSerbest: true },
@@ -54,6 +55,16 @@ export function etkinIzinler(kullanici) {
       Object.fromEntries(EYLEMLER.map((e) => [e, e === 'okuma' && m.okumaSerbest ? true : !!kayitli[m.kod]?.[e]])),
     ])
   );
+}
+
+// İstemciye gönderilen izinler: okumaSerbest modüllerde "okuma", ekran/menü görünürlüğü için KAYITLI değerdir
+// (sunucu API okumaları ise etkinIzinler ile serbest kalır; seçim listeleri çalışmaya devam eder)
+export function gorunumIzinleri(kullanici) {
+  const etkin = etkinIzinler(kullanici);
+  if (kullanici?.rol === 'admin') return etkin;
+  const kayitli = kullanici?.izinler && typeof kullanici.izinler === 'object' ? kullanici.izinler : varsayilanIzinler();
+  for (const m of MODULLER) if (m.okumaSerbest) etkin[m.kod].okuma = !!kayitli[m.kod]?.okuma;
+  return etkin;
 }
 
 export function izinVarMi(kullanici, modul, eylem) {
