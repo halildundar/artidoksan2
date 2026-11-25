@@ -109,16 +109,12 @@ export function bos(v) {
   return v === undefined || v === null ? '' : String(v);
 }
 
-function kelimeBasiBuyukHarfe(deger) {
-  return deger
-    .toLocaleLowerCase('tr-TR')
-    .replace(/(^|\s)(\S)/gu, (_e, b, h) => b + h.toLocaleUpperCase('tr-TR'));
-}
-
+// Belgelerde adres satırı tamamen BÜYÜK HARF (Türkçe kurallarıyla: i → İ, ı → I) yazılır:
+// mahalle / il / ilçe ile açık adres aynı görünümde olsun
 function adresSatiri(kayit) {
-  const parca = (v) => (v ? kelimeBasiBuyukHarfe(v) : v);
-  const ilceIl = [parca(kayit?.ilce), parca(kayit?.il)].filter(Boolean).join('/');
-  return [parca(kayit?.mahalle), kayit?.adres, ilceIl].filter(Boolean).join(' ');
+  const buyuk = (v) => (v ? String(v).trim().toLocaleUpperCase('tr-TR') : v);
+  const ilceIl = [buyuk(kayit?.ilce), buyuk(kayit?.il)].filter(Boolean).join('/');
+  return [buyuk(kayit?.mahalle), buyuk(kayit?.adres), ilceIl].filter(Boolean).join(' ');
 }
 
 export function tarihStr(value) {
