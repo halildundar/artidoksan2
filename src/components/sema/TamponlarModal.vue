@@ -149,7 +149,7 @@ const bolumler = [
     <div class="space-y-3">
       <div v-for="bolum in bolumler" :key="bolum.baslik"
         class="space-y-1.5 bg-surface-900/60 p-2.5 ring-1 ring-white/5">
-        <div class="flex items-center justify-between gap-2">
+        <div class="flex flex-wrap items-center justify-between gap-x-2 gap-y-1">
           <div class="flex min-w-0 items-center gap-2">
             <h4 class="text-xs font-bold text-ink">{{ bolum.baslik }}</h4>
             <!-- Komponent ekle/düzenle: seçim ilk satıra uygulanır -->
@@ -159,13 +159,13 @@ const bolumler = [
               @sec="bolum.model.value.satirlar[0].marka = $event.marka; bolum.model.value.satirlar[0].tip = $event.tip" />
           </div>
           <!-- Ağırlık hesabından P+Q (kabin) / P+Q/2 (karşı ağırlık) bilgisi -->
-          <p v-if="props.kabinAgirligi != null" class="min-w-0 flex-1 text-right text-xs text-ink-muted">
+          <p v-if="props.kabinAgirligi != null" class="order-last w-full text-xs text-ink-muted">
             {{ bolum.yarimQ ? 'P + Q/2' : 'P + Q' }} =
             <strong class="font-semibold text-[#6fcf97]">
               {{ props.kabinAgirligi + (bolum.yarimQ ? (props.beyanYuku ?? 0) / 2 : (props.beyanYuku ?? 0)) }} kg
             </strong>
           </p>
-          <p v-else class="min-w-0 flex-1 text-right text-xs font-semibold text-red-400">Ağırlık hesabını yapınız</p>
+          <p v-else class="order-last w-full text-xs font-semibold text-red-400">Ağırlık hesabını yapınız</p>
           <label class="flex shrink-0 items-center gap-1.5">
             <span class="text-xs font-medium text-ink-muted">Adet</span>
             <select v-model.number="bolum.model.value.adet"
@@ -177,21 +177,21 @@ const bolumler = [
 
         <!-- Adet kadar Marka / Tip / Seri No satırı + tipe göre belge görüntüleme -->
         <div v-for="(satir, i) in bolum.model.value.satirlar" :key="i"
-          class="grid grid-cols-[1fr_1fr_1fr_auto] items-end gap-1.5">
-          <label class="block space-y-0.5">
-            <span v-if="i === 0" class="text-xs font-medium text-ink-muted">Marka</span>
+          class="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_auto] items-end gap-1.5">
+          <label class="block min-w-0 space-y-0.5">
+            <span v-if="i === 0" class="block truncate text-xs font-medium text-ink-muted">Marka</span>
             <AramaliSelect :model-value="satir.marka" placeholder="Seçiniz"
               :options="markalar().map((m) => ({ label: markaEtiketi(props.tamponBelgeleri, m), value: m }))"
               @update:model-value="satir.marka = ($event as string | null) || null; satir.tip = null" />
           </label>
-          <label class="block space-y-0.5">
-            <span v-if="i === 0" class="text-xs font-medium text-ink-muted">Tip</span>
+          <label class="block min-w-0 space-y-0.5">
+            <span v-if="i === 0" class="block truncate text-xs font-medium text-ink-muted">Tip</span>
             <AramaliSelect :model-value="satir.tip" placeholder="Tip seçiniz" :disabled="!satir.marka"
               :options="markaTipleri(satir.marka).map((t) => ({ label: tipEtiketi(props.tamponBelgeleri, satir.marka, t), value: t }))"
               @update:model-value="satir.tip = ($event as string | null) || null" />
           </label>
-          <label class="block space-y-0.5">
-            <span v-if="i === 0" class="text-xs font-medium text-ink-muted">Seri No</span>
+          <label class="block min-w-0 space-y-0.5">
+            <span v-if="i === 0" class="block truncate text-xs font-medium text-ink-muted">Seri No</span>
             <input v-model="satir.seriNo" type="text" placeholder="Seri no"
               class="w-full bg-surface-900 px-2 py-1.5 text-xs text-ink ring-1 ring-white/10 outline-none placeholder:text-ink-muted/40 focus:ring-white/30" />
           </label>

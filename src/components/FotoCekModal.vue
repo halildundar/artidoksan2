@@ -15,10 +15,15 @@ const fotolar = ref<{ file: File; url: string }[]>([]);
 const kameraHatasi = ref('');
 let stream: MediaStream | null = null;
 
-// Cihaz ışığı (flaş/meşale): yalnız kamera 'torch' yeteneğini bildiriyorsa
-// (çoğu Android Chrome; iOS Safari desteklemez) buton gösterilir
+// Flaş: yalnız kamera 'torch' yeteneğini bildiriyorsa (çoğu Android Chrome; iOS Safari
+// desteklemez) buton gösterilir. Buton AKTİFKEN ışık sürekli yanmaz; yalnız çekim anında
+// yanar ve çekimden sonra söner.
 const isikDestegi = ref(false);
-const isikAcik = ref(false);
+const isikAcik = ref(false); // flaş seçili mi
+const cekiyor = ref(false);
+
+type FotoYakalayici = { takePhoto: () => Promise<Blob> };
+const bekle = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 watch(acik, (a) => (a ? kameraAc() : kapat()));
 onBeforeUnmount(kapat);
@@ -27,7 +32,8 @@ async function kameraAc() {
   kameraHatasi.value = '';
   try {
     stream = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode: { ideal: 'environment' } },
+      // Cihazın desteklediği en yüksek çözünürlük istenir (varsayılan ~640x480 çok düşük kalıyor)
+      video: { facingMode: { ideal: 'environment' }, width: { ideal: 4096 }, height: { ideal: 3072 } },
       audio: false,
     });
     // video elemanı v-if ile bu watch'tan sonra DOM'a girer
@@ -53,37 +59,58 @@ function kapat() {
   kameraHatasi.value = '';
 }
 
-async function isikDegistir() {
+// Flaş butonu: yalnız seçimi değiştirir; ışık çekim anında yanar (cek)
+function isikDegistir() {
+  isikAcik.value = !isikAcik.value;
+}
+
+// Cihaz ışığını gerçekten yakar/söndürür; başarısızlık çekimi engellemez
+async function isikYak(acik: boolean) {
   const iz = stream?.getVideoTracks()[0];
   if (!iz) return;
-  const yeni = !isikAcik.value;
   try {
-    await iz.applyConstraints({ advanced: [{ torch: yeni } as MediaTrackConstraintSet] });
-    isikAcik.value = yeni;
-  } catch {
-    isikDestegi.value = false; // cihaz ışığı açamadı — buton gizlenir
-  }
+    await iz.applyConstraints({ advanced: [{ torch: acik } as MediaTrackConstraintSet] });
+  } catch { /* ışık açılamadıysa flaşsız çekilir */ }
 }
 
 function ekle(file: File) {
   fotolar.value.push({ file, url: URL.createObjectURL(file) });
 }
 
-// Deklanşör: canlı görüntüden o anki kare canvas üzerinden JPEG'e alınır
-function cek() {
+// Canlı görüntüden o anki kare (yedek yol: düşük çözünürlüklü, önizleme boyutunda)
+function kareyiAl(): Promise<Blob | null> {
   const v = video.value;
-  if (!v || !v.videoWidth) return;
+  if (!v || !v.videoWidth) return Promise.resolve(null);
   const canvas = document.createElement('canvas');
   canvas.width = v.videoWidth;
   canvas.height = v.videoHeight;
   canvas.getContext('2d')?.drawImage(v, 0, 0);
-  canvas.toBlob(
-    (blob) => {
-      if (blob) ekle(new File([blob], `cihaz-foto-${Date.now()}.jpg`, { type: 'image/jpeg' }));
-    },
-    'image/jpeg',
-    0.9
-  );
+  return new Promise((r) => canvas.toBlob((b) => r(b), 'image/jpeg', 0.95));
+}
+
+// Deklanşör: önce ImageCapture.takePhoto (sensörün tam çözünürlüklü fotoğrafı), desteklenmezse
+// canlı görüntüden kare. Flaş seçiliyse ışık çekim süresince yanar.
+async function cek() {
+  if (cekiyor.value || !stream) return;
+  cekiyor.value = true;
+  const flasli = isikAcik.value && isikDestegi.value;
+  try {
+    if (flasli) {
+      await isikYak(true);
+      await bekle(400); // pozlama ışığa ayarlansın
+    }
+    let blob: Blob | null = null;
+    const IC = (window as unknown as { ImageCapture?: new (iz: MediaStreamTrack) => FotoYakalayici }).ImageCapture;
+    const iz = stream.getVideoTracks()[0];
+    if (IC && iz) {
+      try { blob = await new IC(iz).takePhoto(); } catch { blob = null; }
+    }
+    if (!blob) blob = await kareyiAl();
+    if (blob) ekle(new File([blob], `cihaz-foto-${Date.now()}.jpg`, { type: blob.type || 'image/jpeg' }));
+  } finally {
+    if (flasli) await isikYak(false);
+    cekiyor.value = false;
+  }
 }
 
 // Kamera açılamadığında yedek yol: sistem kamera/dosya seçicisi
@@ -115,9 +142,9 @@ function tamam() {
         class="flex shrink-0 items-center justify-between bg-black/80 px-4 py-3 pt-[max(0.75rem,env(safe-area-inset-top))]">
         <h2 class="truncate text-sm font-bold text-white">Fotoğraf Çek</h2>
         <div class="flex shrink-0 items-center gap-1.5">
-          <!-- Cihaz ışığı aç/kapat (yalnız destekleyen cihazlarda) -->
+          <!-- Flaş: seçiliyse çekim anında yanar (yalnız destekleyen cihazlarda) -->
           <button v-if="isikDestegi" type="button" @click="isikDegistir"
-            :aria-label="isikAcik ? 'Işığı kapat' : 'Işığı aç'" :aria-pressed="isikAcik"
+            :aria-label="isikAcik ? 'Flaşı kapat' : 'Flaşı aç'" :aria-pressed="isikAcik"
             class="grid h-8 w-8 place-items-center ring-1 ring-white/20"
             :class="isikAcik ? 'bg-yellow-300 text-black' : 'bg-white/10 text-white'">
             <svg class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
@@ -174,7 +201,7 @@ function tamam() {
           </button>
 
           <!-- Beyaz deklanşör -->
-          <button type="button" @click="cek" :disabled="!!kameraHatasi" aria-label="Fotoğraf çek"
+          <button type="button" @click="cek" :disabled="!!kameraHatasi || cekiyor" aria-label="Fotoğraf çek"
             class="h-16 w-16 justify-self-center rounded-full bg-white ring-4 ring-white/30 active:scale-95 active:bg-white/80 disabled:opacity-30">
           </button>
 

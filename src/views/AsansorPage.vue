@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import DanismanRozetleri from '@/components/DanismanRozetleri.vue';
 import { useAuth } from '@/composables/useAuth';
 import KullaniciMenusu from '@/components/KullaniciMenusu.vue';
 import { IonPage, IonContent, IonHeader, onIonViewWillEnter } from '@ionic/vue';
@@ -166,6 +167,7 @@ onIonViewWillEnter(yukle);
                 <span class="mt-0.5 block text-[11px] text-ink-muted/80">
                   {{ [asansor.tahrikTipi === 'elektrikli' ? 'Elektrikli' : asansor.tahrikTipi === 'hidrolik' ? 'Hidrolik' : '', asansor.yapiRuhsatNo ? `Ruhsat: ${asansor.yapiRuhsatNo}` : ''].filter(Boolean).join(' • ') }}
                 </span>
+                <DanismanRozetleri :ids="asansor.danismanIdler" class="mt-1" />
               </span>
             </button>
             <button v-if="izinVar('asansorler', 'silme')" type="button" @click="sil(asansor)"

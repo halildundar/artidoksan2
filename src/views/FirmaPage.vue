@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import DanismanRozetleri from '@/components/DanismanRozetleri.vue';
 import { useAuth } from '@/composables/useAuth';
 import KullaniciMenusu from '@/components/KullaniciMenusu.vue';
 import { IonPage, IonContent, IonHeader, onIonViewWillEnter } from '@ionic/vue';
@@ -1745,6 +1746,7 @@ onIonViewWillEnter(yukle);
                 <span>{{ tarih(firma.createdAt) }}</span>
                 <span>{{ saat(firma.createdAt) }}</span>
               </span>
+              <DanismanRozetleri :ids="firma.danismanIdler" class="mt-1" />
             </span>
             <svg class="h-4 w-4 shrink-0 text-ink-muted/60" viewBox="0 0 24 24" fill="none"
               stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">

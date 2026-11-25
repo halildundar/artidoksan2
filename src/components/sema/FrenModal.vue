@@ -133,16 +133,16 @@ async function belgeAc(belge: KilitBelgeSecenek | null) {
     <div class="space-y-3">
       <!-- Kabin Fren -->
       <div class="space-y-1.5 bg-surface-900/60 p-2.5 ring-1 ring-white/5">
-        <div class="flex items-center justify-between gap-2">
+        <div class="flex flex-wrap items-center justify-between gap-x-2 gap-y-1">
           <div class="flex min-w-0 items-center gap-2">
             <h4 class="text-xs font-bold text-ink">Kabin Fren</h4>
             <KomponentIslemleri kompakt kod="fren" :belgeler="props.frenBelgeleri" :marka="kabin.marka"
               :tip="kabin.tip" @sec="kabin.marka = $event.marka; kabin.tip = $event.tip" />
           </div>
-          <p v-if="props.kabinAgirligi != null" class="shrink-0 text-xs text-ink-muted">
+          <p v-if="props.kabinAgirligi != null" class="order-last w-full text-xs text-ink-muted">
             P + Q = <strong class="font-semibold text-[#6fcf97]">{{ props.kabinAgirligi + (props.beyanYuku ?? 0) }} kg</strong>
           </p>
-          <p v-else class="shrink-0 text-xs font-semibold text-red-400">Ağırlık hesabını yapınız</p>
+          <p v-else class="order-last w-full text-xs font-semibold text-red-400">Ağırlık hesabını yapınız</p>
         </div>
         <div class="grid grid-cols-2 gap-1.5">
           <label class="block space-y-0.5">
@@ -217,16 +217,16 @@ async function belgeAc(belge: KilitBelgeSecenek | null) {
 
       <!-- Karşı Ağırlık Fren -->
       <div class="space-y-1.5 bg-surface-900/60 p-2.5 ring-1 ring-white/5">
-        <div class="flex items-center justify-between gap-2">
+        <div class="flex flex-wrap items-center justify-between gap-x-2 gap-y-1">
           <div class="flex min-w-0 items-center gap-2">
             <h4 class="text-xs font-bold text-ink">Karşı Ağırlık Fren</h4>
             <KomponentIslemleri kompakt kod="fren" :belgeler="props.frenBelgeleri" :marka="karsiAgirlik.marka"
               :tip="karsiAgirlik.tip" @sec="karsiAgirlik.marka = $event.marka; karsiAgirlik.tip = $event.tip" />
           </div>
-          <p v-if="props.kabinAgirligi != null" class="shrink-0 text-xs text-ink-muted">
+          <p v-if="props.kabinAgirligi != null" class="order-last w-full text-xs text-ink-muted">
             P + Q/2 = <strong class="font-semibold text-[#6fcf97]">{{ props.kabinAgirligi + (props.beyanYuku ?? 0) / 2 }} kg</strong>
           </p>
-          <p v-else class="shrink-0 text-xs font-semibold text-red-400">Ağırlık hesabını yapınız</p>
+          <p v-else class="order-last w-full text-xs font-semibold text-red-400">Ağırlık hesabını yapınız</p>
         </div>
 
         <!-- Var/Yok radio -->
