@@ -763,10 +763,15 @@ const doldurmaSecenegi = ({ denetim, asansor }, kalem) => ({
     if (kalem?.kod === 'module-e-certificate') {
       let x = paragrafiDegistir(yamali, 'AKYALİFT ASANSÖR SANAYİ VE TİCARET LİMİTED ŞİRKETİ', '{unvan}');
       x = paragrafiDegistir(x, 'KAZIM KARABEKİR PAŞA MAH. 234.SK. NO:35B MERKEZ/KARAMAN', '{as_firma_adresi}');
+      // Firma/adres satırlarının yüksekliği şablonda sabit (2 satır): uzun unvan/adres 3. satıra taşınca
+      // kesilip alttaki satırın üstüne biniyordu — satırlar içeriğe göre büyüyebilsin
+      x = x.replace(/<w:tr[ >][\s\S]*?<\/w:tr>/g, (r) => (r.includes('{as_firma_adresi}') ? r.replace('w:hRule="exact"', 'w:hRule="atLeast"') : r));
       // Şablondaki adres satırı sarı vurgulu: etikete dönünce vurgu kaldırılır
       x = x.replace(/<w:p[ >][\s\S]*?<\/w:p>/g, (p) => (p.includes('{as_firma_adresi}') ? p.replace(/<w:highlight [^>]*\/>/g, '') : p));
       x = paragrafiDegistir(x, 'Machine room less traction drive', '“ {makine_tipi_en}”');
       x = paragrafiDegistir(x, 'Makine Dairesiz Sürtünme Tahrikli', '“ {makine_tipi_tr}”');
+      // "above-mentioned          EU-Type" arasındaki fazla boşluk satır sonunda "EU-" kopmasına yol açıyordu
+      x = x.replace(/above-mentioned\s{2,}EU-Type/, 'above-mentioned EU-Type');
       return paragrafiDegistir(x, '357.27335/357.27335/IV-B/2026', '{ce_b_belge_nolari}');
     }
     if (kalem?.kod?.startsWith('certificate-annex-')) return annexUcmNotu(yamali, asansor);
