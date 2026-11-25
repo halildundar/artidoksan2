@@ -41,7 +41,7 @@ const sagSekmeler = computed(() => gorunenler.value.slice(yarim.value));
         <nav class="mx-auto grid h-16 max-w-lg grid-cols-[1fr_auto_1fr]">
           <div v-for="(grup, i) in [solSekmeler, sagSekmeler]" :key="i" class="flex min-w-0 justify-evenly" :class="i === 1 ? 'order-3' : 'order-1'">
             <button v-for="s in grup" :key="s.yol" type="button" @click="go(s.yol)"
-              class="flex w-16 min-w-0 flex-none flex-col items-center justify-center gap-1"
+              class="flex min-w-0 max-w-[4.5rem] flex-1 flex-col items-center justify-center gap-1"
               :class="isActive(s.yol) ? 'text-ink' : 'text-ink-muted'">
             <template v-if="s.ikon === 'firma'">
               <svg class="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor"
