@@ -770,6 +770,8 @@ const doldurmaSecenegi = ({ denetim, asansor }, kalem) => ({
       x = x.replace(/<w:p[ >][\s\S]*?<\/w:p>/g, (p) => (p.includes('{as_firma_adresi}') ? p.replace(/<w:highlight [^>]*\/>/g, '') : p));
       x = paragrafiDegistir(x, 'Machine room less traction drive', '“ {makine_tipi_en}”');
       x = paragrafiDegistir(x, 'Makine Dairesiz Sürtünme Tahrikli', '“ {makine_tipi_tr}”');
+      // Üst kenar boşluğu (1,25 cm) başlık öncesindeki boş satırlarla birleşince sayfa üstü çok boş kalıyordu: ~0,5 cm'ye indirilir
+      x = x.replace(/(<w:pgMar [^>]*w:top=")709(")/, (_m, a, b) => `${a}280${b}`);
       // "above-mentioned          EU-Type" arasındaki fazla boşluk satır sonunda "EU-" kopmasına yol açıyordu
       x = x.replace(/above-mentioned\s{2,}EU-Type/, 'above-mentioned EU-Type');
       return paragrafiDegistir(x, '357.27335/357.27335/IV-B/2026', '{ce_b_belge_nolari}');
