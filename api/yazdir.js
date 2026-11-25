@@ -242,6 +242,10 @@ export async function sablonVerisi({ tescil, firma, asansor }) {
   const abTarih = tescil.abUygunlukBeyaniTarihi || asansor?.abUygunlukBeyaniTarihi || null;
   const anaModul = anaCe ? ceModulKodu(anaCe.modul) : '';
   const [anaKurum, bKurum] = await Promise.all([onayliKurumBul(anaCe?.kurum), onayliKurumBul(bCe?.kurum)]);
+  // Seçili tüm Modül B belgeleri: "belge no – NB<nobo>" (Modül E sertifikasında AB tip inceleme sertifikası alanı)
+  const bCeler = celer.filter((ce) => ceModulKodu(ce.modul) === 'B' && bos(ce.belgeNo));
+  const bCeKurumlari = await Promise.all(bCeler.map((ce) => onayliKurumBul(ce.kurum)));
+  const bBelgeNolari = bCeler.map((ce, i) => [bos(ce.belgeNo), bCeKurumlari[i]?.nobo ? `NB${bCeKurumlari[i].nobo}` : ''].filter(Boolean).join(' – ')).join(', ');
   const modulMetin = MODUL_METIN[anaModul] ?? { annex: '', name: '', nameEn: '' };
 
   const hizReg = aksamGrubu(asansor, ['hiz_regulatoru']);
@@ -368,6 +372,7 @@ export async function sablonVerisi({ tescil, firma, asansor }) {
     ce_nobo: bos(anaKurum?.nobo),
     ce_adres: bos(anaKurum?.adres),
     ce_belge_no_b: bos(bCe?.belgeNo),
+    ce_b_belge_nolari: bBelgeNolari,
     ce_kurum_b: bos(bCe?.kurum),
     ce_nobo_b: bos(bKurum?.nobo),
     ce_adres_b: bos(bKurum?.adres),

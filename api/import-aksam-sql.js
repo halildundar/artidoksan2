@@ -27,9 +27,16 @@ const TURLER = {
   durak: { sql: 'durakkapikilit.sql', tablo: 'durak-kapi-kilit', kod: 'durak_kapi_kilidi' },
   kabin: { sql: 'kabinkapikilit.sql', tablo: 'kabin-kapi-kilit', kod: 'kabin_kapi_kilidi' },
   ucm: { sql: 'ucmacop.sql', tablo: 'ucm-acop', kod: 'ucm_acop' },
+  // Kapı paneli raporları: belge_tur sütunu satır başına bileşen tipini belirler (kod: null)
+  panel: { sql: 'kapipanel.sql', tablo: 'kapi-panel', kod: null },
+  // akilli: katalogda zaten bulunan sertifika / marka+tip kombinasyonları atlanır, marka yazımı katalogdakine uydurulur
+  tampon: { sql: 'tampon.sql', tablo: 'tampon', kod: 'tampon', akilli: true },
+  fren: { sql: 'fren.sql', tablo: 'fren', kod: 'fren', akilli: true },
+  kart: { sql: 'kart.sql', tablo: 'kontrol-kart', kod: 'kontrol_karti', akilli: true },
 };
+const BELGE_TUR_KODU = { PENDULUM: 'sarkac_test_raporu', 'FIRE RESISTANCE': 'yangin_sizdirmazlik_raporu' };
 const TUR = TURLER[process.argv[2]];
-if (!TUR) { console.error('Kullanım: node import-aksam-sql.js <motor|durak|kabin|ucm> [--dry]'); process.exit(1); }
+if (!TUR) { console.error('Kullanım: node import-aksam-sql.js <motor|durak|kabin|ucm|panel|tampon|fren|kart> [--dry]'); process.exit(1); }
 const SQL_YOLU = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', TUR.sql);
 const MONGODB_URI = process.env.MONGODB_URI ?? 'mongodb://127.0.0.1:27017/artidoksan2';
 
@@ -111,25 +118,55 @@ console.log(`SQL'den okunan belge: ${satirlar.length}`);
 await mongoose.connect(MONGODB_URI);
 const db = mongoose.connection.db;
 const col = db.collection('aksambelgeleri');
-const tip = BILESEN_TIPLERI.find((t) => t.kod === TUR.kod);
-if (!tip) throw new Error(`Bilinmeyen bileşen tipi: ${TUR.kod}`);
+const tipBul = (kod) => {
+  const t = BILESEN_TIPLERI.find((x) => x.kod === kod);
+  if (!t) throw new Error(`Bilinmeyen bileşen tipi: ${kod}`);
+  return t;
+};
+if (TUR.kod) tipBul(TUR.kod);
 
 const kurumlar = await db.collection('onaylikurumlar').find({}, { projection: { nobo: 1, unvan: 1 } }).toArray();
 const kurumByNobo = new Map(kurumlar.map((k) => [String(k.nobo).trim(), k]));
 
 // Mükerrer denetimi: marka + sertifika no (genel "SELF DECLERATION" gibi metinler yüzünden tek başına cert no yetmez)
-const anahtarOf = (marka, cert) => `${sertNo(marka)}|${sertNo(cert) === '-' ? '' : sertNo(cert)}`;
+const anahtarOf = (marka, cert, kod = '') => `${kod}|${sertNo(marka)}|${sertNo(cert) === '-' ? '' : sertNo(cert)}`;
 // Motor türünde dişlili/dişlisiz birlikte kontrol edilir
-const kodDeseni = TUR.kod.startsWith('motor') ? /^motor/ : TUR.kod;
-const mevcut = await col.find({ bilesenTipiKodu: kodDeseni }, { projection: { sertifikaNo: 1, marka: 1 } }).toArray();
-const mevcutSertifikalar = new Set(mevcut.map((m) => anahtarOf(m.marka, m.sertifikaNo)));
+const kodDeseni = !TUR.kod ? { $in: Object.values(BELGE_TUR_KODU) } : TUR.kod.startsWith('motor') ? /^motor/ : TUR.kod;
+const mevcut = await col.find({ bilesenTipiKodu: kodDeseni }, { projection: { sertifikaNo: 1, marka: 1, bilesenTipiKodu: 1, tipler: 1 } }).toArray();
+const mevcutSertifikalar = new Set(mevcut.map((m) => anahtarOf(m.marka, m.sertifikaNo, TUR.kod ? '' : m.bilesenTipiKodu)));
 const dosyadakiler = new Set();
+// Akıllı karşılaştırma yardımcıları (büyük/küçük harf, boşluk ve noktalama farkı yok sayılır)
+const norm = (s) => String(s ?? '').toLocaleLowerCase('tr').replace(/ı/g, 'i').replace(/[^a-z0-9]/g, '');
+const tipKumesi = (arr) => [...new Set(arr.map(norm).filter(Boolean))].sort().join('|');
+const markaYazimi = new Map();
+if (TUR.akilli) {
+  for (const m of await col.find({}, { projection: { marka: 1 } }).toArray()) if (m.marka && !markaYazimi.has(norm(m.marka))) markaYazimi.set(norm(m.marka), m.marka);
+}
 console.log(`Katalogda kayıtlı belge: ${mevcut.length}`);
 
 const rapor = { eklenen: [], atlanan: [], eksikDosya: [], bilinmeyenKurum: [] };
 
 for (const r of satirlar) {
-  const anahtar = anahtarOf(r.marka, r.cert_no);
+  const tip = tipBul(TUR.kod ?? BELGE_TUR_KODU[String(r.belge_tur ?? '').trim().toUpperCase()]);
+  const anahtar = anahtarOf(r.marka, r.cert_no, TUR.kod ? '' : tip.kod);
+  if (TUR.akilli) {
+    const certN = norm(r.cert_no);
+    const tipListe = String(r.tip ?? '').split(',').map((t) => t.replace(/\s+/g, ' ').trim()).filter(Boolean);
+    const ayniSertifika = certN ? mevcut.find((m) => norm(m.sertifikaNo) === certN) : null;
+    if (ayniSertifika) {
+      // İNTERLİFT FC 81 belgesinde eksik "FOCUS" tipi katalog belgesine eklenir
+      const eksik = tipListe.filter((t) => !ayniSertifika.tipler?.some((x) => norm(x) === norm(t)));
+      if (norm(r.marka) === 'interlift' && eksik.map(norm).join() === 'focus') {
+        if (!DRY) await col.updateOne({ _id: ayniSertifika._id }, { $push: { tipler: 'FOCUS' }, $set: { updatedAt: new Date() } });
+        rapor.atlanan.push(`${r.marka} / ${r.cert_no} (katalogda var; eksik "FOCUS" tipi mevcut belgeye eklendi)`);
+      } else rapor.atlanan.push(`${r.marka} / ${r.cert_no} (sertifika katalogda zaten var)`);
+      continue;
+    }
+    // Aynı marka + (aynı tip kümesi VEYA sertifika no'su revizyon eki farkıyla başlıyor: "...-15" / "...-15REV2")
+    const ayniMarkaTip = mevcut.find((m) => norm(m.marka) === norm(r.marka) && (tipKumesi(m.tipler ?? []) === tipKumesi(tipListe)
+      || (norm(m.sertifikaNo).length > 8 && (certN.startsWith(norm(m.sertifikaNo)) || norm(m.sertifikaNo).startsWith(certN)))));
+    if (ayniMarkaTip) { rapor.atlanan.push(`${r.marka} / ${r.cert_no} (katalogda aynı marka+tip var, sertifika: ${ayniMarkaTip.sertifikaNo})`); continue; }
+  }
   if (mevcutSertifikalar.has(anahtar)) { rapor.atlanan.push(`${r.marka} / ${r.cert_no} (katalogda zaten var)`); continue; }
   // Dosyada aynı marka+sertifikayla tekrar eden satır yalnız tipleri farklıysa ayrı belge olur
   const tipAnahtari = `${anahtar}|${[...new Set(String(r.tip ?? '').split(',').map((t) => t.trim().toLocaleLowerCase('tr')).filter(Boolean))].sort().join(',')}`;
@@ -157,10 +194,11 @@ for (const r of satirlar) {
     onayliKurumId: kurum?._id ?? null,
     onayliKurumNobo: kurum ? String(kurum.nobo) : '',
     onayliKurumUnvan: kurum?.unvan ?? '',
-    marka: String(r.marka ?? '').trim(),
+    marka: markaYazimi.get(norm(r.marka)) ?? String(r.marka ?? '').trim(),
     tipler,
     belgeTipi: '',
-    aciklama: '',
+    aciklama: r.class && r.class.trim() !== '-' ? `Sınıf: ${r.class.trim()}`
+      : [r.hiz?.trim() && `Hız: ${r.hiz.trim()}`, r.kapasite?.trim() && `Kapasite: ${r.kapasite.trim()}`].filter(Boolean).join(', '),
     durum: bitis && bitis < new Date() ? 'pasif' : 'aktif',
     createdAt: new Date(),
     updatedAt: new Date(),

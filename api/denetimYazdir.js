@@ -270,6 +270,8 @@ export const DENETIM_G_KALEMLERI = [
   // Risk analiz formu (kabin üstü / kuyu üstü): kuyu üstü risk analizi gerekiyorsa listelenir
   // Modül B: TYPE APPROVAL CERTIFICATE (AB tip incelemesi sertifikası); ürün açıklaması makine tipi seçimine göre
   { no: '14', kod: 'module-b-certificate', ad: 'TYPE APPROVAL CERTIFICATE MODULE B', tip: 'sablon', klasor: TUV, dosya: 'TYPE APPROVAL CERTIFICATE xxxxx MODULE B.docx', kosul: ({ denetim }) => ceModulKodu(denetim.modul) === 'B', secim: 'makineTipi' },
+  // Modül E: ürün kalite güvencesine dayalı tip uygunluk sertifikası; asansör tipi seçimi + Modül B belge numaraları
+  { no: '14', kod: 'module-e-certificate', ad: 'MODULE E CERTIFICATE', tip: 'sablon', klasor: TUV, dosya: 'MODULE E XXXXX CERTIFICATE.docx', kosul: ({ denetim }) => ceModulKodu(denetim.modul) === 'E', secim: 'makineTipi' },
   { no: '20.1', kod: 'risk-analysis-dip', ad: 'Risk Analiz Formu - Kuyu Dibi', tip: 'sablon', klasor: CE, dosya: '20.Risk Analiz Formu.docx', riskGrup: 'dip', kosul: ({ asansor }) => riskDurumu(asansor).dip },
   { no: '20.2', kod: 'risk-analysis-ust', ad: 'Risk Analiz Formu - Kuyu Üstü', tip: 'sablon', klasor: CE, dosya: '20.Risk Analiz Formu.docx', riskGrup: 'ust', kosul: ({ asansor }) => riskDurumu(asansor).ust },
   { no: '20.3', kod: 'risk-analysis-makine', ad: 'Risk Analiz Formu - Makine Dairesi', tip: 'sablon', klasor: CE, dosya: '20.Risk Analiz Formu.docx', riskGrup: 'makine', kosul: ({ asansor }) => riskDurumu(asansor).makine },
@@ -280,14 +282,15 @@ export const DENETIM_G_KALEMLERI = [
 // Modül B sertifikası "Product Description / Ürün Açıklaması": seçenekler yazdırma öncesi sorulur; seçim
 // yapılmadıysa asansörün makine konumundan (MR → daireli, MRL → dairesiz) gelir
 const MAKINE_TIPI_SECENEKLERI = [
-  { deger: 'her-ikisi', etiket: 'Makine daireli ve makine dairesiz', en: 'Machine room and machine room less traction drive lift for persons and goods', tr: 'Makine daireli ve makine dairesiz sürtünme tahrikli asansör, insan ve yük için.' },
-  { deger: 'daireli', etiket: 'Makine daireli', en: 'Machine room traction drive lift for persons and goods', tr: 'Makine daireli sürtünme tahrikli asansör, insan ve yük için.' },
-  { deger: 'dairesiz', etiket: 'Makine dairesiz', en: 'Machine room less traction drive lift for persons and goods', tr: 'Makine dairesiz sürtünme tahrikli asansör, insan ve yük için.' },
+  { deger: 'her-ikisi', etiket: 'Makine daireli ve makine dairesiz', eEn: 'Machine room and machine room less traction drive', eTr: 'Makine Daireli ve Makine Dairesiz Sürtünme Tahrikli', en: 'Machine room and machine room less traction drive lift for persons and goods', tr: 'Makine daireli ve makine dairesiz sürtünme tahrikli asansör, insan ve yük için.' },
+  { deger: 'daireli', etiket: 'Makine daireli', eEn: 'Machine room traction drive', eTr: 'Makine Daireli Sürtünme Tahrikli', en: 'Machine room traction drive lift for persons and goods', tr: 'Makine daireli sürtünme tahrikli asansör, insan ve yük için.' },
+  { deger: 'dairesiz', etiket: 'Makine dairesiz', eEn: 'Machine room less traction drive', eTr: 'Makine Dairesiz Sürtünme Tahrikli', en: 'Machine room less traction drive lift for persons and goods', tr: 'Makine dairesiz sürtünme tahrikli asansör, insan ve yük için.' },
 ];
 const makineTipiDegeri = (denetim, asansor) => denetim?.makineTipi ?? (asansor?.makinaKonumu === 'MR' ? 'daireli' : 'dairesiz');
 function makineTipiAlanlari(denetim, asansor) {
   const s = MAKINE_TIPI_SECENEKLERI.find((x) => x.deger === makineTipiDegeri(denetim, asansor)) ?? MAKINE_TIPI_SECENEKLERI[2];
-  return { urun_aciklama_en: s.en, urun_aciklama_tr: s.tr };
+  // urun_aciklama_*: Modül B sertifikası; makine_tipi_*: Modül E sertifikasındaki "Type of lift"
+  return { urun_aciklama_en: s.en, urun_aciklama_tr: s.tr, makine_tipi_en: s.eEn, makine_tipi_tr: s.eTr };
 }
 
 // ce-td-temp1 içindeki "Certificate Annex For Modul B ( 800 kg 1.6 ms 1-1 askı ).docx" şablonları:
@@ -478,6 +481,7 @@ function kalemVerisiTemel(veri, kalem, baglam) {
   if (kalem.kod.startsWith('certificate-annex-')) return { ...veri, ...annexAciklamasi(asansor, kalem, veri) };
   if (kalem.kod === 'checklist') return { ...veri, ...checklistVerisi(asansor, String(denetim._id)) };
   if (kalem.kod === 'module-b-certificate') return { ...veri, ...makineTipiAlanlari(denetim, asansor) };
+  if (kalem.kod === 'module-e-certificate') return { ...veri, ...makineTipiAlanlari(denetim, asansor) };
   if (kalem.kod === 'module-g-certificate') {
     return { ...veri, ...teknikVerisi(asansor, denetim, denetci), ...ornekTabloVerisi(asansor), 'kişi_sayisi': bos(asansor?.kisiSayisi) };
   }
@@ -753,6 +757,17 @@ const doldurmaSecenegi = ({ denetim, asansor }, kalem) => ({
     // Sabit ürün açıklaması satırları etikete çevrilir (makine tipi seçimine göre doldurulur)
     if (kalem?.kod === 'module-b-certificate') {
       return paragrafiDegistir(paragrafiDegistir(yamali, 'traction drive lift for persons and goods', '{urun_aciklama_en}'), 'sürtünme tahrikli asansör, insan ve yük için', '{urun_aciklama_tr}');
+    }
+    // Modül E sertifikası: sabit firma/asansör tipi/Modül B belge no metinleri etikete çevrilir
+    // (sarı vurgulu sertifika no, rapor no ve tarihlere dokunulmaz)
+    if (kalem?.kod === 'module-e-certificate') {
+      let x = paragrafiDegistir(yamali, 'AKYALİFT ASANSÖR SANAYİ VE TİCARET LİMİTED ŞİRKETİ', '{unvan}');
+      x = paragrafiDegistir(x, 'KAZIM KARABEKİR PAŞA MAH. 234.SK. NO:35B MERKEZ/KARAMAN', '{as_firma_adresi}');
+      // Şablondaki adres satırı sarı vurgulu: etikete dönünce vurgu kaldırılır
+      x = x.replace(/<w:p[ >][\s\S]*?<\/w:p>/g, (p) => (p.includes('{as_firma_adresi}') ? p.replace(/<w:highlight [^>]*\/>/g, '') : p));
+      x = paragrafiDegistir(x, 'Machine room less traction drive', '“ {makine_tipi_en}”');
+      x = paragrafiDegistir(x, 'Makine Dairesiz Sürtünme Tahrikli', '“ {makine_tipi_tr}”');
+      return paragrafiDegistir(x, '357.27335/357.27335/IV-B/2026', '{ce_b_belge_nolari}');
     }
     if (kalem?.kod?.startsWith('certificate-annex-')) return annexUcmNotu(yamali, asansor);
     return yamali;

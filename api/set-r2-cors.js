@@ -12,6 +12,8 @@ const ORIGINS = [
   'http://localhost',      // Capacitor Android WebView
   'capacitor://localhost', // Capacitor iOS WebView
   'https://artidoksan2.onrender.com', // canlı site (Render)
+  'https://liftturkiye.com',          // özel alan adı
+  'https://www.liftturkiye.com',
 ];
 
 const client = new S3Client({
