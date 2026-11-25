@@ -507,7 +507,7 @@ app.post('/api/zip-link', async (req, res) => {
     const zipAdi = /\.zip$/i.test(zipTaban) ? zipTaban : `${zipTaban}.zip`;
     const key = buildObjectKey('zipler', zipAdi);
     await putObject(key, zipBuffer, 'application/zip');
-    const url = await kisaIndirmeLinki(req, key, zipAdi, ZIP_URL_TTL_SECONDS);
+    const url = await kisaIndirmeLinki(req, key, zipAdi, ZIP_URL_TTL_SECONDS, zipBuffer.length);
     res.json({ url, boyut: zipBuffer.length, dosyaSayisi: girdiler.length });
   } catch (err) {
     res.status(err.status ?? 500).json({ message: err.message });

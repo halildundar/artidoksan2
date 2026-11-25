@@ -11,6 +11,7 @@ const kisaLinkSchema = new mongoose.Schema(
     kod: { type: String, required: true, unique: true },
     anahtar: { type: String, required: true }, // R2 nesne anahtarı
     dosyaAdi: { type: String, default: 'dosya' },
+    boyut: { type: Number, default: 0 }, // bayt (önizleme açıklaması için)
     // Süre dolunca MongoDB kaydı kendiliğinden siler (TTL)
     bitis: { type: Date, required: true, index: { expires: 0 } },
   },
@@ -33,15 +34,33 @@ function tabanAdres(req) {
 }
 
 // Kısa link üretir; başarısız olursa (ör. veritabanı) uzun imzalı URL'e düşer
-export async function kisaIndirmeLinki(req, anahtar, dosyaAdi, sureSn) {
+export async function kisaIndirmeLinki(req, anahtar, dosyaAdi, sureSn, boyut = 0) {
   try {
     const kod = kodUret();
-    await KisaLink.create({ kod, anahtar, dosyaAdi, bitis: new Date(Date.now() + sureSn * 1000) });
+    await KisaLink.create({ kod, anahtar, dosyaAdi, boyut, bitis: new Date(Date.now() + sureSn * 1000) });
     return `${tabanAdres(req)}/d/${kod}`;
   } catch (err) {
     console.error('[kisa-link] oluşturulamadı, uzun URL kullanılıyor:', err.message);
     return createDownloadUrl(anahtar, dosyaAdi, sureSn);
   }
+}
+
+// Mesajlaşma uygulamalarının (WhatsApp, Telegram, Slack, iMessage…) link önizleme botları
+const ONIZLEME_BOTU = /whatsapp|facebookexternalhit|facebot|telegrambot|twitterbot|slackbot|discordbot|linkedinbot|skypeuripreview|applebot|googlebot|bot|crawler|spider|preview|embedly|vkshare|pinterest/i;
+const htmlKacis = (v) => String(v).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+const boyutMetni = (b) => (b >= 1048576 ? `${(b / 1048576).toFixed(1).replace('.', ',')} MB` : b > 0 ? `${Math.max(1, Math.round(b / 1024))} KB` : '');
+
+// Önizleme sayfası: başlık = dosya adı (WhatsApp og:title'ı kullanır)
+function onizlemeSayfasi(kayit, hedefUrl) {
+  const baslik = htmlKacis(kayit.dosyaAdi);
+  const aciklama = htmlKacis(['Dosyayı indirmek için bağlantıya dokunun', boyutMetni(kayit.boyut)].filter(Boolean).join(' • '));
+  return `<!doctype html><html lang="tr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>${baslik}</title>
+<meta property="og:type" content="website"><meta property="og:site_name" content="Artidoksan">
+<meta property="og:title" content="${baslik}"><meta property="og:description" content="${aciklama}">
+<meta name="description" content="${aciklama}"><meta http-equiv="refresh" content="0;url=${htmlKacis(hedefUrl)}">
+</head><body style="font-family:system-ui;padding:2rem;text-align:center"><h2>${baslik}</h2><p>${aciklama}</p>
+<p><a href="${htmlKacis(hedefUrl)}">Dosyayı indir</a></p></body></html>`;
 }
 
 // GET /d/:kod — giriş gerektirmez (link zaten paylaşılmak için üretilir); kod tahmin edilemez
@@ -57,7 +76,9 @@ router.get('/:kod', async (req, res) => {
       );
     }
     // Yönlendirme anında kısa ömürlü (5 dk) taze imzalı URL
-    res.redirect(302, await createDownloadUrl(kayit.anahtar, kayit.dosyaAdi));
+    const hedef = await createDownloadUrl(kayit.anahtar, kayit.dosyaAdi);
+    if (ONIZLEME_BOTU.test(req.headers['user-agent'] ?? '')) return res.type('html').send(onizlemeSayfasi(kayit, hedef));
+    res.redirect(302, hedef);
   } catch (err) {
     res.status(500).type('text').send(`İndirme bağlantısı açılamadı: ${err.message}`);
   }
