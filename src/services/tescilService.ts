@@ -48,6 +48,8 @@ export interface YazdirKalemi {
   eskimis?: boolean;
   // Şablonun alan eşlemesi henüz hazır değil (listede görünür, yazdırılamaz)
   hazirDegil?: boolean;
+  // Dosyası yoksa "eksik" sayılmayan kalem (ör. Modül B tip projeleri)
+  opsiyonel?: boolean;
   altBilgi?: string;
   // Yazdırma öncesi sorulan seçenek (ör. Modül B sertifikasında makine tipi)
   secim?: { alan: string; etiket: string; deger: string; secenekler: { deger: string; etiket: string }[] };

@@ -192,7 +192,7 @@ const riskSecimleri = (asansor, gruplar = ['dip', 'ust', 'makine', 'kapi']) => {
 // `kosul` tanımlı kalem yalnız koşul sağlanınca listelenir/yazdırılır
 const kalemAktif = (k, baglam) => !k.kosul || k.kosul(baglam);
 // Modul B: Tip Projeler alanında seçilen Certificate Annex formları (ce-td-temp1), seçim sırasıyla,
-// "Engineers Competency Certificates"tan sonra ek kalemler olarak listelenir
+// "Type Projects Calculations and Constructions" (9.3) kaleminden sonra ek kalemler (9.3.n) olarak listelenir
 function annexKalemleri(baglam) {
   if (ceModulKodu(baglam.denetim.modul) !== 'B') return [];
   const secenekler = new Map((baglam.annexler ?? []).map((a) => [a.etiket, a]));
@@ -233,7 +233,7 @@ const aktifKalemler = (baglam) => {
   for (const k of DENETIM_G_KALEMLERI) {
     if (k.kod === 'sc-ucm') { sonuc.push(...ucmKalemleri(baglam.asansor)); continue; }
     if (kalemAktif(k, baglam)) sonuc.push(k);
-    if (k.kod === 'engineers-competency') sonuc.push(...annexKalemleri(baglam));
+    if (k.kod === 'type-projects') sonuc.push(...annexKalemleri(baglam));
   }
   return sonuc;
 };
@@ -250,8 +250,9 @@ export const DENETIM_G_KALEMLERI = [
   { no: '8', kod: 'technical-descriptions', ad: 'Technical Descriptions and Manuals', tip: 'sablon', klasor: CE, dosya: '8.Technical Descriptions and Manuals.docx' },
   { no: '9.1', kod: 'project-service-contract', ad: 'Project Service Contract', tip: 'dosya', altBilgi: 'SMM firması belgeleri' },
   { no: '9.2', kod: 'engineers-competency', ad: 'Engineers Competency Certificates', tip: 'dosya' },
-  // 9.3 Type Projects Calculations and Constructions: Modül B denetimine özel; Modül G listesinde yok
-  // (Modül B tasarlanınca eklenecek — dosya kaynağı denetim.tipProjeler, bkz. dosyaKalemi)
+  // 9.3 Type Projects Calculations and Constructions: Modül B denetimine özel (denetimde yüklenen Tip Projeler);
+  // yüklenen dosyalar listelenir ve "Tümünü İndir" ZIP'ine dahil edilir. Certificate Annex formları (9.3.n) bunun altında
+  { no: '9.3', kod: 'type-projects', ad: 'Type Projects Calculations and Constructions', tip: 'dosya', opsiyonel: true, kosul: ({ denetim }) => ceModulKodu(denetim.modul) === 'B' },
   { no: '10', kod: 'contract', ad: 'Contract', tip: 'sablon', klasor: TUV, dosya: '10.CONTRACT.docx' },
   { no: '11', kod: 'technical-file-report', ad: 'Technical File Report For Elevator', tip: 'sablon', klasor: TUV, dosya: '11.TECHNICAL FILE REPORT FOR ELEVATOR.docx' },
   { no: '12.1', kod: 'sc-car-buffer', ad: 'Safety Comp. CAR BUFFER', tip: 'aksam', slotlar: ['kabin_tamponu'] },
@@ -1088,6 +1089,8 @@ async function kalemListesi(baglam) {
   const sonuc = [];
   for (const k of aktifKalemler(baglam)) {
     const satir = { no: k.no, kod: k.kod, ad: k.ad, tip: k.tip };
+    // İsteğe bağlı kalem: dosya yoksa "eksik" sayılmaz (Tümünü İndir'i engellemez)
+    if (k.opsiyonel) satir.opsiyonel = true;
     // Yazdırma öncesi sorulan seçenek (örn. Modül B sertifikasında makine tipi)
     if (k.secim === 'makineTipi') {
       satir.secim = {

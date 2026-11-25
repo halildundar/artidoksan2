@@ -237,7 +237,7 @@ async function isiIptalEt(is: YazdirIs) {
 const uretilmisVar = computed(() => kalemler.value.some((k) => k.tip === 'sablon' && k.uretilen));
 // Eksik dosya sayısı: üretilmemiş/eskimiş şablonlar + dosyası olmayan kalemler
 const kalemEksik = (k: YazdirKalemi) =>
-  !k.hazirDegil && (k.tip === 'sablon' ? !k.uretilen || !!k.eskimis : !k.dosyalar?.length);
+  !k.hazirDegil && !(k.opsiyonel && !k.dosyalar?.length) && (k.tip === 'sablon' ? !k.uretilen || !!k.eskimis : !k.dosyalar?.length);
 const eksikSayisi = computed(() => kalemler.value.filter(kalemEksik).length);
 const sifirlaOnayAcik = ref(false);
 const sifirlaniyor = ref(false);
@@ -534,7 +534,11 @@ async function tumunuIndir() {
 
                 <!-- Dosya/CE/aksam kalemi: durum rozeti -->
                 <template v-else>
-                  <span v-if="!kalem.dosyalar?.length"
+                  <span v-if="!kalem.dosyalar?.length && kalem.opsiyonel"
+                    class="shrink-0 bg-surface-900 px-2 py-0.5 text-[10px] font-semibold text-ink-muted/70 ring-1 ring-white/10">
+                    yüklenmemiş
+                  </span>
+                  <span v-else-if="!kalem.dosyalar?.length"
                     class="shrink-0 bg-red-500/15 px-2 py-0.5 text-[10px] font-semibold text-red-400 ring-1 ring-red-500/30">
                     eksik
                   </span>
