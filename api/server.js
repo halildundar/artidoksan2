@@ -29,6 +29,7 @@ import archiver from 'archiver';
 import { buildObjectKey, putObject, createViewUrl, createDownloadUrl, getObjectBuffer } from './storage.js';
 import { kaydiVeDosyalariniSil } from './depoTemizlik.js';
 import kisaLinkRouter, { kisaIndirmeLinki } from './kisaLink.js';
+import { zipTemizliginiZamanla } from './zipTemizlik.js';
 
 const MONGODB_URI = process.env.MONGODB_URI ?? 'mongodb://127.0.0.1:27017/artidoksan2';
 const PORT = process.env.PORT ?? 3000;
@@ -668,6 +669,7 @@ mongoose
     varsayilanlariTamamla()
       .then((n) => n && console.log(`${n} asansör kaydına varsayılan ölçüler yazıldı`))
       .catch((e) => console.error('Varsayılan ölçüler yazılamadı:', e.message));
+    zipTemizliginiZamanla(); // 7 günden eski "Tümünü İndir" ZIP'lerini R2'den siler
     app.listen(PORT, () => console.log(`API hazır: http://localhost:${PORT}`));
   })
   .catch((err) => {

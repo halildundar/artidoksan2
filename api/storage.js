@@ -52,13 +52,13 @@ export async function deleteObject(key) {
   );
 }
 
-// Depodaki tüm nesneleri listeler (temizlik betiği için): [{ key, boyut, tarih }]
-export async function listObjects() {
+// Depodaki nesneleri listeler (isteğe bağlı anahtar öneki; temizlik için): [{ key, boyut, tarih }]
+export async function listObjects(onek) {
   const sonuc = [];
   let token;
   do {
     const res = await getClient().send(
-      new ListObjectsV2Command({ Bucket: process.env.R2_BUCKET, ContinuationToken: token })
+      new ListObjectsV2Command({ Bucket: process.env.R2_BUCKET, ContinuationToken: token, ...(onek ? { Prefix: onek } : {}) })
     );
     for (const o of res.Contents ?? []) sonuc.push({ key: o.Key, boyut: o.Size ?? 0, tarih: o.LastModified });
     token = res.IsTruncated ? res.NextContinuationToken : undefined;
