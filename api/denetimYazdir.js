@@ -482,6 +482,11 @@ function kalemVerisiTemel(veri, kalem, baglam) {
   if (kalem.kod === 'checklist') return { ...veri, ...checklistVerisi(asansor, String(denetim._id)) };
   if (kalem.kod === 'module-b-certificate') return { ...veri, ...makineTipiAlanlari(denetim, asansor) };
   if (kalem.kod === 'module-e-certificate') return { ...veri, ...makineTipiAlanlari(denetim, asansor) };
+  // AB Uygunluk Beyanı: onaylı kurum adresindeki boş satırlar tek satıra indirilir (sayfa 1'de yer açar, imza-kaşe sığsın)
+  if (kalem.kod === 'declaration') {
+    const sik = (v) => String(v ?? '').replace(/(\r?\n\s*){2,}/g, '\n');
+    return { ...veri, ce_adres: sik(veri.ce_adres), ce_adres_b: sik(veri.ce_adres_b) };
+  }
   if (kalem.kod === 'module-g-certificate') {
     return { ...veri, ...teknikVerisi(asansor, denetim, denetci), ...ornekTabloVerisi(asansor), 'kişi_sayisi': bos(asansor?.kisiSayisi) };
   }
