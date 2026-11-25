@@ -437,15 +437,20 @@ const GORSEL_TAG_KAYNAKLARI = {
   denetci_imza_kase: 'denetciImza',
 };
 
-function createImageModule(gorselKutuBoyutlari = {}) {
+function createImageModule(gorselKutuBoyutlari = {}, kutuListeleri = {}) {
+  // Aynı etiket belgede farklı boyutlu kutularda geçebilir: görsel modülü etiketleri belge sırasıyla
+  // işler, her yerleştirmede o etiketin SIRADAKİ kutu boyutu kullanılır
+  const sayac = {};
   return new ImageModule({
     getImage: (tagValue) => tagValue,
     // Kutu boyutu koddan asla büyütülmez — görsel kutunun genişlik VE
     // yüksekliğine sığacak şekilde (iki oranın küçüğü) ölçeklenir
     getSize: (buf, _value, tagName) => {
       const { width, height } = imageSize(buf);
+      const liste = kutuListeleri[tagName];
+      const sirali = liste ? liste[(sayac[tagName] = (sayac[tagName] ?? -1) + 1)] : null;
       const [hedefGenislik, hedefYukseklik] =
-        gorselKutuBoyutlari[tagName] ?? [VARSAYILAN_HEDEF_GENISLIK_PX, VARSAYILAN_HEDEF_YUKSEKLIK_PX];
+        sirali ?? gorselKutuBoyutlari[tagName] ?? [VARSAYILAN_HEDEF_GENISLIK_PX, VARSAYILAN_HEDEF_YUKSEKLIK_PX];
       const oran = Math.min(hedefGenislik / width, hedefYukseklik / height);
       return [Math.round(width * oran), Math.round(height * oran)];
     },
@@ -710,6 +715,7 @@ export async function sablonDoldur(sablonYolu, veri, firma, secenek = {}) {
 
   // Görsel kutularının gerçek boyutu/hizası her parçada okunur ve düzeltilir
   const boyutlar = {};
+  let govdeKutuListeleri = {};
   const parcaDonduruler = {};
   for (const parca of parcalar) {
     const sadeXml = gorselHucreleriniUsteHizala(
@@ -718,6 +724,7 @@ export async function sablonDoldur(sablonYolu, veri, firma, secenek = {}) {
     const sonuc = sablonGorselYerlesimHazirla(sadeXml, gorselTagleri);
     zip.file(parca, sonuc.xml);
     Object.assign(boyutlar, sonuc.boyutlar);
+    if (parca === 'word/document.xml') govdeKutuListeleri = sonuc.boyutListeleri;
     if (Object.keys(sonuc.donduruler).length) parcaDonduruler[parca] = sonuc.donduruler;
   }
 
@@ -764,7 +771,7 @@ export async function sablonDoldur(sablonYolu, veri, firma, secenek = {}) {
     // Görsel modülü SADECE gövdede {%...} etiketi varsa bağlanır — modül,
     // etiketi olmayan bazı şablonlarda (İÇİNDEKİLER) renderAsync'i
     // "reading 'length'" ile çökertiyor (canlı doğrulanan hata)
-    modules: govdeGorselVar ? [createImageModule(boyutlar)] : [],
+    modules: govdeGorselVar ? [createImageModule(boyutlar, govdeKutuListeleri)] : [],
     // Eksik tag "undefined" yerine boş basılır (artidoksan1'de canlı
     // doğrulanan hatanın önlemi)
     nullGetter: () => '',
@@ -786,7 +793,7 @@ export async function sablonDoldur(sablonYolu, veri, firma, secenek = {}) {
 // ---- Kaynak özeti: belgeyi üreten girdilerin (şablon dosyası + doldurulan
 // veri + logo/imza görselleri) parmak izi. Aynıysa belge yeniden çevrilmez;
 // URETIM_SURUMU üretim mantığı değişince artırılır ve eski çıktıları geçersiz kılar ----
-const URETIM_SURUMU = 53;
+const URETIM_SURUMU = 54;
 const sablonHashOnbellek = new Map();
 
 async function sablonHash(yol) {

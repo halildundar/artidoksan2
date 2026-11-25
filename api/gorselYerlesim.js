@@ -127,35 +127,53 @@ const GUVENLI_PAY_ORANI = 0.97
 export function sablonGorselYerlesimHazirla(xml, tagIsimleri) {
   const { duzMetin, harita } = duzMetinHaritasi(xml)
   const boyutlar = {}
+  // Belgede aynı etiket ({%logo}) birden çok kutuda, FARKLI boyutlarda geçebilir (kapakta büyük,
+  // sayfa başlıklarında küçük): her geçişin kendi kutu boyutu belge sırasıyla listelenir
+  // (bulunamayan geçiş için null) — görsel modülü her yerleştirmede sıradakini kullanır
+  const boyutListeleri = {}
   const donduruler = {}
   const duzeltmeler = []
+  const isaretliAnchorlar = new Set()
   for (const tagAdi of tagIsimleri) {
-    const duzIdx = duzMetin.indexOf(tagAdi)
-    if (duzIdx === -1) continue
-    const xmlIdx = harita[duzIdx]
-    const bulunan = drawingMLCercevesiBul(xml, xmlIdx) ?? vmlCercevesiBul(xml, xmlIdx)
-    if (!bulunan) continue
-    boyutlar[tagAdi] = [Math.round(bulunan.boyut[0] * GUVENLI_PAY_ORANI), Math.round(bulunan.boyut[1] * GUVENLI_PAY_ORANI)]
-    if (bulunan.anchorPos != null) {
-      const mevcutDeger = xml.slice(bulunan.anchorPos, bulunan.anchorPos + bulunan.anchorUzunluk)
-      const yeniDeger = mevcutDeger === 'top' ? 'middle' : mevcutDeger === 't' ? 'ctr' : null
-      if (yeniDeger) duzeltmeler.push({ pos: bulunan.anchorPos, eskiUzunluk: bulunan.anchorUzunluk, yeniDeger })
-    }
-    // Kutu döndürülmüşse (bkz. drawingMLCercevesiBul üst yorumu) render
-    // sonrası bulunabilmesi için paragrafın SONUNA (kapanış </w:p>'den
-    // hemen önce) görünmez bir işaretleyici run'ı eklenir — sıfır uzunluklu
-    // bir "düzeltme" (eskiUzunluk: 0) olarak AYNI sondan-başa listesine
-    // eklenir, böylece pozisyon kayması diğer düzeltmelerle TUTARLI ele alınır.
-    if (bulunan.konum) {
-      donduruler[tagAdi] = { rotDerece: bulunan.rotDerece, konum: bulunan.konum }
-      const paragrafKapanisIdx = xml.indexOf('</w:p>', xmlIdx)
-      if (paragrafKapanisIdx !== -1) {
-        const isaretleyiciRunXml = `<w:r><w:t xml:space="preserve">${isaretleyiciOlustur(tagAdi)}</w:t></w:r>`
-        duzeltmeler.push({ pos: paragrafKapanisIdx, eskiUzunluk: 0, yeniDeger: isaretleyiciRunXml })
-      } else {
-        delete donduruler[tagAdi]
+    const hedefMetin = `{%${tagAdi}}`
+    const liste = []
+    let aramaBasi = 0
+    let ilk = true
+    for (;;) {
+      const duzIdx = duzMetin.indexOf(hedefMetin, aramaBasi)
+      if (duzIdx === -1) break
+      aramaBasi = duzIdx + hedefMetin.length
+      const xmlIdx = harita[duzIdx]
+      const bulunan = drawingMLCercevesiBul(xml, xmlIdx) ?? vmlCercevesiBul(xml, xmlIdx)
+      if (!bulunan) { liste.push(null); ilk = false; continue }
+      const boyut = [Math.round(bulunan.boyut[0] * GUVENLI_PAY_ORANI), Math.round(bulunan.boyut[1] * GUVENLI_PAY_ORANI)]
+      liste.push(boyut)
+      if (ilk) boyutlar[tagAdi] = boyut
+      if (bulunan.anchorPos != null && !isaretliAnchorlar.has(bulunan.anchorPos)) {
+        isaretliAnchorlar.add(bulunan.anchorPos)
+        const mevcutDeger = xml.slice(bulunan.anchorPos, bulunan.anchorPos + bulunan.anchorUzunluk)
+        const yeniDeger = mevcutDeger === 'top' ? 'middle' : mevcutDeger === 't' ? 'ctr' : null
+        if (yeniDeger) duzeltmeler.push({ pos: bulunan.anchorPos, eskiUzunluk: bulunan.anchorUzunluk, yeniDeger })
       }
+      // Kutu döndürülmüşse (bkz. drawingMLCercevesiBul üst yorumu) render
+      // sonrası bulunabilmesi için paragrafın SONUNA (kapanış </w:p>'den
+      // hemen önce) görünmez bir işaretleyici run'ı eklenir — sıfır uzunluklu
+      // bir "düzeltme" (eskiUzunluk: 0) olarak AYNI sondan-başa listesine
+      // eklenir, böylece pozisyon kayması diğer düzeltmelerle TUTARLI ele alınır.
+      // (Döndürme yalnız etiketin ilk kutusu için ele alınır.)
+      if (ilk && bulunan.konum) {
+        donduruler[tagAdi] = { rotDerece: bulunan.rotDerece, konum: bulunan.konum }
+        const paragrafKapanisIdx = xml.indexOf('</w:p>', xmlIdx)
+        if (paragrafKapanisIdx !== -1) {
+          const isaretleyiciRunXml = `<w:r><w:t xml:space="preserve">${isaretleyiciOlustur(tagAdi)}</w:t></w:r>`
+          duzeltmeler.push({ pos: paragrafKapanisIdx, eskiUzunluk: 0, yeniDeger: isaretleyiciRunXml })
+        } else {
+          delete donduruler[tagAdi]
+        }
+      }
+      ilk = false
     }
+    if (liste.length) boyutListeleri[tagAdi] = liste
   }
   // Düzeltmeler SONDAN başa doğru uygulanır — splice edilen metnin uzunluğu
   // değiştiğinden (örn. "t" -> "ctr" veya 0 uzunluklu bir ekleme), önce
@@ -167,7 +185,7 @@ export function sablonGorselYerlesimHazirla(xml, tagIsimleri) {
   for (const { pos, eskiUzunluk, yeniDeger } of duzeltmeler) {
     yeniXml = yeniXml.slice(0, pos) + yeniDeger + yeniXml.slice(pos + eskiUzunluk)
   }
-  return { xml: yeniXml, boyutlar, donduruler }
+  return { xml: yeniXml, boyutlar, boyutListeleri, donduruler }
 }
 
 // acilisTag'in İÇİNDEKİ iç içe (nested) tekrarlarını da sayarak DENGELİ
