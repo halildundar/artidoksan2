@@ -28,12 +28,14 @@ import multer from 'multer';
 import archiver from 'archiver';
 import { buildObjectKey, putObject, createViewUrl, createDownloadUrl, getObjectBuffer } from './storage.js';
 import { kaydiVeDosyalariniSil } from './depoTemizlik.js';
+import kisaLinkRouter, { kisaIndirmeLinki } from './kisaLink.js';
 
 const MONGODB_URI = process.env.MONGODB_URI ?? 'mongodb://127.0.0.1:27017/artidoksan2';
 const PORT = process.env.PORT ?? 3000;
 
 const app = express();
 app.use(cors()); // mobil uygulamalar farklı origin'den gelir
+app.use('/d', kisaLinkRouter); // kısa indirme linkleri (/d/<kod> → imzalı R2 URL'ine yönlendirir)
 app.use(express.json({ limit: '10mb' })); // KYS verisi (doküman listesi + uygulama kayıtları) büyük olabilir
 
 // Kimlik doğrulama: AUTH_ZORUNLU=1 iken /api/auth ve /api/health dışındaki tüm uçlar giriş ister
@@ -505,7 +507,7 @@ app.post('/api/zip-link', async (req, res) => {
     const zipAdi = /\.zip$/i.test(zipTaban) ? zipTaban : `${zipTaban}.zip`;
     const key = buildObjectKey('zipler', zipAdi);
     await putObject(key, zipBuffer, 'application/zip');
-    const url = await createDownloadUrl(key, zipAdi, ZIP_URL_TTL_SECONDS);
+    const url = await kisaIndirmeLinki(req, key, zipAdi, ZIP_URL_TTL_SECONDS);
     res.json({ url, boyut: zipBuffer.length, dosyaSayisi: girdiler.length });
   } catch (err) {
     res.status(err.status ?? 500).json({ message: err.message });
