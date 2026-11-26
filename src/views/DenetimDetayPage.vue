@@ -387,7 +387,7 @@ function aksamAdet(kod: string | null) {
 function markaOzeti(kod: string | null) {
   const gruplar = secilenGruplar(kod);
   if (!gruplar.length) return '';
-  const markalar = new Set(gruplar.flatMap((g) => g.markalar.filter(Boolean)));
+  const markalar = new Set(gruplar.flatMap((g) => g.markalar.filter(Boolean).map(markaAnahtari)));
   return `${markalar.size} marka - ${gruplar.length} adet`;
 }
 
@@ -577,7 +577,14 @@ function aksamSecimAc(kod: string, yenile = true) {
   for (const g of aksamSecenekleri.value) if (grupKilitli(kod, g)) taslakSecim.value.add(g.anahtar);
 }
 
-const markaAnahtari = (m: string) => m.trim().toLocaleLowerCase('tr');
+// Marka sayısı sınırında aynı markanın yazım varyantları ("MERİH" / "MERİH ASANSÖR", "DPS" / "DPS DOOR")
+// tek marka sayılır: unvan ekleri atılıp kalan ad karşılaştırılır
+const MARKA_EKLERI = new Set(['asansör', 'asansor', 'kalıp', 've', 'door', 'lift', 'lıft', 'san.', 'sanayi', 'tic.', 'ticaret', 'ltd.', 'şti.', 'a.ş.']);
+const markaAnahtari = (m: string) => {
+  const kucuk = m.trim().toLocaleLowerCase('tr');
+  const parcalar = kucuk.split(/\s+/).filter((p) => p && !MARKA_EKLERI.has(p));
+  return parcalar.length ? parcalar.join(' ') : kucuk;
+};
 
 // Taslakta seçili grupların farklı marka kümesi
 const taslakMarkalari = computed(() => {

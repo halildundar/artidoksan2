@@ -474,6 +474,9 @@ function bAksamTaglari(gruplar) {
 // komponent alanlarına (marka/tip/onaylı kurum-NoBo/sertifika) alt alta yazılır
 function kalemVerisi(veri, kalem, baglam) {
   const sonuc = kalemVerisiTemel(veri, kalem, baglam);
+  // 13.Sample Table asansörün KENDİ kayıtlı komponentleriyle (marka, tip, seri no; tamponlar numaralı satırlarla)
+  // dolar; Modül B'de denetimde seçilen komponent listesi bu forma yazılmaz
+  if (kalem.kod === 'sample-table') return sonuc;
   return baglam.bAksamlar ? { ...sonuc, ...bAksamTaglari(baglam.bAksamlar) } : sonuc;
 }
 
