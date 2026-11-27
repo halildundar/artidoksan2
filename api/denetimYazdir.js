@@ -402,9 +402,9 @@ function durakListesi(asansor) {
 // yazılmaz; o liste yalnız "Güvenlik aksamı" dosya kalemlerinde (12.x) ve Marka Listesi'nde kullanılır.
 const kalemVerisi = (veri, kalem, baglam) => kalemVerisiTemel(veri, kalem, baglam);
 
-function kalemVerisiTemel(veri, kalem, baglam) {
+async function kalemVerisiTemel(veri, kalem, baglam) {
   const { asansor, denetim, denetci } = baglam;
-  if (kalem.kod.startsWith('certificate-annex-')) return { ...veri, ...annexAciklamasi(asansor, kalem, veri), ...annexAksamOzetleri(asansor) };
+  if (kalem.kod.startsWith('certificate-annex-')) return { ...veri, ...annexAciklamasi(asansor, kalem, veri), ...(await annexAksamOzetleri(denetim)) };
   if (kalem.kod === 'checklist') return { ...veri, ...checklistVerisi(asansor, String(denetim._id)) };
   if (kalem.kod === 'module-b-certificate') return { ...veri, ...makineTipiAlanlari(denetim, asansor) };
   if (kalem.kod === 'module-e-certificate') return { ...veri, ...makineTipiAlanlari(denetim, asansor) };
@@ -443,27 +443,34 @@ function annexAciklamasi(asansor, kalem, veri) {
   };
 }
 
-// Certificate Annex "3. Safety Components": her alana asansörde SEÇİLİ komponentlerin
-// TÜMÜ yazılır — birden fazla satır seçildiyse her biri kendi satırında (marka tip — NB — sertifika no).
-// Aynı tip/sertifikalı tekrar satırlar (ör. 2 adet tampon) tek satıra iner.
-function annexAksamOzetleri(asansor) {
-  const satirlar = (slotlar) => (asansor?.guvenlikAksamlari ?? []).filter((s) => slotlar.includes(s.slot));
+// Certificate Annex "3. Safety Components": alanlar asansörün kendi komponentlerinden DEĞİL,
+// denetimin Modul B komponent listesinde (katalogdan) SEÇİLEN satırlardan doldurulur.
+// Birden fazla satır seçildiyse her biri kendi satırında (marka tip — NB — sertifika no);
+// aynı satırın tekrarları tek satıra iner. NoBo denetim satırında tutulmaz, katalog
+// belgesinden (belgeId) bulunur.
+async function annexAksamOzetleri(denetim) {
+  const tumSatirlar = denetim?.guvenlikAksamlari ?? [];
+  const idler = [...new Set(tumSatirlar.map((s) => s.belgeId).filter((id) => id && mongoose.Types.ObjectId.isValid(id)))];
+  const belgeler = idler.length ? await AksamBelgesi.find({ _id: { $in: idler } }).select('onayliKurumNobo').lean() : [];
+  const noboHarita = new Map(belgeler.map((b) => [String(b._id), bos(b.onayliKurumNobo)]));
   const satirMetni = (s) => [
-    [s.markaSnapshot, s.tip].filter(Boolean).join(' '),
-    s.onayliKurumNobo ? `NB ${s.onayliKurumNobo}` : '',
+    [s.marka, s.tip].filter(Boolean).join(' '),
+    noboHarita.get(String(s.belgeId)) ? `NB ${noboHarita.get(String(s.belgeId))}` : '',
     s.sertifikaNo ? `Certificate No: ${s.sertifikaNo}` : '',
   ].filter(Boolean).join(' — ');
-  const ozet = (slotlar) => [...new Set(satirlar(slotlar).map(satirMetni).filter(Boolean))].join('\n');
-  const disli = asansor?.motorDisliTipi ? (asansor.motorDisliTipi === 'dislisiz' ? 'Gearless' : 'Geared') : '';
+  const ozet = (kodlar) => [...new Set(
+    tumSatirlar.filter((s) => kodlar.includes(s.bilesenTipiKodu)).map(satirMetni).filter(Boolean)
+  )].join('\n');
   return {
     hiz_reg_ozet: ozet(['hiz_regulatoru']),
-    fren_ozet: ozet(['fren', 'karsi_agirlik_freni']),
-    kab_tamp_ozet: ozet(['kabin_tamponu', 'karsi_agirlik_tamponu']),
-    durak_kapi_kilit_ozet: ozet(['durak_kapi_kilidi', 'durak_kapi_kilidi_2']),
-    kabin_kapi_kilit_ozet: ozet(['kabin_kapi_kilidi', 'kabin_kapi_kilidi_2']),
+    fren_ozet: ozet(['fren']),
+    kab_tamp_ozet: ozet(['tampon']),
+    durak_kapi_kilit_ozet: ozet(['durak_kapi_kilidi']),
+    kabin_kapi_kilit_ozet: ozet(['kabin_kapi_kilidi']),
     kart_ozet: ozet(['kontrol_karti']),
     ucm_acop_ozet: ozet(['ucm_acop']),
-    motor_ozet: [disli, [bos(asansor?.motorMarkaSnapshot), bos(asansor?.motorTip)].filter(Boolean).join(' ')].filter(Boolean).join(' — '),
+    // Motor satırları listede 'motor' koduyla tutulur (eski kayıtlar dişli/dişlisiz kodlu olabilir)
+    motor_ozet: ozet(['motor', 'motor_dislisiz', 'motor_dislili']),
   };
 }
 
@@ -1071,7 +1078,7 @@ async function kalemListesi(baglam) {
   try {
     const veri = await denetimVerisi(baglam);
     for (const k of aktifKalemler(baglam).filter((x) => x.tip === 'sablon' && x.hazir !== false && uretilenler.has(x.kod))) {
-      ozetler.set(k.kod, await kaynakOzeti(sablonYolu(k, baglam), kalemVerisi(veri, k, baglam), baglam.firma));
+      ozetler.set(k.kod, await kaynakOzeti(sablonYolu(k, baglam), await kalemVerisi(veri, k, baglam), baglam.firma));
     }
   } catch { /* özet hesaplanamazsa güncellik bilgisi verilmez */ }
 
@@ -1148,7 +1155,7 @@ async function kalemUret(denetimId, kod, slot, { zorla, ctx }) {
   const yol = sablonYolu(kalem, baglam);
   await fs.access(yol).catch(() => { throw new Error(`Şablon dosyası bulunamadı: ${kalem.klasor}/${sablonDosyasi(kalem, baglam)}`); });
   const veri = await denetimVerisi(baglam);
-  const kVeri = kalemVerisi(veri, kalem, baglam);
+  const kVeri = await kalemVerisi(veri, kalem, baglam);
   const ozet = await kaynakOzeti(yol, kVeri, baglam.firma);
   const mevcut = (baglam.denetim.uretilenBelgeler ?? []).find((u) => u.sablonKodu === kod);
   if (!zorla && mevcut?.kaynakOzeti === ozet && mevcut.docx?.dosyaAnahtari && mevcut.pdf?.dosyaAnahtari) {
@@ -1178,7 +1185,7 @@ async function topluUret(denetimId, slot, { ctx }) {
     try {
       const yol = sablonYolu(kalem, baglam);
       await fs.access(yol).catch(() => { throw new Error(`Şablon dosyası bulunamadı: ${kalem.klasor}/${sablonDosyasi(kalem, baglam)}`); });
-      const kVeri = kalemVerisi(veri, kalem, baglam);
+      const kVeri = await kalemVerisi(veri, kalem, baglam);
       const ozet = await kaynakOzeti(yol, kVeri, baglam.firma);
       const mevcut = mevcutlar.get(kalem.kod);
       if (mevcut?.kaynakOzeti === ozet && mevcut.docx?.dosyaAnahtari && mevcut.pdf?.dosyaAnahtari) {
