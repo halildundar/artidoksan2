@@ -1225,9 +1225,16 @@ router.get('/:id/yazdir', async (req, res) => {
       teknikDosyaSeti: setSecimi(baglam.denetim.teknikDosyaSeti, TEKNIK_DOSYA_SETLERI, CE),
       tuvFormsSeti: setSecimi(baglam.denetim.tuvFormsSeti, TUV_FORMS_SETLERI, TUV),
       kalemler: await kalemListesi(baglam),
-      // İndirilen ZIP adı: "<Modül> <Firma adı> Denetim dosyası"
-      zipAdi: [YAZDIR_MODUL_ETIKETI[ceModulKodu(baglam.denetim.modul)], baglam.firma?.ad, 'Denetim dosyası']
-        .filter(Boolean).join(' ').replace(/[\\/:*?"<>|]+/g, ' ').replace(/\s+/g, ' ').trim(),
+      // İndirilen ZIP adı: "<Modül> <askı> <hız> <kapasite> <MR/MRL> <Firma adı> Denetim Raporu"
+      zipAdi: [
+        YAZDIR_MODUL_ETIKETI[ceModulKodu(baglam.denetim.modul)],
+        baglam.asansor?.askiTipi?.replace(':', '-'),
+        baglam.asansor?.hiz != null ? `${baglam.asansor.hiz} ms` : '',
+        baglam.asansor?.beyanYuku != null && baglam.asansor?.beyanYuku !== '' ? `${baglam.asansor.beyanYuku} kg` : '',
+        baglam.asansor?.makinaKonumu,
+        baglam.firma?.ad,
+        'Denetim Raporu',
+      ].filter(Boolean).join(' ').replace(/[\\/:*?"<>|]+/g, ' ').replace(/\s+/g, ' ').trim(),
     });
   } catch (err) {
     res.status(500).json({ message: err.message });
