@@ -445,19 +445,21 @@ function annexAciklamasi(asansor, kalem, veri) {
 
 // Certificate Annex "3. Safety Components": alanlar asansörün kendi komponentlerinden DEĞİL,
 // denetimin Modul B komponent listesinde (katalogdan) SEÇİLEN satırlardan doldurulur.
-// Birden fazla satır seçildiyse her biri kendi satırında (marka tip — NB — sertifika no);
-// aynı satırın tekrarları tek satıra iner. NoBo denetim satırında tutulmaz, katalog
-// belgesinden (belgeId) bulunur.
+// Birden fazla satır seçildiyse her biri kendi satırında, biçim:
+// "MARKA / TİP / KURUM ÜNVANI - NOBO / SERTİFİKA NO" (ör. ASPAR / OSG A / LIFTINSTITUUT - 0400 / NL16-...).
+// Aynı satırın tekrarları tek satıra iner. Kurum ünvanı ve NoBo denetim satırında
+// tutulmaz, katalog belgesinden (belgeId) bulunur.
 async function annexAksamOzetleri(denetim) {
   const tumSatirlar = denetim?.guvenlikAksamlari ?? [];
   const idler = [...new Set(tumSatirlar.map((s) => s.belgeId).filter((id) => id && mongoose.Types.ObjectId.isValid(id)))];
-  const belgeler = idler.length ? await AksamBelgesi.find({ _id: { $in: idler } }).select('onayliKurumNobo').lean() : [];
-  const noboHarita = new Map(belgeler.map((b) => [String(b._id), bos(b.onayliKurumNobo)]));
+  const belgeler = idler.length ? await AksamBelgesi.find({ _id: { $in: idler } }).select('onayliKurumNobo onayliKurumUnvan').lean() : [];
+  const kurumHarita = new Map(belgeler.map((b) => [String(b._id), [bos(b.onayliKurumUnvan), bos(b.onayliKurumNobo)].filter(Boolean).join(' - ')]));
   const satirMetni = (s) => [
-    [s.marka, s.tip].filter(Boolean).join(' '),
-    noboHarita.get(String(s.belgeId)) ? `NB ${noboHarita.get(String(s.belgeId))}` : '',
-    s.sertifikaNo ? `Certificate No: ${s.sertifikaNo}` : '',
-  ].filter(Boolean).join(' — ');
+    bos(s.marka),
+    bos(s.tip),
+    kurumHarita.get(String(s.belgeId)) ?? '',
+    bos(s.sertifikaNo),
+  ].filter(Boolean).join(' / ');
   const ozet = (kodlar) => [...new Set(
     tumSatirlar.filter((s) => kodlar.includes(s.bilesenTipiKodu)).map(satirMetni).filter(Boolean)
   )].join('\n');
