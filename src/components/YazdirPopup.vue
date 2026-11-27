@@ -372,7 +372,7 @@ async function tumunuIndir() {
         <div v-for="is in gorunenIsler" :key="is.id" class="mx-auto max-w-lg space-y-1 bg-surface-800 p-2 ring-1 ring-white/10">
           <div class="flex items-center justify-between gap-2">
             <span class="min-w-0 truncate text-xs font-semibold text-ink">
-              {{ is.tip === 'toplu' ? 'Tümünü Yazdır' : is.ad }}
+              {{ is.tip === 'toplu' ? 'Yazdır' : is.ad }}
             </span>
             <span class="shrink-0 text-[11px] font-semibold tabular-nums text-ink-muted">
               {{ is.tamamlanan }}/{{ is.toplam }}
@@ -460,7 +460,7 @@ async function tumunuIndir() {
                     <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" />
                     <rect x="6" y="14" width="12" height="8" />
                   </svg>
-                  {{ topluAktif ? `Yazdırılıyor ${topluAktif.tamamlanan}/${topluAktif.toplam}…` : 'Tümünü Yazdır' }}
+                  {{ topluAktif ? `Yazdırılıyor ${topluAktif.tamamlanan}/${topluAktif.toplam}…` : 'Yazdır' }}
                 </button>
                 <button v-if="zipIcerigi.length && !eksikSayisi" type="button" @click="tumunuIndir" :disabled="yazdirmaMesgul"
                   class="flex items-center justify-center gap-1.5 bg-surface-900 px-3 py-2.5 text-xs font-semibold text-ink ring-1 ring-white/10 active:bg-[#1a2a20] disabled:opacity-60">
