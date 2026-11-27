@@ -453,11 +453,12 @@ async function annexAksamOzetleri(denetim) {
   const tumSatirlar = denetim?.guvenlikAksamlari ?? [];
   const idler = [...new Set(tumSatirlar.map((s) => s.belgeId).filter((id) => id && mongoose.Types.ObjectId.isValid(id)))];
   const belgeler = idler.length ? await AksamBelgesi.find({ _id: { $in: idler } }).select('onayliKurumNobo onayliKurumUnvan').lean() : [];
-  // Uzun kurum ünvanlarının ("D Kare Gözetim Test ve Belgelendirme...") yalnız ilk iki kelimesi yazılır
-  const kisaUnvan = (u) => bos(u).trim().split(/\s+/).slice(0, 2).join(' ');
-  const kurumHarita = new Map(belgeler.map((b) => [String(b._id), [kisaUnvan(b.onayliKurumUnvan), bos(b.onayliKurumNobo)].filter(Boolean).join(' - ')]));
+  // Uzun kurum ünvanları ("D Kare Gözetim Test ve Belgelendirme...") ve uzun marka adları
+  // ("Shenyang Bluelight Drive Technology Co.,Ltd") yalnız ilk iki kelimesiyle yazılır
+  const kisaAd = (u) => bos(u).trim().split(/\s+/).slice(0, 2).join(' ');
+  const kurumHarita = new Map(belgeler.map((b) => [String(b._id), [kisaAd(b.onayliKurumUnvan), bos(b.onayliKurumNobo)].filter(Boolean).join(' - ')]));
   const satirMetni = (s) => [
-    bos(s.marka),
+    kisaAd(s.marka),
     bos(s.tip),
     kurumHarita.get(String(s.belgeId)) ?? '',
     bos(s.sertifikaNo),
