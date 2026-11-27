@@ -329,7 +329,6 @@ async function denetimYukle(id) {
   const firmaGorsel = firmaDuz && { ...firmaDuz, belgeler: { ...(firmaDuz.belgeler ?? {}), denetciImza: denetci?.imzaKase ?? undefined } };
   return {
     denetim, firma: firmaGorsel, asansor, denetci, annexler: await annexSecenekleri(),
-    bAksamlar: ceModulKodu(denetim.modul) === 'B' ? await bAksamSatirlari(denetim) : null,
   };
 }
 
@@ -398,87 +397,10 @@ function durakListesi(asansor) {
   return n > 0 ? Array.from({ length: n }, (_, i) => i).join(', ') : '';
 }
 
-// Kalemin kendine özgü etiketleri (aynı adlı etiketler kalemlerde farklı birimde olabilir)
-// Seçili komponent kodu -> şablonlardaki etiket önekleri (kilit/tampon gibi formlarda farklı adlarla geçer)
-const B_KOMPONENT_ONEKLERI = {
-  hiz_regulatoru: ['hiz_reg'],
-  fren: ['fren', 'kab_fren'],
-  kontrol_karti: ['kart'],
-  durak_kapi_kilidi: ['durak_kapi_kilit', 'd_kapi', 'kilit'],
-  kabin_kapi_kilidi: ['kabin_kapi_kilit', 'k_kapi', 'kab_kilit'],
-  ucm_acop: ['ucm_acop'],
-  motor: ['motor'],
-  tampon: ['kab_tamp', 'kar_tamp'],
-};
-
-// Denetimin seçili komponent satırları, katalog bilgileriyle (onaylı kurum, NoBo, sertifika) zenginleştirilir;
-// aynı sertifika numaralı satırlar tek kayıtta birleşir (tipler virgülle)
-async function bAksamSatirlari(denetim) {
-  const satirlar = denetim.guvenlikAksamlari ?? [];
-  const idler = [...new Set(satirlar.map((a) => a.belgeId).filter(Boolean).map(String))];
-  const katalog = idler.length ? await AksamBelgesi.find({ _id: { $in: idler } }).lean() : [];
-  const harita = new Map(katalog.map((b) => [String(b._id), b]));
-  const gruplar = {};
-  for (const a of satirlar) {
-    const belge = harita.get(String(a.belgeId));
-    const kayit = {
-      marka: bos(belge?.marka || a.marka),
-      tip: bos(a.tip),
-      sertifikaNo: bos(belge?.sertifikaNo || a.sertifikaNo),
-      kurum: bos(belge?.onayliKurumUnvan),
-      nobo: bos(belge?.onayliKurumNobo),
-    };
-    const liste = (gruplar[a.bilesenTipiKodu] ??= []);
-    const anahtar = kayit.sertifikaNo ? `sert:${kayit.sertifikaNo.toLocaleLowerCase('tr')}` : `${a.belgeId}|${kayit.tip}`;
-    const var_ = liste.find((x) => x.anahtar === anahtar);
-    if (var_) {
-      if (kayit.tip && !var_.tipler.includes(kayit.tip)) var_.tipler.push(kayit.tip);
-      if (kayit.marka && !var_.markalar.includes(kayit.marka)) var_.markalar.push(kayit.marka);
-    } else {
-      liste.push({ anahtar, markalar: kayit.marka ? [kayit.marka] : [], tipler: kayit.tip ? [kayit.tip] : [], sertifikaNo: kayit.sertifikaNo, kurum: kayit.kurum, nobo: kayit.nobo });
-    }
-  }
-  return gruplar;
-}
-
-// Her komponent için ilgili etiketler: alan başına alt alta satırlar (satır = bir sertifika kaydı);
-// *_ozet etiketi "Marka / Tip / Onaylı Kurum - NoBo / Sertifika No" biçiminde birleşik satırlardır
-function bAksamTaglari(gruplar) {
-  const sonuc = {};
-  for (const [kod, onekler] of Object.entries(B_KOMPONENT_ONEKLERI)) {
-    const liste = gruplar[kod] ?? [];
-    if (!liste.length) continue;
-    const kurumNobo = (g) => [g.kurum, g.nobo].filter(Boolean).join(' - ');
-    const satirlar = (fn) => liste.map(fn).join('\n');
-    for (const on of onekler) {
-      const marka = satirlar((g) => g.markalar.join(', '));
-      sonuc[`${on}_marka`] = marka;
-      sonuc[`${on}_ad`] = marka;
-      sonuc[`${on}_tip`] = satirlar((g) => g.tipler.join(', '));
-      sonuc[`${on}_cert_no`] = satirlar((g) => g.sertifikaNo);
-      sonuc[`${on}_nobo`] = satirlar(kurumNobo);
-      sonuc[`${on}_ozet`] = satirlar((g) => [g.markalar.join(', '), g.tipler.join(', '), kurumNobo(g), g.sertifikaNo].join(' / '));
-      // Numaralı tampon alanları (kab_tamp_1..3) asansör kaydından geliyordu; seçili komponentler
-      // zaten alt alta yazıldığından tekrar etmesin diye boşaltılır
-      if (kod === 'tampon') {
-        for (let i = 1; i <= 3; i++) {
-          for (const alan of ['marka', 'tip', 'cert_no', 'nobo', 'serino']) sonuc[`${on}_${i}_${alan}`] = '';
-        }
-      }
-    }
-  }
-  return sonuc;
-}
-
-// Modul B: denetimde "Modul B Komponentler" panelinden seçilen komponentler, formlardaki ilgili
-// komponent alanlarına (marka/tip/onaylı kurum-NoBo/sertifika) alt alta yazılır
-function kalemVerisi(veri, kalem, baglam) {
-  const sonuc = kalemVerisiTemel(veri, kalem, baglam);
-  // 13.Sample Table asansörün KENDİ kayıtlı komponentleriyle (marka, tip, seri no; tamponlar numaralı satırlarla)
-  // dolar; Modül B'de denetimde seçilen komponent listesi bu forma yazılmaz
-  if (kalem.kod === 'sample-table') return sonuc;
-  return baglam.bAksamlar ? { ...sonuc, ...bAksamTaglari(baglam.bAksamlar) } : sonuc;
-}
+// Yazdırılan tüm belgelerde komponent alanları (marka, tip, seri no, sertifika) yalnız ASANSÖRÜN KENDİ kayıtlı
+// komponentleriyle dolar. Modül B'de denetimde seçilen komponent listesi (marka listesi seçimleri) belge alanlarına
+// yazılmaz; o liste yalnız "Güvenlik aksamı" dosya kalemlerinde (12.x) ve Marka Listesi'nde kullanılır.
+const kalemVerisi = (veri, kalem, baglam) => kalemVerisiTemel(veri, kalem, baglam);
 
 function kalemVerisiTemel(veri, kalem, baglam) {
   const { asansor, denetim, denetci } = baglam;
