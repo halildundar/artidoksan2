@@ -417,6 +417,8 @@ function kalemVerisiTemel(veri, kalem, baglam) {
     return { ...veri, ...teknikVerisi(asansor, denetim, denetci), ...ornekTabloVerisi(asansor), 'kişi_sayisi': bos(asansor?.kisiSayisi) };
   }
   if (kalem.riskGrup) return riskFormAlanlari(asansor, kalem.riskGrup, veri, riskYayimTarihi(denetim));
+  // 7.Photo: foto anahtarları güncellik özetine girer (fotoğraf eklenip çıkınca belge eskir)
+  if (kalem.kod === 'photo') return { ...veri, foto_resim_anahtarlari: Object.values(fotoGrupAnahtarlari(asansor)).flat().join(',') };
   if (kalem.kod === 'sample-table') return { ...veri, ...teknikVerisi(asansor, denetim, denetci), ...ornekTabloVerisi(asansor) };
   if (kalem.kod === 'technical-descriptions') return { ...veri, ...teknikVerisi(asansor, denetim, denetci) };
   return veri;
@@ -644,6 +646,42 @@ const riskResimAnahtarlari = (asansor, grup) => [...new Set(
   (asansor?.[RISK_RESIM_ALANLARI[grup]] ?? []).map((r) => r?.dosyaAnahtari).filter(Boolean)
 )];
 
+// 7.Photo: güvenlik komponentlerinin montaj fotoğrafları başlık altına basılır.
+// Şablonda her başlığın altında {%foto_*} etiketi var; fotoğraflar asansör
+// kaydındaki ilgili foto alanlarından gelir, fotoğrafı olmayan grubun başlığı
+// belgeden çıkarılır (hiç fotoğraf yoksa iskelet olduğu gibi kalır).
+const FOTO_GRUPLARI = [
+  { baslik: 'FREN', tag: 'foto_fren', alanlar: ['frenFotolari'] },
+  { baslik: 'KARŞI AĞIRLIK FRENİ', tag: 'foto_karsi_agirlik_fren', alanlar: ['karsiAgirlikFrenFotolari'] },
+  { baslik: 'HIZ REGÜLATÖRÜ', tag: 'foto_hiz_regulatoru', alanlar: ['hizRegulatoruFotolari'] },
+  { baslik: 'KONTROL KARTI', tag: 'foto_kontrol_karti', alanlar: ['kontrolKartiFotolari'] },
+  { baslik: 'KABİN TAMPON', tag: 'foto_kabin_tampon', alanlar: ['kabinTamponFotolari'] },
+  { baslik: 'KARŞI AĞIRLIK TAMPON', tag: 'foto_karsi_agirlik_tampon', alanlar: ['karsiAgirlikTamponFotolari'] },
+  { baslik: 'DURAK KAPI KİLİT', tag: 'foto_durak_kapi_kilit', alanlar: ['durakKilitFotolari', 'durakKilitFotolari2'] },
+  { baslik: 'KABİN KAPI KİLİT', tag: 'foto_kabin_kapi_kilit', alanlar: ['kabinKilitFotolari', 'kabinKilitFotolari2'] },
+  { baslik: 'MOTOR', tag: 'foto_motor', alanlar: ['motorFotolari'] },
+  { baslik: 'UCM / ACOP', tag: 'foto_ucm_acop', alanlar: ['ucmAcopFotolari'] },
+];
+// Foto alanlarına dosya seçiciden PDF de yüklenebiliyor — belgeye yalnız görseller basılır
+const gorselSlotMu = (s) => (s?.mimeType ? /^image\//i.test(s.mimeType) : /\.(jpe?g|png|webp|gif|bmp)$/i.test(s?.dosyaAdi ?? ''));
+const fotoGrupAnahtarlari = (asansor) => Object.fromEntries(FOTO_GRUPLARI.map((g) => [
+  g.tag,
+  [...new Set(g.alanlar.flatMap((alan) => (asansor?.[alan] ?? []).filter(gorselSlotMu).map((s) => s.dosyaAnahtari).filter(Boolean)))],
+]));
+
+// Fotoğrafı olmayan grubun başlık paragrafı kaldırılır (etiketi cokluGorseller boş
+// listeyle siler); başlık eşleşmesi tam metinle yapılır ("FREN", "KARŞI AĞIRLIK
+// FRENİ"nin parçası olduğundan includes kullanılamaz)
+function fotoXmlYama(xml, asansor) {
+  const anahtarlar = fotoGrupAnahtarlari(asansor);
+  if (Object.values(anahtarlar).every((liste) => !liste.length)) return xml;
+  const bosBasliklar = new Set(FOTO_GRUPLARI.filter((g) => !anahtarlar[g.tag].length).map((g) => g.baslik));
+  return xml.replace(/<w:p[ >][\s\S]*?<\/w:p>/g, (p) => {
+    const duz = [...p.matchAll(/<w:t[^>]*>([^<]*)<\/w:t>/g)].map((t) => t[1]).join('').trim();
+    return bosBasliklar.has(duz) ? '' : p;
+  });
+}
+
 // İlk tablo (firma/asansör bilgileri) başlık tablosundan dar çıkıyor (%103 + sabit yerleşim, LibreOffice
 // sütunları farklı hesaplıyor): başlık tablosuyla aynı genişliğe (14034) ve sütunlara (3828 / kalan) çekilir
 function ilkTabloyuBaslikGenisligineGetir(xml) {
@@ -677,10 +715,12 @@ function riskXmlYama(xml) {
 const doldurmaSecenegi = ({ denetim, asansor }, kalem) => ({
   checkboxTagleri: isaretlenecekCheckboxTagleri(ceModulKodu(denetim.modul)),
   ...(kalem?.riskGrup ? { cokluGorseller: { 'risk_analiz_resimlerİ': riskResimAnahtarlari(asansor, kalem.riskGrup) } } : {}),
+  ...(kalem?.kod === 'photo' ? { cokluGorseller: fotoGrupAnahtarlari(asansor) } : {}),
   xmlYama: (xml) => {
     // 20.Risk Analiz Formu: Word'ün tablo içine koyduğu sayfa sonları genel yamada LibreOffice'te
     // tablo başına boş satır ekliyor — 2. ve 3. tablo "sayfa başı" paragrafıyla başlatılır
     if (kalem?.riskGrup) return riskXmlYama(xml);
+    if (kalem?.kod === 'photo') return fotoXmlYama(xml, asansor);
     const yamali = icindekilerSayfaKirilimi(wordSayfaKirilimlari(hucreIciKonumlariDuzelt(birlesikSatirlariTekle(bosDolguTablolariniKaldir(checklistYamasi(xml))))));
     if (kalem?.kod === 'module-g-certificate') return bosParagraflariKucult(yamali);
     if (kalem?.kod === 'deviation-report') return uzunSatirlariEsnet(yamali);
