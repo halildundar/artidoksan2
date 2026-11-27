@@ -748,6 +748,28 @@ function riskXmlYama(xml) {
   return tablolariYeniSayfadaBaslat(ilkTablodakiBosSonSatiriKaldir(hucreIciKonumlariDuzelt(birlesikSatirlariTekle(bosDolguTablolariniKaldir(checklistYamasi(xml))))), [1, 2]);
 }
 
+// Annex özet alanlarının paragrafları şablonda iki yana yaslı: eklenen satırların kelime
+// araları açılıp dağınık görünüyordu — özet etiketli paragraflar sola yaslanır ve biraz
+// küçük puntoyla (9 pt) yazılır
+function annexOzetParagrafYamasi(xml) {
+  return xml.replace(/<w:p[ >][\s\S]*?<\/w:p>/g, (p) => {
+    if (!p.replace(/<[^>]+>/g, '').includes('_ozet}')) return p;
+    if (/<w:jc [^>]*\/>/.test(p)) {
+      p = p.replace(/<w:jc [^>]*\/>/, '<w:jc w:val="left"/>');
+    } else if (p.includes('<w:pPr>')) {
+      p = p.replace(/<w:pPr>([\s\S]*?)<\/w:pPr>/, (m, ic) => (ic.includes('<w:rPr>')
+        ? m.replace('<w:rPr>', '<w:jc w:val="left"/><w:rPr>')
+        : `<w:pPr>${ic}<w:jc w:val="left"/></w:pPr>`));
+    } else {
+      p = p.replace(/^(<w:p[^>]*>)/, '$1<w:pPr><w:jc w:val="left"/></w:pPr>');
+    }
+    p = p.replace(/<w:sz w:val="\d+"\/>/g, '<w:sz w:val="18"/>').replace(/<w:szCs w:val="\d+"\/>/g, '<w:szCs w:val="18"/>');
+    p = p.replace(/<w:rPr>((?:(?!<\/w:rPr>)[\s\S])*?)<\/w:rPr>/g, (m, ic) => (ic.includes('<w:sz ') ? m : `<w:rPr>${ic}<w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr>`));
+    p = p.replace(/<w:r(>| [^>]*>)(?!<w:rPr>)/g, (m) => `${m}<w:rPr><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr>`);
+    return p;
+  });
+}
+
 const doldurmaSecenegi = ({ denetim, asansor }, kalem) => ({
   checkboxTagleri: isaretlenecekCheckboxTagleri(ceModulKodu(denetim.modul)),
   ...(kalem?.riskGrup ? { cokluGorseller: { 'risk_analiz_resimlerİ': riskResimAnahtarlari(asansor, kalem.riskGrup) } } : {}),
@@ -783,7 +805,7 @@ const doldurmaSecenegi = ({ denetim, asansor }, kalem) => ({
       x = x.replace(/above-mentioned\s{2,}EU-Type/, 'above-mentioned EU-Type');
       return paragrafiDegistir(x, '357.27335/357.27335/IV-B/2026', '{ce_b_belge_nolari}');
     }
-    if (kalem?.kod?.startsWith('certificate-annex-')) return annexUcmNotu(yamali, asansor);
+    if (kalem?.kod?.startsWith('certificate-annex-')) return annexOzetParagrafYamasi(annexUcmNotu(yamali, asansor));
     return yamali;
   },
 });
