@@ -404,7 +404,7 @@ const kalemVerisi = (veri, kalem, baglam) => kalemVerisiTemel(veri, kalem, bagla
 
 function kalemVerisiTemel(veri, kalem, baglam) {
   const { asansor, denetim, denetci } = baglam;
-  if (kalem.kod.startsWith('certificate-annex-')) return { ...veri, ...annexAciklamasi(asansor, kalem, veri) };
+  if (kalem.kod.startsWith('certificate-annex-')) return { ...veri, ...annexAciklamasi(asansor, kalem, veri), ...annexAksamOzetleri(asansor) };
   if (kalem.kod === 'checklist') return { ...veri, ...checklistVerisi(asansor, String(denetim._id)) };
   if (kalem.kod === 'module-b-certificate') return { ...veri, ...makineTipiAlanlari(denetim, asansor) };
   if (kalem.kod === 'module-e-certificate') return { ...veri, ...makineTipiAlanlari(denetim, asansor) };
@@ -440,6 +440,30 @@ function annexAciklamasi(asansor, kalem, veri) {
     paraf1: makine,
     paraf2: `The suspension is of the topslung type with a reefing factor ${oran}. ${montaj}`,
     paraf3: 'The main characteristics of the layout are given in figure 1 and on the next pages. For more details we refer to the technical file. The main characteristics concerning the model description are listed on the next pages.',
+  };
+}
+
+// Certificate Annex "3. Safety Components": her alana asansörde SEÇİLİ komponentlerin
+// TÜMÜ yazılır — birden fazla satır seçildiyse her biri kendi satırında (marka tip — NB — sertifika no).
+// Aynı tip/sertifikalı tekrar satırlar (ör. 2 adet tampon) tek satıra iner.
+function annexAksamOzetleri(asansor) {
+  const satirlar = (slotlar) => (asansor?.guvenlikAksamlari ?? []).filter((s) => slotlar.includes(s.slot));
+  const satirMetni = (s) => [
+    [s.markaSnapshot, s.tip].filter(Boolean).join(' '),
+    s.onayliKurumNobo ? `NB ${s.onayliKurumNobo}` : '',
+    s.sertifikaNo ? `Certificate No: ${s.sertifikaNo}` : '',
+  ].filter(Boolean).join(' — ');
+  const ozet = (slotlar) => [...new Set(satirlar(slotlar).map(satirMetni).filter(Boolean))].join('\n');
+  const disli = asansor?.motorDisliTipi ? (asansor.motorDisliTipi === 'dislisiz' ? 'Gearless' : 'Geared') : '';
+  return {
+    hiz_reg_ozet: ozet(['hiz_regulatoru']),
+    fren_ozet: ozet(['fren', 'karsi_agirlik_freni']),
+    kab_tamp_ozet: ozet(['kabin_tamponu', 'karsi_agirlik_tamponu']),
+    durak_kapi_kilit_ozet: ozet(['durak_kapi_kilidi', 'durak_kapi_kilidi_2']),
+    kabin_kapi_kilit_ozet: ozet(['kabin_kapi_kilidi', 'kabin_kapi_kilidi_2']),
+    kart_ozet: ozet(['kontrol_karti']),
+    ucm_acop_ozet: ozet(['ucm_acop']),
+    motor_ozet: [disli, [bos(asansor?.motorMarkaSnapshot), bos(asansor?.motorTip)].filter(Boolean).join(' ')].filter(Boolean).join(' — '),
   };
 }
 
